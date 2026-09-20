@@ -33,6 +33,42 @@ export class GeminiAIProvider implements IAIProvider {
     return this.executeGeminiRequest(`${systemPrompt}\n\n${userPrompt}`);
   }
 
+  public async generateRaw(prompt: string): Promise<string> {
+    let modelsToTry = [...this.candidateModels];
+    if (this.primaryModel && !modelsToTry.includes(this.primaryModel)) {
+      modelsToTry = [this.primaryModel, ...modelsToTry];
+    } else if (this.primaryModel) {
+      modelsToTry = [this.primaryModel, ...modelsToTry.filter(m => m !== this.primaryModel)];
+    }
+
+    for (const model of modelsToTry) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              temperature: 0.8,
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        }
+      } catch {
+        continue;
+      }
+    }
+    throw new Error('Gemini raw generation failed across all candidate models');
+  }
+
   private async executeGeminiRequest(fullPromptText: string): Promise<AIDMResponse> {
     let modelsToTry = [...this.candidateModels];
     if (this.primaryModel && !modelsToTry.includes(this.primaryModel)) {

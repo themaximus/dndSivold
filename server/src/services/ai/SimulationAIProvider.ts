@@ -326,12 +326,36 @@ export class SimulationAIProvider implements IAIProvider {
       newMilestones.push(`Раунд ${roundNumber}: Герои совершили сокрушительный прорыв.`);
     }
 
+    // Process active enemies HP changes
+    let activeEnemies = context.activeEnemies && context.activeEnemies.length > 0
+      ? context.activeEnemies.map(e => ({ ...e }))
+      : [];
+
+    const successfulAttacks = analyzedActions.filter(a => a.isSuccess && ['melee', 'ranged', 'magic'].includes(a.intent));
+    if (activeEnemies.length > 0 && successfulAttacks.length > 0) {
+      // Find first living enemy
+      const targetEnemy = activeEnemies.find(e => !e.isDead && e.hpCurrent > 0);
+      if (targetEnemy) {
+        const totalDmg = successfulAttacks.reduce((acc, a) => acc + (a.isCritSuccess ? 10 : 5), 0);
+        targetEnemy.hpCurrent = Math.max(0, targetEnemy.hpCurrent - totalDmg);
+        if (targetEnemy.hpCurrent === 0) {
+          targetEnemy.isDead = true;
+          targetEnemy.status = 'Пал в бою под натиском отряда';
+        } else {
+          targetEnemy.status = `Ранен (получил ${totalDmg} урона), держит оборону`;
+        }
+      }
+    }
+
+    const livingCount = activeEnemies.filter(e => !e.isDead && e.hpCurrent > 0).length;
+
     return {
       narrative: narrativeParagraphs.join('\n\n'),
       playerUpdates,
       currentSituation,
-      enemiesStatus: failedActions.length === 0 ? 'Враги сломлены и отступают' : 'Враги ожесточенно контратакуют',
-      mood: playerUpdates.length > 0 ? 'combat' : critSuccesses.length > 0 ? 'triumph' : 'tension',
+      enemiesStatus: livingCount === 0 ? 'Все противники повержены или обращены в бегство' : `В бою: ${livingCount} противников`,
+      activeEnemies: activeEnemies.length > 0 ? activeEnemies : undefined,
+      mood: playerUpdates.length > 0 ? 'combat' : livingCount === 0 ? 'triumph' : 'tension',
       nextRoundDC,
       nextRoundDCReason,
       droppedLoot: droppedLoot.length > 0 ? droppedLoot : undefined,
@@ -341,7 +365,7 @@ export class SimulationAIProvider implements IAIProvider {
   }
 
   public async generatePrologue(context: AIDMPrologueContext): Promise<AIDMResponse> {
-    const { title, setting, characters } = context;
+    const { title, setting, characters, genre = 'fantasy' } = context;
 
     const heroDescriptions = characters.map(c => {
       const bioSnippet = c.bio ? ` (${c.bio})` : '';
@@ -356,14 +380,33 @@ export class SimulationAIProvider implements IAIProvider {
 
 ${partyIntro}
 
-Тяжёлые своды отзываются эхом каждого шага. Внезапно из клубящегося полумрака доносится скрежет обнажаемых клинков и утробное рычание: вражеский дозор активизируется, отрезая путь к отступлению и смыкая кольцо вокруг героев!`;
+Тяжёлые своды отзываются эхом каждого шага. Внезапно из клубящегося полумрака доносится скрежет обнажаемого оружия: вражеский дозор активизируется, отрезая путь к отступлению и смыкая кольцо вокруг героев!`;
 
     const currentSituation = `Перед отрядом поднимаются вражеские застрельщики, перекрывая единственный выход за упавшей решеткой. Что предпринимает отряд?`;
+
+    let enemyName = 'Авангард противника';
+    if (/кибер|cyber/i.test(genre)) enemyName = 'Кибер-наёмники «Синтек»';
+    else if (/мафи|mafia/i.test(genre)) enemyName = 'Боевики с автоматами Томпсона';
+    else if (/sci|космос/i.test(genre)) enemyName = 'Боевые охранные дроны';
+    else if (/хоррор|horror/i.test(genre)) enemyName = 'Одержимые сектанты';
+    else enemyName = 'Авангард разбойников';
 
     return {
       narrative,
       playerUpdates: [],
       currentSituation,
+      activeEnemies: [
+        {
+          id: 'enemy_1',
+          name: enemyName,
+          type: 'minion',
+          hpCurrent: 14,
+          hpMax: 14,
+          ac: 12,
+          status: 'Окружают отряд с обнажённым оружием',
+          isDead: false,
+        }
+      ],
       enemiesStatus: 'Враги готовы к немедленному нападению',
       mood: 'mystery',
       nextRoundDC: 12,

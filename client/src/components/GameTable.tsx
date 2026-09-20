@@ -11,6 +11,7 @@ import { LootDropsBar } from './game/LootDropsBar';
 import { InventoryModal } from './game/InventoryModal';
 import { TalentTreeModal } from './game/TalentTreeModal';
 import { CampaignJournalModal } from './game/CampaignJournalModal';
+import { CampaignMapModal } from './game/CampaignMapModal';
 import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
 
@@ -26,6 +27,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
 
   // Custom Domain Hooks
   const {
@@ -101,6 +103,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         onOpenInventory={() => setIsInventoryOpen(true)}
         onOpenTalents={() => setIsTalentsOpen(true)}
         onOpenJournal={() => setIsJournalOpen(true)}
+        onOpenMap={() => setIsMapOpen(true)}
         onLeave={onLeave}
       />
 
@@ -197,6 +200,17 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         onClose={() => setIsJournalOpen(false)}
         milestones={room.loreJournal || []}
         campaignTitle={room.title}
+      />
+
+      {/* Interactive Campaign Story Route Map Modal */}
+      <CampaignMapModal
+        isOpen={isMapOpen}
+        onClose={() => setIsMapOpen(false)}
+        mapData={room.campaignMap}
+        campaignTitle={room.title}
+        currentRound={room.roundNumber}
+        duration={room.campaignDuration || 'medium'}
+        genre={room.genre || 'fantasy'}
       />
     </div>
   );

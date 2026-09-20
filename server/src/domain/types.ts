@@ -1,10 +1,34 @@
 import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem } from '../db';
 
+export interface CampaignMapNode {
+  id: string;
+  title: string;
+  description: string;
+  act: number;
+  type: 'start' | 'battle' | 'mystery' | 'boss' | 'climax' | 'rest';
+  status: 'visited' | 'current' | 'discovered' | 'locked';
+  x: number; // 0-100 percentage
+  y: number; // 0-100 percentage
+}
+
+export interface CampaignMapEdge {
+  from: string;
+  to: string;
+}
+
+export interface CampaignMapData {
+  nodes: CampaignMapNode[];
+  edges: CampaignMapEdge[];
+  currentNodeId: string;
+}
+
 export interface AIDMPrologueContext {
   apiKey?: string;
   model?: string;
   title: string;
   setting: string;
+  genre?: string;
+  campaignDuration?: 'short' | 'medium' | 'long';
   characters: CharacterEntity[];
   campaignPlot?: string;
 }
@@ -39,12 +63,15 @@ export interface AIDMContext {
   apiKey?: string;
   model?: string;
   setting: string;
+  genre?: string;
+  campaignDuration?: 'short' | 'medium' | 'long';
   roundNumber: number;
   currentSituation: string;
   currentDC?: number;
   currentDCReason?: string;
   requiredCheckStat?: string;
   campaignPlot?: string;
+  campaignMap?: CampaignMapData;
   loreJournal?: LoreMilestone[];
   characters: CharacterEntity[];
   activeEnemies?: RoomEnemy[];
@@ -73,6 +100,7 @@ export interface AIDMResponse {
   nextRoundDCReason?: string;
   requiredCheckStat?: string;
   campaignPlot?: string;
+  campaignMap?: CampaignMapData;
   droppedLoot?: Array<{
     name: string;
     type: 'weapon' | 'armor' | 'potion' | 'misc';

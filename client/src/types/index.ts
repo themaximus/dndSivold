@@ -124,6 +124,28 @@ export interface CharacterTalentTree {
   quentaBranch: { name: string; talents: TalentNode[] };
 }
 
+export interface CampaignMapNode {
+  id: string;
+  title: string;
+  description: string;
+  act: number;
+  type: 'start' | 'battle' | 'mystery' | 'boss' | 'climax' | 'rest';
+  status: 'visited' | 'current' | 'discovered' | 'locked';
+  x: number; // 0-100 percentage
+  y: number; // 0-100 percentage
+}
+
+export interface CampaignMapEdge {
+  from: string;
+  to: string;
+}
+
+export interface CampaignMapData {
+  nodes: CampaignMapNode[];
+  edges: CampaignMapEdge[];
+  currentNodeId: string;
+}
+
 export interface RoomEnemy {
   id: string;
   name: string;
@@ -141,6 +163,9 @@ export interface Room {
   hostUserId: string;
   title: string;
   setting: string;
+  genre?: string;
+  campaignDuration?: 'short' | 'medium' | 'long';
+  campaignMap?: CampaignMapData;
   status: 'waiting' | 'active' | 'finished';
   roundNumber: number;
   currentSituation: string;
@@ -163,6 +188,9 @@ export interface UserRoomSummary {
   code: string;
   title: string;
   setting: string;
+  genre?: string;
+  campaignDuration?: 'short' | 'medium' | 'long';
+  campaignMap?: CampaignMapData;
   status: 'waiting' | 'active' | 'finished';
   roundNumber: number;
   currentSituation: string;

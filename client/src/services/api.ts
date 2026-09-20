@@ -87,12 +87,31 @@ export const api = {
   async createRoom(data: {
     title: string;
     setting: string;
+    genre?: string;
+    campaignDuration?: 'short' | 'medium' | 'long';
     deepseekApiKey?: string;
     deepseekModel?: string;
   }): Promise<Room> {
     return request<Room>('/rooms', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async generateStory(params?: {
+    genre?: string;
+    campaignDuration?: 'short' | 'medium' | 'long';
+    deepseekApiKey?: string;
+    deepseekModel?: string;
+  }): Promise<{
+    title: string;
+    setting: string;
+    genre: string;
+    campaignDuration: 'short' | 'medium' | 'long';
+  }> {
+    return request('/rooms/generate-story', {
+      method: 'POST',
+      body: JSON.stringify(params || {}),
     });
   },
 

@@ -5,6 +5,7 @@ import { authMiddleware } from './auth';
 import { cryptoService, sanitizeRoom } from '../services/security/CryptoService';
 import { gameSessionService } from '../services/game/GameSessionService';
 import { config } from '../config';
+import { storyGeneratorService } from '../services/ai/StoryGeneratorService';
 
 const router = Router();
 
@@ -15,11 +16,27 @@ function generateRoomCode(): string {
   return `${prefix}-${num}`;
 }
 
+// POST /api/rooms/generate-story - Generate a random story/campaign via AI or procedural generator
+router.post('/generate-story', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { genre, campaignDuration, deepseekApiKey, deepseekModel } = req.body;
+    const story = await storyGeneratorService.generateStory({
+      genre,
+      campaignDuration,
+      apiKey: deepseekApiKey,
+      model: deepseekModel,
+    });
+    res.json(story);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка генерации сюжета' });
+  }
+});
+
 // POST /api/rooms - Create a new room
 router.post('/', authMiddleware, (req: Request, res: Response): void => {
   try {
     const userId = (req as any).userId;
-    const { title, setting, deepseekApiKey, deepseekModel } = req.body;
+    const { title, setting, genre, campaignDuration, deepseekApiKey, deepseekModel } = req.body;
 
     if (!title || !setting) {
       res.status(400).json({ error: 'Название и описание сеттинга обязательны для создания комнаты' });
@@ -40,6 +57,8 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
       hostUserId: userId,
       title: title.trim(),
       setting: setting.trim(),
+      genre: genre || 'fantasy',
+      campaignDuration: campaignDuration || 'medium',
       status: 'waiting',
       roundNumber: 1,
       currentSituation: 'Отряд собрался вместе перед началом опасного пути. Осмотритесь и подготовьтесь к первому действию.',
@@ -118,6 +137,9 @@ router.get('/my', authMiddleware, (req: Request, res: Response): void => {
           hpMax: myCharacter.hpMax,
           avatarUrl: myCharacter.avatarUrl,
         } : undefined,
+        genre: room.genre,
+        campaignDuration: room.campaignDuration,
+        campaignMap: room.campaignMap,
         createdAt: room.createdAt,
       };
     });

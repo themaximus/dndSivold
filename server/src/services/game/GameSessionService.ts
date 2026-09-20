@@ -13,9 +13,10 @@ import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { AIDMResponse, AIDMPrologueContext } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
-import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone } from '../../db';
+import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
+import { campaignMapGenerator } from './CampaignMapGenerator';
 
 export interface RoundResolutionResult {
   log: GameLogEntity;
@@ -134,6 +135,8 @@ export class GameSessionService {
       model: room.deepseekModel,
       title: room.title,
       setting: room.setting,
+      genre: room.genre || 'fantasy',
+      campaignDuration: room.campaignDuration || 'medium',
       characters: activeCharacters,
     };
 
@@ -150,6 +153,14 @@ export class GameSessionService {
     const startCheckStat = prologueResult.requiredCheckStat || 'dex';
     const campaignPlot = prologueResult.campaignPlot || room.campaignPlot || 'Генеральная сюжетная арка: исследование тайны, нарастание угрозы, кульминация.';
 
+    // Initialize or adopt campaign map
+    const campaignMap = prologueResult.campaignMap || campaignMapGenerator.generateCampaignMap(
+      room.title,
+      room.setting,
+      room.genre || 'fantasy',
+      room.campaignDuration || 'medium'
+    );
+
     // Initialize turn order for party
     const partyPlayers = this.rooms.findPlayersByRoomId(room.id).filter(p => p.characterId);
     const turnOrder = partyPlayers.map(p => p.userId);
@@ -161,6 +172,7 @@ export class GameSessionService {
       dcReason: startDCReason,
       requiredCheckStat: startCheckStat,
       campaignPlot,
+      campaignMap,
       turnMode: room.turnMode || 'simultaneous',
       turnOrder,
       activePlayerUserId: turnOrder[0] || undefined,
@@ -290,12 +302,15 @@ export class GameSessionService {
       apiKey: decryptedApiKey,
       model: room.deepseekModel,
       setting: room.setting,
+      genre: room.genre,
+      campaignDuration: room.campaignDuration,
       roundNumber: room.roundNumber,
       currentSituation: room.currentSituation,
       currentDC: room.targetDC,
       currentDCReason: room.dcReason,
       requiredCheckStat: room.requiredCheckStat,
       campaignPlot: room.campaignPlot,
+      campaignMap: room.campaignMap,
       loreJournal: room.loreJournal,
       characters: activeCharacters,
       activeEnemies: room.activeEnemies || [],
@@ -414,9 +429,48 @@ export class GameSessionService {
     const nextCheckStat = dmResult.requiredCheckStat || room.requiredCheckStat || 'dex';
     const firstActiveUserId = (room.turnOrder && room.turnOrder.length > 0) ? room.turnOrder[0] : undefined;
 
-    const updatedEnemies = Array.isArray(dmResult.activeEnemies)
-      ? dmResult.activeEnemies
-      : (room.activeEnemies || []);
+    const updatedEnemies: RoomEnemy[] = Array.isArray(dmResult.activeEnemies)
+      ? [...dmResult.activeEnemies]
+      : [...(room.activeEnemies || [])];
+
+    // Safety Guard: Check for narrative-enemy desynchronization
+    const livingEnemies = updatedEnemies.filter(e => !e.isDead && e.hpCurrent > 0);
+    const narrativeFullText = ((dmResult.narrative || '') + ' ' + (dmResult.currentSituation || '')).toLowerCase();
+    const isCombatMood = dmResult.mood === 'combat';
+    const hasCombatEnemyMention = /(?:гоблин|разбойник|бандит|культист|враг|противник|лучник|вожак|мутант|стрелок|мафиоз|гангстер|киборг|наёмник|чудовищ|тварь|паук|дозорн).*(?:атаку|стреля|целит|готов|надвига|замахи|выглядыва|укрыва|рубит|бросает|окружа|огрыза|отбива)/i.test(narrativeFullText);
+
+    if (livingEnemies.length === 0 && (isCombatMood || hasCombatEnemyMention)) {
+      let enemyName = 'Противник в укрытии';
+      if (/гоблин/i.test(narrativeFullText)) enemyName = 'Гоблин-стрелок';
+      else if (/разбойник|бандит/i.test(narrativeFullText)) enemyName = 'Разбойник';
+      else if (/лучник|стрелок/i.test(narrativeFullText)) enemyName = 'Вражеский стрелок';
+      else if (/мафиоз|гангстер/i.test(narrativeFullText)) enemyName = 'Гангстер синдиката';
+      else if (/киборг|наёмник/i.test(narrativeFullText)) enemyName = 'Корпоративный наёмник';
+      else if (/культист/i.test(narrativeFullText)) enemyName = 'Адепт культа';
+      else if (/мутант|чудовищ/i.test(narrativeFullText)) enemyName = 'Мутант';
+
+      const fallbackEnemy: RoomEnemy = {
+        id: `enemy_${crypto.randomUUID().slice(0, 6)}`,
+        name: enemyName,
+        type: 'minion',
+        hpCurrent: 12,
+        hpMax: 12,
+        ac: 12,
+        status: 'Ведёт бой, используя укрытия и окружение',
+        isDead: false,
+      };
+      updatedEnemies.push(fallbackEnemy);
+    }
+
+    // Advance campaign map if initialized
+    let updatedCampaignMap = dmResult.campaignMap || room.campaignMap;
+    if (updatedCampaignMap) {
+      updatedCampaignMap = campaignMapGenerator.advanceCampaignMap(
+        updatedCampaignMap,
+        nextRound,
+        room.campaignDuration || 'medium'
+      );
+    }
 
     this.rooms.update(room.id, {
       roundNumber: nextRound,
@@ -426,6 +480,7 @@ export class GameSessionService {
       requiredCheckStat: nextCheckStat,
       activePlayerUserId: firstActiveUserId,
       campaignPlot: dmResult.campaignPlot || room.campaignPlot,
+      campaignMap: updatedCampaignMap,
       activeEnemies: updatedEnemies,
     });
     this.rooms.resetPlayersTurn(room.id);

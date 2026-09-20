@@ -26,6 +26,30 @@ export class DeepSeekAIProvider implements IAIProvider {
     return this.executeChatCompletion(systemPrompt, userPrompt);
   }
 
+  public async generateRaw(prompt: string): Promise<string> {
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.8,
+        response_format: { type: 'json_object' },
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`DeepSeek API error ${response.status}: ${response.statusText} (${errText})`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
   private async executeChatCompletion(systemPrompt: string, userPrompt: string): Promise<AIDMResponse> {
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',

@@ -44,6 +44,26 @@ export class DMResponseValidator {
         nextRoundDCReason: parsed.nextRoundDCReason,
         requiredCheckStat: typeof parsed.requiredCheckStat === 'string' ? parsed.requiredCheckStat.toLowerCase() : undefined,
         campaignPlot: typeof parsed.campaignPlot === 'string' ? parsed.campaignPlot : undefined,
+        campaignMap: parsed.campaignMap && Array.isArray(parsed.campaignMap.nodes)
+          ? {
+              nodes: parsed.campaignMap.nodes.map((n: any, idx: number) => ({
+                id: typeof n.id === 'string' && n.id ? n.id : `node_${idx + 1}`,
+                title: typeof n.title === 'string' && n.title ? n.title : `Локация ${idx + 1}`,
+                description: typeof n.description === 'string' ? n.description : '',
+                act: typeof n.act === 'number' ? n.act : 1,
+                type: ['start', 'battle', 'mystery', 'boss', 'climax', 'rest'].includes(n.type) ? n.type : 'battle',
+                status: ['visited', 'current', 'discovered', 'locked'].includes(n.status) ? n.status : (idx === 0 ? 'current' : 'locked'),
+                x: typeof n.x === 'number' ? Math.max(5, Math.min(95, n.x)) : Math.round(10 + (idx * 15)),
+                y: typeof n.y === 'number' ? Math.max(15, Math.min(85, n.y)) : 50,
+              })),
+              edges: Array.isArray(parsed.campaignMap.edges)
+                ? parsed.campaignMap.edges.map((e: any) => ({ from: String(e.from), to: String(e.to) }))
+                : [],
+              currentNodeId: typeof parsed.campaignMap.currentNodeId === 'string' && parsed.campaignMap.currentNodeId
+                ? parsed.campaignMap.currentNodeId
+                : (parsed.campaignMap.nodes[0]?.id || 'node_1'),
+            }
+          : undefined,
         droppedLoot: Array.isArray(parsed.droppedLoot) ? parsed.droppedLoot : [],
         newMilestones: Array.isArray(parsed.newMilestones) ? parsed.newMilestones : [],
         xpAwarded: typeof parsed.xpAwarded === 'number' ? parsed.xpAwarded : 35,

@@ -111,6 +111,9 @@ export interface RoomEntity {
   activeEnemies?: RoomEnemy[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
+  genre?: string;
+  campaignDuration?: 'short' | 'medium' | 'long';
+  campaignMap?: any;
   deepseekApiKey?: string;
   deepseekModel?: string;
   createdAt: string;
