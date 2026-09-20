@@ -5,7 +5,7 @@ nixPkgs = ["nodejs_20"]
 [phases.install]
 cmds = [
   "npm --prefix client install --include=dev",
-  "npm --prefix server install --include=dev"
+  "npm --prefix server install --include=dev --ignore-scripts"
 ]
 
 [phases.build]
