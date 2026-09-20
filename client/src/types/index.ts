@@ -196,6 +196,7 @@ export interface GameLogEntry {
   roomId: string;
   roundNumber: number;
   narrativeText: string;
+  imageUrl?: string;
   actionsSummary?: string;
   targetDC?: number;
   dcReason?: string;

@@ -51,6 +51,10 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
 
   const { loadingLogId, isSpeakingText, toggleVoice } = useNarrativeVoice();
 
+  useEffect(() => {
+    setAttachedRolls([]);
+  }, [room?.roundNumber]);
+
   if (!room) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-400">
@@ -58,10 +62,6 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
       </div>
     );
   }
-
-  useEffect(() => {
-    setAttachedRolls([]);
-  }, [room.roundNumber]);
 
   const handleAttachRoll = (roll: DiceRollResult) => {
     // Strictly 1 dice roll per turn

@@ -172,12 +172,17 @@ export class GameSessionService {
       this.rooms.addMilestones(room.id, milestones);
     }
 
-    // Create prologue log
+    // Create prologue log with AI illustration
+    const prologueSeed = Math.abs(room.id.split('').reduce((acc, c) => (acc << 5) - acc + c.charCodeAt(0), 0) + 77);
+    const prologueImagePrompt = `dnd dark fantasy cinematic concept art: ${room.setting || room.title}`;
+    const prologueImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prologueImagePrompt.slice(0, 150))}?width=800&height=400&nologo=true&seed=${prologueSeed}`;
+
     const prologueLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: 0,
       narrativeText: prologueResult.narrative,
+      imageUrl: prologueImageUrl,
       targetDC: startDC,
       dcReason: startDCReason,
       createdAt: new Date().toISOString(),
@@ -319,12 +324,17 @@ export class GameSessionService {
       this.characters.awardXp(c.id, xpToAward);
     });
 
-    // Save game log
+    // Save game log with AI illustration
+    const roundSeed = Math.abs(room.id.split('').reduce((acc, c) => (acc << 5) - acc + c.charCodeAt(0), 0) + room.roundNumber * 37);
+    const roundImagePrompt = `dnd dark fantasy cinematic scene: ${dmResult.narrative.slice(0, 120)}`;
+    const roundImageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(roundImagePrompt)}?width=800&height=400&nologo=true&seed=${roundSeed}`;
+
     const newLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: room.roundNumber,
       narrativeText: dmResult.narrative,
+      imageUrl: roundImageUrl,
       actionsSummary: currentRoundActions.map(a => `${a.characterName}: ${a.actionText}`).join('\n'),
       targetDC: room.targetDC,
       dcReason: room.dcReason,
