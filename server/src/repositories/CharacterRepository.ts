@@ -78,6 +78,14 @@ export class CharacterRepository implements ICharacterRepository {
       }
     }
 
+    if (Array.isArray(char.inventory)) {
+      const cleanedInventory = char.inventory.filter(i => i && typeof i.name === 'string' && i.name.trim().length > 0);
+      if (cleanedInventory.length !== char.inventory.length) {
+        updates.inventory = cleanedInventory;
+        needsUpdate = true;
+      }
+    }
+
     if (needsUpdate) {
       const updated = db.characters.update(char.id, updates);
       return updated || { ...char, ...updates };
@@ -205,17 +213,22 @@ export class CharacterRepository implements ICharacterRepository {
     const char = this.findById(id);
     if (!char) return null;
 
+    if (!item || typeof item.name !== 'string' || !item.name.trim()) {
+      return char;
+    }
+
+    const cleanName = item.name.trim();
     const inventory = [...(char.inventory || [])];
-    const existing = inventory.find(i => i.name.toLowerCase() === item.name.toLowerCase());
+    const existing = inventory.find(i => i.name.toLowerCase().trim() === cleanName.toLowerCase());
 
     if (existing) {
       existing.quantity = (existing.quantity || 1) + (item.quantity || 1);
     } else {
       inventory.push({
         id: item.id || crypto.randomUUID(),
-        name: item.name,
+        name: cleanName,
         type: item.type || 'misc',
-        description: item.description || '',
+        description: item.description?.trim() || '',
         quantity: item.quantity || 1,
         damage: item.damage,
         ac_bonus: item.ac_bonus,

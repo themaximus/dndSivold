@@ -70,7 +70,7 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
       : classConfig.startingAbilities;
 
     const inventory = (customInventory && customInventory.length > 0)
-      ? customInventory
+      ? customInventory.filter((i: any) => i && typeof i.name === 'string' && i.name.trim().length > 0)
       : classConfig.startingInventory;
 
     const newCharacter: CharacterEntity = {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Character, DiceRollResult, RoomEnemy, ActionRejectedEvent } from '../../types';
-import { Dices, Send, Clock, Skull, AlertTriangle, Shield, Swords, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Dices, Send, Clock, Skull, AlertTriangle, Shield, Swords, Sparkles, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export interface ActionMeta {
   actionType?: 'attack' | 'check' | 'save' | 'improvise';
@@ -279,17 +279,41 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       {/* Main Console Input Row */}
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         {/* Dice roll button / result chip */}
-        {d20Roll ? (
-          <button
-            type="button"
-            onClick={handleOpenDice}
-            className="px-3 py-2 rounded-xl bg-amber-500/20 border border-amber-400 text-amber-300 font-mono text-xs font-bold flex items-center gap-1.5 shadow-glow-gold transition-all shrink-0"
-            title="Бросок d20 совершен. Нажмите для повторного просмотра."
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>d20: {d20Roll.total}</span>
-          </button>
-        ) : (
+        {d20Roll ? (() => {
+          const isCritSuccess = !!d20Roll.isCriticalSuccess;
+          const isCritFail = !!d20Roll.isCriticalFail;
+          const isSuccess = !isCritFail && (isCritSuccess || (targetDC !== undefined && d20Roll.total >= targetDC));
+
+          return (
+            <button
+              type="button"
+              onClick={handleOpenDice}
+              className={`px-3 py-2 rounded-xl border font-mono text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 animate-result-bounce ${
+                isCritSuccess
+                  ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-glow-gold'
+                  : isCritFail
+                  ? 'bg-red-950/60 border-red-500 text-red-300 shadow-glow-crimson'
+                  : isSuccess
+                  ? 'bg-emerald-950/50 border-emerald-400 text-emerald-300 shadow-lg shadow-emerald-500/20'
+                  : 'bg-rose-950/50 border-rose-500 text-rose-300 shadow-lg shadow-rose-500/20'
+              }`}
+              title="Бросок d20 совершен. Нажмите для повторного просмотра."
+            >
+              {isCritSuccess ? (
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              ) : isCritFail ? (
+                <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+              ) : isSuccess ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <span className="w-3.5 h-3.5 text-rose-400 font-bold">✗</span>
+              )}
+              <span>
+                d20: {d20Roll.total} {isCritSuccess ? '★ КРИТ. УСПЕХ' : isCritFail ? '☠ КРИТ. ПРОВАЛ' : isSuccess ? '★ УСПЕХ' : '✗ ПРОВАЛ'}
+              </span>
+            </button>
+          );
+        })() : (
           <button
             type="button"
             onClick={handleOpenDice}

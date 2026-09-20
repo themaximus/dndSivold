@@ -221,7 +221,8 @@ export function setupGameSockets(io: Server) {
           }
         } catch (error: any) {
           console.error('Error resolving round via GameSessionService:', error);
-          io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером');
+          io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
+          io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером. Попробуйте еще раз или нажмите «Ход Мастера».');
         }
       }
     });
@@ -533,7 +534,8 @@ export function setupGameSockets(io: Server) {
         }
       } catch (error: any) {
         console.error('Error in force_resolve_round:', error);
-        io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером');
+        io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
+        io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером. Попробуйте повторить ход.');
       }
     });
 

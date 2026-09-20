@@ -51,7 +51,16 @@ export function useGameSession(roomCode: string) {
     loadData();
 
     const socket = connectSocket();
-    socket.emit('join_room', { roomCode });
+
+    const handleConnect = () => {
+      socket.emit('join_room', { roomCode });
+      loadData();
+    };
+
+    if (socket.connected) {
+      socket.emit('join_room', { roomCode });
+    }
+    socket.on('connect', handleConnect);
 
     socket.on('room_players_updated', (updatedPlayers: RoomPlayer[]) => {
       setPlayers(updatedPlayers);
@@ -151,16 +160,26 @@ export function useGameSession(roomCode: string) {
       setRecentActivities(prev => [data, ...prev.slice(0, 9)]);
     });
 
+    socket.on('dm_thinking_failed', (data?: { error?: string }) => {
+      setIsDMThinking(false);
+      setHasSubmittedThisRound(false);
+      if (data?.error) {
+        console.warn('DM Thinking failed:', data.error);
+      }
+    });
+
     socket.on('adventure_finished', (data: { finishType: 'cliffhanger' | 'triumph' | 'open_ended'; title: string; epilogue: string }) => {
       setFinishedAdventure(data);
     });
 
     return () => {
       isMounted = false;
+      socket.off('connect', handleConnect);
       socket.off('room_players_updated');
       socket.off('room_updated');
       socket.off('player_action_submitted');
       socket.off('dm_thinking');
+      socket.off('dm_thinking_failed');
       socket.off('round_resolved');
       socket.off('dice_rolled');
       socket.off('loot_picked_up');
@@ -173,6 +192,15 @@ export function useGameSession(roomCode: string) {
       socket.off('adventure_finished');
     };
   }, [roomCode, user?.id, myPlayer?.characterId]);
+
+  // Safety watchdog: reset DM thinking state if it takes longer than 40s
+  useEffect(() => {
+    if (!isDMThinking) return;
+    const watchdogTimer = setTimeout(() => {
+      setIsDMThinking(false);
+    }, 40000);
+    return () => clearTimeout(watchdogTimer);
+  }, [isDMThinking]);
 
   const setTurnMode = useCallback((mode: 'simultaneous' | 'turn_by_turn') => {
     const socket = getSocket();

@@ -46,3 +46,82 @@
 .animate-pulse-glow {
   animation: pulse-glow 3s infinite ease-in-out;
 }
+
+/* Dice Tumbling & Roll Animation */
+@keyframes dice-tumble {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-25deg) scale(1.15) translateY(-6px); }
+  50% { transform: rotate(20deg) scale(0.9) translateY(4px); }
+  75% { transform: rotate(-15deg) scale(1.1) translateY(-3px); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+.animate-dice-tumble {
+  animation: dice-tumble 0.35s infinite ease-in-out;
+}
+
+/* Explosive Pop Result Reveal */
+@keyframes result-bounce {
+  0% {
+    transform: scale(0.4) rotate(-10deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15) rotate(4deg);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.95) rotate(-2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.animate-result-bounce {
+  animation: result-bounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Success Glow Pulse */
+@keyframes glow-success {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4), 0 0 30px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.7), 0 0 50px rgba(245, 158, 11, 0.4);
+  }
+}
+
+.animate-glow-success {
+  animation: glow-success 2s infinite ease-in-out;
+}
+
+/* Failure Shudder Tremor */
+@keyframes fail-tremor {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px) rotate(-1deg); }
+  40% { transform: translateX(5px) rotate(1deg); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+.animate-fail-tremor {
+  animation: fail-tremor 0.4s ease-in-out;
+}
+
+/* Slide in from bottom */
+@keyframes card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-card-reveal {
+  animation: card-reveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

@@ -38,14 +38,18 @@ export class DMResponseValidator {
             }))
           : [],
         conditionUpdates: Array.isArray(parsed.conditionUpdates) ? parsed.conditionUpdates : [],
-        inventoryUpdates: Array.isArray(parsed.inventoryUpdates) ? parsed.inventoryUpdates : [],
+        inventoryUpdates: Array.isArray(parsed.inventoryUpdates)
+          ? parsed.inventoryUpdates.filter((u: any) => u && u.item && typeof u.item.name === 'string' && u.item.name.trim().length > 0)
+          : [],
         ruleViolations: Array.isArray(parsed.ruleViolations) ? parsed.ruleViolations : [],
         mood: parsed.mood,
         nextRoundDC: typeof parsed.nextRoundDC === 'number' ? parsed.nextRoundDC : 13,
         nextRoundDCReason: parsed.nextRoundDCReason,
         requiredCheckStat: typeof parsed.requiredCheckStat === 'string' ? parsed.requiredCheckStat.toLowerCase() : undefined,
         campaignPlot: typeof parsed.campaignPlot === 'string' ? parsed.campaignPlot : undefined,
-        droppedLoot: Array.isArray(parsed.droppedLoot) ? parsed.droppedLoot : [],
+        droppedLoot: Array.isArray(parsed.droppedLoot)
+          ? parsed.droppedLoot.filter((item: any) => item && typeof item.name === 'string' && item.name.trim().length > 0)
+          : [],
         newMilestones: Array.isArray(parsed.newMilestones) ? parsed.newMilestones : [],
         xpAwarded: typeof parsed.xpAwarded === 'number' ? parsed.xpAwarded : 35,
         rejectedAction: parsed.rejectedAction && typeof parsed.rejectedAction.reason === 'string'

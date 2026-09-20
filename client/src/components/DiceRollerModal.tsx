@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Character, DiceRollResult } from '../types';
 import { getSocket } from '../services/socket';
 import { soundFx } from '../utils/audio';
-import { Dices, Sparkles, X, ShieldAlert, Check } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { Dices, Sparkles, X, ShieldAlert, Check, CheckCircle2, XCircle } from 'lucide-react';
 
 interface DiceRollerModalProps {
   roomCode: string;
   character?: Character;
   defaultStatKey?: string;
+  targetDC?: number;
   initialPurpose?: string;
   initialAdvantage?: boolean;
   initialDisadvantage?: boolean;
@@ -19,6 +21,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   roomCode,
   character,
   defaultStatKey,
+  targetDC,
   initialPurpose,
   initialAdvantage = false,
   initialDisadvantage = false,
@@ -31,10 +34,23 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   const [advantage, setAdvantage] = useState(initialAdvantage);
   const [disadvantage, setDisadvantage] = useState(initialDisadvantage);
   const [isRolling, setIsRolling] = useState(false);
+  const [animatedNumber, setAnimatedNumber] = useState<number>(10);
   const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null);
 
   const stats = character?.stats || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
   const calcMod = (val: number) => Math.floor((val - 10) / 2);
+
+  // Cycling numbers animation while rolling
+  useEffect(() => {
+    let interval: any;
+    if (isRolling) {
+      interval = setInterval(() => {
+        const maxVal = parseInt(diceType.replace('d', ''), 10) || 20;
+        setAnimatedNumber(Math.floor(Math.random() * maxVal) + 1);
+      }, 70);
+    }
+    return () => clearInterval(interval);
+  }, [isRolling, diceType]);
 
   const handleRoll = () => {
     if (isRolling || lastRoll) return;
@@ -49,8 +65,19 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
 
       if (result.isCriticalSuccess) {
         soundFx.playCriticalSuccess();
+        confetti({
+          particleCount: 70,
+          spread: 80,
+          origin: { y: 0.6 },
+        });
       } else if (result.isCriticalFail) {
         soundFx.playCriticalFail();
+      } else if (targetDC && result.total >= targetDC) {
+        confetti({
+          particleCount: 40,
+          spread: 60,
+          origin: { y: 0.65 },
+        });
       }
 
       socket.off('your_dice_result', handleResult);
@@ -241,36 +268,76 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
           </div>
         )}
 
-        {/* Roll Result Display */}
-        {lastRoll && (
-          <div className={`p-4 rounded-xl border mb-5 text-center transition-all ${
-            lastRoll.isCriticalSuccess
-              ? 'bg-amber-500/20 border-amber-400 shadow-glow-gold'
-              : lastRoll.isCriticalFail
-              ? 'bg-red-950/40 border-red-500'
-              : 'bg-fantasy-card border-fantasy-border'
-          }`}>
-            <div className="text-xs uppercase tracking-wider text-slate-400 mb-1">
-              Результат {lastRoll.purpose}:
+        {/* Rolling State Display */}
+        {isRolling && (
+          <div className="p-6 rounded-2xl bg-gradient-to-b from-amber-500/15 to-slate-900 border border-amber-500/40 mb-5 text-center flex flex-col items-center justify-center gap-2 animate-pulse">
+            <div className="p-3.5 bg-amber-500/20 rounded-2xl text-amber-400 animate-dice-tumble shadow-glow-gold">
+              <Dices className="w-10 h-10" />
             </div>
-            <div className="text-4xl font-extrabold font-rpg text-amber-400 mb-1">
-              {lastRoll.total}
+            <div className="text-4xl font-extrabold font-rpg text-amber-300 font-mono">
+              {animatedNumber}
             </div>
-            <div className="text-xs text-slate-300">
-              Кость [{lastRoll.rolls.join(', ')}] {lastRoll.modifier >= 0 ? `+ ${lastRoll.modifier}` : `- ${Math.abs(lastRoll.modifier)}`} ({lastRoll.statName || 'модификатор'})
-            </div>
-            {lastRoll.isCriticalSuccess && (
-              <div className="mt-2 text-xs font-bold text-amber-300 flex items-center justify-center gap-1">
-                <Sparkles className="w-4 h-4" /> КРИТИЧЕСКИЙ УСПЕХ (20)!
-              </div>
-            )}
-            {lastRoll.isCriticalFail && (
-              <div className="mt-2 text-xs font-bold text-red-400 flex items-center justify-center gap-1">
-                <ShieldAlert className="w-4 h-4" /> КРИТИЧЕСКИЙ ПРОВАЛ (1)!
-              </div>
-            )}
+            <p className="text-xs text-amber-200/80 font-medium">Кость брошена... Решается судьба раунда!</p>
           </div>
         )}
+
+        {/* Roll Result Display */}
+        {lastRoll && !isRolling && (() => {
+          const isCritSuccess = !!lastRoll.isCriticalSuccess;
+          const isCritFail = !!lastRoll.isCriticalFail;
+          const isSuccess = !isCritFail && (isCritSuccess || (targetDC !== undefined && lastRoll.total >= targetDC));
+          const isFail = !isCritSuccess && (isCritFail || (targetDC !== undefined && lastRoll.total < targetDC));
+
+          return (
+            <div className={`p-4 sm:p-5 rounded-2xl border mb-5 text-center transition-all animate-result-bounce ${
+              isCritSuccess
+                ? 'bg-amber-500/25 border-amber-400 shadow-glow-gold animate-glow-success'
+                : isCritFail
+                ? 'bg-red-950/60 border-red-500 animate-fail-tremor shadow-glow-crimson'
+                : isSuccess
+                ? 'bg-emerald-950/40 border-emerald-400 shadow-lg shadow-emerald-500/20 animate-glow-success'
+                : isFail
+                ? 'bg-rose-950/40 border-rose-500 animate-fail-tremor shadow-lg shadow-red-500/20'
+                : 'bg-fantasy-card border-fantasy-border'
+            }`}>
+              {/* Huge explicit SUCCESS or FAILURE banner */}
+              {isCritSuccess && (
+                <div className="mb-2 py-1.5 px-4 rounded-full bg-amber-400 text-black font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-amber-500/40">
+                  <Sparkles className="w-4 h-4 fill-current" />
+                  <span>★ КРИТИЧЕСКИЙ УСПЕХ (20)!</span>
+                </div>
+              )}
+              {isCritFail && (
+                <div className="mb-2 py-1.5 px-4 rounded-full bg-red-600 text-white font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-red-600/40">
+                  <ShieldAlert className="w-4 h-4 fill-current" />
+                  <span>☠ КРИТИЧЕСКИЙ ПРОВАЛ (1)!</span>
+                </div>
+              )}
+              {!isCritSuccess && !isCritFail && isSuccess && (
+                <div className="mb-2 py-1.5 px-4 rounded-full bg-emerald-500 text-black font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-emerald-500/30">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>★ УСПЕХ! ({lastRoll.total} против СЛ {targetDC})</span>
+                </div>
+              )}
+              {!isCritSuccess && !isCritFail && isFail && (
+                <div className="mb-2 py-1.5 px-4 rounded-full bg-rose-600 text-white font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-rose-600/30">
+                  <XCircle className="w-4 h-4" />
+                  <span>✗ ПРОВАЛ! ({lastRoll.total} против СЛ {targetDC})</span>
+                </div>
+              )}
+
+              <div className="text-xs uppercase tracking-wider text-slate-400 mt-1">
+                {lastRoll.purpose || 'Бросок проверки'}:
+              </div>
+              <div className="text-4xl sm:text-5xl font-extrabold font-rpg text-amber-300 my-1">
+                {lastRoll.total}
+              </div>
+              <div className="text-xs text-slate-300 font-mono">
+                Кость [{lastRoll.rolls.join(', ')}] {lastRoll.modifier >= 0 ? `+ ${lastRoll.modifier}` : `- ${Math.abs(lastRoll.modifier)}`} ({lastRoll.statName ? lastRoll.statName.toUpperCase() : 'модификатор'})
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Actions */}
         <div className="flex gap-3">

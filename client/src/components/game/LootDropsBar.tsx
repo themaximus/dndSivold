@@ -9,7 +9,8 @@ interface LootDropsBarProps {
 }
 
 export const LootDropsBar: React.FC<LootDropsBarProps> = ({ loot, onPickup, disabled = false }) => {
-  if (!loot || loot.length === 0) return null;
+  const validLoot = (loot || []).filter(item => item && typeof item.name === 'string' && item.name.trim().length > 0);
+  if (validLoot.length === 0) return null;
 
   const getItemIcon = (type: string) => {
     switch (type) {
@@ -37,7 +38,7 @@ export const LootDropsBar: React.FC<LootDropsBarProps> = ({ loot, onPickup, disa
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {loot.map(item => (
+        {validLoot.map(item => (
           <div
             key={item.id}
             className="flex items-center justify-between gap-2.5 px-3 py-1.5 bg-fantasy-card/90 border border-fantasy-border hover:border-amber-500/50 rounded-lg text-xs transition-all shadow-sm group"

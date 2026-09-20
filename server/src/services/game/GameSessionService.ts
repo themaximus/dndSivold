@@ -396,31 +396,39 @@ export class GameSessionService {
             c.name.toLowerCase().includes((invUpdate.characterName || invUpdate.characterId || '').toLowerCase().trim())
           );
 
-        if (target && invUpdate.item && invUpdate.item.name) {
+        if (target && invUpdate.item && typeof invUpdate.item.name === 'string' && invUpdate.item.name.trim()) {
+          const cleanItemName = invUpdate.item.name.trim();
           if (invUpdate.action === 'remove') {
-            this.characters.removeItemFromInventory(target.id, invUpdate.item.name, invUpdate.item.quantity || 1);
+            this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1);
           } else if (invUpdate.action === 'add') {
-            this.characters.addItemToInventory(target.id, invUpdate.item);
+            this.characters.addItemToInventory(target.id, {
+              ...invUpdate.item,
+              name: cleanItemName,
+            });
           }
         }
       });
     }
 
-    // Process Dropped Loot
+    // Process Dropped Loot (strictly filtering out empty items)
     let droppedLootItems: RoomLootItem[] = [];
     if (Array.isArray(dmResult.droppedLoot) && dmResult.droppedLoot.length > 0) {
-      droppedLootItems = dmResult.droppedLoot.map(item => ({
-        id: crypto.randomUUID(),
-        name: item.name,
-        type: item.type,
-        description: item.description,
-        quantity: 1,
-        damage: item.damage,
-        ac_bonus: item.ac_bonus,
-        healAmount: item.healAmount,
-        roundDropped: room.roundNumber,
-      }));
-      this.rooms.addLoot(room.id, droppedLootItems);
+      droppedLootItems = dmResult.droppedLoot
+        .filter(item => item && typeof item.name === 'string' && item.name.trim().length > 0)
+        .map(item => ({
+          id: crypto.randomUUID(),
+          name: item.name.trim(),
+          type: item.type || 'misc',
+          description: item.description?.trim() || 'Предмет, найденный в бою',
+          quantity: 1,
+          damage: item.damage,
+          ac_bonus: item.ac_bonus,
+          healAmount: item.healAmount,
+          roundDropped: room.roundNumber,
+        }));
+      if (droppedLootItems.length > 0) {
+        this.rooms.addLoot(room.id, droppedLootItems);
+      }
     }
 
     // Process Lore Journal Milestones
@@ -456,24 +464,24 @@ export class GameSessionService {
           const ac = targetEnemy?.ac || 12;
           const enemyName = targetEnemy?.name || a.targetEnemyName || 'Враг';
           if (roll.isCriticalSuccess) {
-            verdict = `★ КРИТИЧЕСКОЕ ПОПАДАНИЕ! (${rollExpr} vs КД ${ac} ${enemyName})`;
+            verdict = `★ КРИТИЧЕСКИЙ УСПЕХ! (${rollExpr} vs КБ ${ac} ${enemyName})`;
           } else if (roll.isCriticalFail) {
-            verdict = `✗ КРИТИЧЕСКИЙ ПРОМАХ! (${rollExpr} vs КД ${ac} ${enemyName})`;
+            verdict = `☠ КРИТИЧЕСКИЙ ПРОВАЛ! (${rollExpr} vs КБ ${ac} ${enemyName})`;
           } else if (roll.total >= ac) {
-            verdict = `★ ПОПАДАНИЕ (${rollExpr} vs КД ${ac} ${enemyName})`;
+            verdict = `★ УСПЕХ (Попадание: ${rollExpr} vs КБ ${ac} ${enemyName})`;
           } else {
-            verdict = `✗ ПРОМАХ (${rollExpr} vs КД ${ac} ${enemyName})`;
+            verdict = `✗ ПРОВАЛ (Промах: ${rollExpr} vs КБ ${ac} ${enemyName})`;
           }
         } else {
           const dc = room.targetDC || 12;
           if (roll.isCriticalSuccess) {
             verdict = `★ КРИТИЧЕСКИЙ УСПЕХ! (${rollExpr} vs СЛ ${dc})`;
           } else if (roll.isCriticalFail) {
-            verdict = `✗ КРИТИЧЕСКИЙ ПРОВАЛ! (${rollExpr} vs СЛ ${dc})`;
+            verdict = `☠ КРИТИЧЕСКИЙ ПРОВАЛ! (${rollExpr} vs СЛ ${dc})`;
           } else if (roll.total >= dc) {
             verdict = `★ УСПЕХ (${rollExpr} vs СЛ ${dc})`;
           } else {
-            verdict = `✗ НЕУДАЧА (${rollExpr} vs СЛ ${dc})`;
+            verdict = `✗ ПРОВАЛ (${rollExpr} vs СЛ ${dc})`;
           }
         }
       }
@@ -616,7 +624,7 @@ export class GameSessionService {
 
   public pickupLoot(roomId: string, characterId: string, lootId: string) {
     const { room, item } = this.rooms.removeLoot(roomId, lootId);
-    if (!item) return null;
+    if (!item || !item.name || !item.name.trim()) return null;
     const updatedChar = this.characters.addItemToInventory(characterId, item);
     return { room: sanitizeRoom(room), character: updatedChar, item };
   }

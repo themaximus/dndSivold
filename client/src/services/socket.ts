@@ -7,6 +7,13 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(window.location.origin, {
       autoConnect: false,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      withCredentials: true,
       auth: (cb) => {
         cb({ token: getAuthToken() });
       },

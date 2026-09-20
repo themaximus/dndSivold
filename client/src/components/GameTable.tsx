@@ -196,6 +196,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
           roomCode={roomCode}
           character={myCharacter || undefined}
           defaultStatKey={diceModalOpts.defaultStatKey || room.requiredCheckStat}
+          targetDC={room.targetDC}
           initialPurpose={diceModalOpts.defaultPurpose}
           initialAdvantage={diceModalOpts.defaultAdvantage}
           initialDisadvantage={diceModalOpts.defaultDisadvantage}

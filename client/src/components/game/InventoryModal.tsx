@@ -19,7 +19,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 }) => {
   if (!isOpen || !character) return null;
 
-  const items = character.inventory || [];
+  const items = (character.inventory || []).filter(i => i && typeof i.name === 'string' && i.name.trim().length > 0);
 
   const getItemIcon = (type: string) => {
     switch (type) {

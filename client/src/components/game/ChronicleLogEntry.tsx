@@ -19,7 +19,7 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
   const title = log.roundNumber === 0 ? 'Преамбула' : `Хроника Раунда ${log.roundNumber}`;
 
   return (
-    <div className="bg-fantasy-card/90 border border-fantasy-border/80 rounded-2xl p-5 shadow-lg relative group transition-all">
+    <div className="bg-fantasy-card/90 border border-fantasy-border/80 rounded-2xl p-5 shadow-lg relative group transition-all animate-card-reveal">
       {/* Header */}
       <div className="flex items-center justify-between mb-3 border-b border-fantasy-border/50 pb-2">
         <div className="flex items-center gap-2">
@@ -49,12 +49,54 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
 
       {/* Step 2: Player Actions & Dice Check Verdicts */}
       {log.actionsSummary && (
-        <div className="mt-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
+        <div className="mt-4 p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-2.5">
           <div className="font-rpg font-semibold text-amber-400 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
             <span>🎲 Ходы героев и проверки:</span>
           </div>
-          <div className="font-sans text-xs text-slate-300 whitespace-pre-line leading-relaxed">
-            {log.actionsSummary}
+          <div className="space-y-2">
+            {log.actionsSummary.split('\n\n').filter(Boolean).map((block, idx) => {
+              const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+              const playerLine = lines[0] || block;
+              const verdictLine = lines.slice(1).join(' ').replace(/^↳\s*/, '');
+              
+              const isCritSuccess = verdictLine.includes('КРИТИЧЕСКИЙ УСПЕХ') || verdictLine.includes('КРИТИЧЕСКОЕ ПОПАДАНИЕ');
+              const isCritFail = verdictLine.includes('КРИТИЧЕСКИЙ ПРОВАЛ') || verdictLine.includes('КРИТИЧЕСКИЙ ПРОМАХ');
+              const isSuccess = isCritSuccess || verdictLine.includes('УСПЕХ') || verdictLine.includes('ПОПАДАНИЕ');
+              const isFail = isCritFail || verdictLine.includes('ПРОВАЛ') || verdictLine.includes('ПРОМАХ');
+
+              return (
+                <div
+                  key={idx}
+                  className={`p-2.5 rounded-xl border text-xs leading-relaxed transition-all ${
+                    isCritSuccess
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-200 shadow-sm'
+                      : isCritFail
+                      ? 'bg-red-950/40 border-red-500/50 text-red-200 shadow-sm'
+                      : isSuccess
+                      ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200 shadow-sm'
+                      : isFail
+                      ? 'bg-rose-950/30 border-rose-500/30 text-rose-200 shadow-sm'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-300'
+                  }`}
+                >
+                  <div className="font-medium text-slate-100">{playerLine}</div>
+                  {verdictLine && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-[11px] font-bold">
+                      {isSuccess ? (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1">
+                          {isCritSuccess ? '★ КРИТ. УСПЕХ' : '★ УСПЕХ'}
+                        </span>
+                      ) : isFail ? (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 inline-flex items-center gap-1">
+                          {isCritFail ? '☠ КРИТ. ПРОВАЛ' : '✗ ПРОВАЛ'}
+                        </span>
+                      ) : null}
+                      <span className="text-slate-300 font-sans font-normal">{verdictLine}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
