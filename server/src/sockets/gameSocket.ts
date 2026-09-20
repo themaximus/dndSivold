@@ -123,17 +123,13 @@ export function setupGameSockets(io: Server) {
       if (!room) return;
 
       const player = roomRepository.findPlayer(room.id, userId);
-      if (!player) return;
 
-      // In active gameplay, allow only 1 dice roll per turn/round
-      if (room.status === 'active') {
-        if (player.hasRolledThisRound) {
-          socket.emit('dice_roll_rejected', {
-            message: 'Вы уже бросили кубик в этом раунде! По правилам доступен только 1 бросок перед ходом.',
-          });
-          return;
-        }
-        roomRepository.updatePlayer(player.id, { hasRolledThisRound: true });
+      // In active gameplay, block roll only if the player has already submitted their turn
+      if (room.status === 'active' && player?.hasActedThisRound) {
+        socket.emit('dice_roll_rejected', {
+          message: 'Вы уже завершили свой ход в этом раунде! Ожидайте начала следующего раунда.',
+        });
+        return;
       }
 
       const character = player?.characterId ? characterRepository.findById(player.characterId) : undefined;

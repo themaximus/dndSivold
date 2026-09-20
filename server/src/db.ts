@@ -65,6 +65,7 @@ export interface LoreMilestone {
   id: string;
   round: number;
   milestone: string;
+  imageUrl?: string;
   tags?: string[];
 }
 

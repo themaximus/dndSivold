@@ -157,13 +157,18 @@ export class GameSessionService {
     });
     this.rooms.resetPlayersTurn(room.id);
 
-    // Process prologue milestones
+    // Process prologue milestones with generated image
     if (Array.isArray(prologueResult.newMilestones) && prologueResult.newMilestones.length > 0) {
-      const milestones: LoreMilestone[] = prologueResult.newMilestones.map(m => ({
-        id: crypto.randomUUID(),
-        round: 0,
-        milestone: m,
-      }));
+      const milestones: LoreMilestone[] = prologueResult.newMilestones.map((m, idx) => {
+        const cleanPrompt = `dnd dark fantasy illustration, epic cinematic scene: ${m}, ${room.setting || room.title}`;
+        const seed = Math.abs(m.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0) + idx);
+        return {
+          id: crypto.randomUUID(),
+          round: 0,
+          milestone: m,
+          imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt.slice(0, 150))}?width=640&height=320&nologo=true&seed=${seed}`,
+        };
+      });
       this.rooms.addMilestones(room.id, milestones);
     }
 
@@ -293,13 +298,18 @@ export class GameSessionService {
       this.rooms.addLoot(room.id, droppedLootItems);
     }
 
-    // Process Lore Journal Milestones
+    // Process Lore Journal Milestones with generated image
     if (Array.isArray(dmResult.newMilestones) && dmResult.newMilestones.length > 0) {
-      const milestones: LoreMilestone[] = dmResult.newMilestones.map(m => ({
-        id: crypto.randomUUID(),
-        round: room.roundNumber,
-        milestone: m,
-      }));
+      const milestones: LoreMilestone[] = dmResult.newMilestones.map((m, idx) => {
+        const cleanPrompt = `dnd dark fantasy cinematic scene: ${m}, ${room.setting || room.title}`;
+        const seed = Math.abs(m.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0) + room.roundNumber + idx);
+        return {
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: m,
+          imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt.slice(0, 150))}?width=640&height=320&nologo=true&seed=${seed}`,
+        };
+      });
       this.rooms.addMilestones(room.id, milestones);
     }
 
