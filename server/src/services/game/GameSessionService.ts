@@ -17,6 +17,14 @@ import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootI
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 
+export function sanitizeNarrativeText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\n*📌\s*Итог ситуации:[\s\S]*?(?=(\n*❓\s*Выбор|$))/i, '')
+    .replace(/\n*❓\s*Выбор[\s\S]*$/i, '')
+    .trim();
+}
+
 export interface RoundResolutionResult {
   log?: GameLogEntity;
   room: RoomEntity;
@@ -184,12 +192,13 @@ export class GameSessionService {
       this.rooms.addMilestones(room.id, milestones);
     }
 
-    // Create prologue log
+    // Create prologue log with sanitized narrative
+    const cleanPrologueNarrative = sanitizeNarrativeText(prologueResult.narrative);
     const prologueLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: 0,
-      narrativeText: prologueResult.narrative,
+      narrativeText: cleanPrologueNarrative,
       currentSituation: prologueResult.currentSituation,
       choiceDilemma: prologueResult.choiceDilemma,
       targetDC: startDC,
@@ -488,12 +497,13 @@ export class GameSessionService {
       return `【${a.characterName}】: «${a.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}`;
     }).join('\n\n');
 
-    // Save game log
+    // Save game log with sanitized narrative
+    const cleanRoundNarrative = sanitizeNarrativeText(dmResult.narrative);
     const newLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: room.roundNumber,
-      narrativeText: dmResult.narrative,
+      narrativeText: cleanRoundNarrative,
       actionsSummary: formattedActionsSummary,
       currentSituation: dmResult.currentSituation,
       choiceDilemma: dmResult.choiceDilemma,
@@ -527,33 +537,37 @@ export class GameSessionService {
       ? [...dmResult.activeEnemies]
       : [...(room.activeEnemies || [])];
 
-    // Safety Guard: Check for narrative-enemy desynchronization
+    // Safety Guard: Check for narrative-enemy desynchronization (STRICTLY for active combat only)
     const livingEnemies = updatedEnemies.filter(e => !e.isDead && e.hpCurrent > 0);
     const narrativeFullText = ((dmResult.narrative || '') + ' ' + (dmResult.currentSituation || '')).toLowerCase();
     const isCombatMood = dmResult.mood === 'combat';
-    const hasCombatEnemyMention = /(?:гоблин|разбойник|бандит|культист|враг|противник|лучник|вожак|мутант|стрелок|мафиоз|гангстер|киборг|наёмник|чудовищ|тварь|паук|дозорн).*(?:атаку|стреля|целит|готов|надвига|замахи|выглядыва|укрыва|рубит|бросает|окружа|огрыза|отбива)/i.test(narrativeFullText);
+    const isPeacefulOrSocial = ['social', 'mystery', 'calm', 'exploration', 'triumph'].includes(dmResult.mood || '');
 
-    if (livingEnemies.length === 0 && (isCombatMood || hasCombatEnemyMention)) {
-      let enemyName = 'Противник в укрытии';
-      if (/гоблин/i.test(narrativeFullText)) enemyName = 'Гоблин-стрелок';
-      else if (/разбойник|бандит/i.test(narrativeFullText)) enemyName = 'Разбойник';
-      else if (/лучник|стрелок/i.test(narrativeFullText)) enemyName = 'Вражеский стрелок';
-      else if (/мафиоз|гангстер/i.test(narrativeFullText)) enemyName = 'Гангстер синдиката';
-      else if (/киборг|наёмник/i.test(narrativeFullText)) enemyName = 'Корпоративный наёмник';
-      else if (/культист/i.test(narrativeFullText)) enemyName = 'Адепт культа';
-      else if (/мутант|чудовищ/i.test(narrativeFullText)) enemyName = 'Мутант';
+    if (livingEnemies.length === 0 && isCombatMood && !isPeacefulOrSocial) {
+      const hasCombatEnemyMention = /(?:гоблин|разбойник|бандит|культист|враг|противник|лучник|вожак|мутант|стрелок|мафиоз|гангстер|киборг|наёмник|чудовищ|тварь|паук).*(?:атаку|стреля|целит|надвига|замахи|выглядыва|рубит|бросает|окружа|огрыза|отбива)/i.test(narrativeFullText);
 
-      const fallbackEnemy: RoomEnemy = {
-        id: `enemy_${crypto.randomUUID().slice(0, 6)}`,
-        name: enemyName,
-        type: 'minion',
-        hpCurrent: 12,
-        hpMax: 12,
-        ac: 12,
-        status: 'Ведёт бой, используя укрытия и окружение',
-        isDead: false,
-      };
-      updatedEnemies.push(fallbackEnemy);
+      if (hasCombatEnemyMention) {
+        let enemyName = 'Противник в укрытии';
+        if (/гоблин/i.test(narrativeFullText)) enemyName = 'Гоблин-стрелок';
+        else if (/разбойник|бандит/i.test(narrativeFullText)) enemyName = 'Разбойник';
+        else if (/лучник|стрелок/i.test(narrativeFullText)) enemyName = 'Вражеский стрелок';
+        else if (/мафиоз|гангстер/i.test(narrativeFullText)) enemyName = 'Гангстер синдиката';
+        else if (/киборг|наёмник/i.test(narrativeFullText)) enemyName = 'Корпоративный наёмник';
+        else if (/культист/i.test(narrativeFullText)) enemyName = 'Адепт культа';
+        else if (/мутант|чудовищ/i.test(narrativeFullText)) enemyName = 'Мутант';
+
+        const fallbackEnemy: RoomEnemy = {
+          id: `enemy_${crypto.randomUUID().slice(0, 6)}`,
+          name: enemyName,
+          type: 'minion',
+          hpCurrent: 12,
+          hpMax: 12,
+          ac: 12,
+          status: 'Ведёт бой, используя укрытия и окружение',
+          isDead: false,
+        };
+        updatedEnemies.push(fallbackEnemy);
+      }
     }
 
     // Process Condition Updates for Players and Enemies

@@ -233,39 +233,82 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar text-[11px] py-0.5">
           <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Подсказки:</span>
-          {primaryEnemy && (
-            <button
-              type="button"
-              onClick={() => handleSuggestionClick(`Атакую ${primaryEnemy.name}`)}
-              className="px-2 py-0.5 rounded-full bg-red-950/40 text-red-300 border border-red-800/40 hover:bg-red-900/50 transition-colors flex items-center gap-1 shrink-0"
-            >
-              <Swords className="w-2.5 h-2.5" />
-              <span>Атака ({primaryEnemy.name})</span>
-            </button>
+          {livingEnemies.length === 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Вступаю в разговор и расспрашиваю')}
+                className="px-2 py-0.5 rounded-full bg-blue-950/40 text-blue-300 border border-blue-800/40 hover:bg-blue-900/50 transition-colors flex items-center gap-1 shrink-0"
+              >
+                💬 <span>Диалог</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Внимательно осматриваю местность и ищу зацепки')}
+                className="px-2 py-0.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/40 hover:bg-amber-900/50 transition-colors flex items-center gap-1 shrink-0"
+              >
+                🔍 <span>Осмотр</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Предлагаю помощь или торговлю')}
+                className="px-2 py-0.5 rounded-full bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 hover:bg-emerald-900/50 transition-colors flex items-center gap-1 shrink-0"
+              >
+                🤝 <span>Сделка / Помощь</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Использую заклинание или трюк')}
+                className="px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-800/40 hover:bg-purple-900/50 transition-colors flex items-center gap-1 shrink-0"
+              >
+                <Sparkles className="w-2.5 h-2.5" />
+                <span>Магия / Трюк</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Продолжаем путь по тракту')}
+                className="px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-colors flex items-center gap-1 shrink-0"
+              >
+                🗺️ <span>В путь</span>
+              </button>
+            </>
+          ) : (
+            <>
+              {primaryEnemy && (
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick(`Атакую ${primaryEnemy.name}`)}
+                  className="px-2 py-0.5 rounded-full bg-red-950/40 text-red-300 border border-red-800/40 hover:bg-red-900/50 transition-colors flex items-center gap-1 shrink-0"
+                >
+                  <Swords className="w-2.5 h-2.5" />
+                  <span>Атака ({primaryEnemy.name})</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Ищу укрытие от врагов')}
+                className="px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-colors flex items-center gap-1 shrink-0"
+              >
+                <Shield className="w-2.5 h-2.5" />
+                <span>Укрыться</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Использую заклинание')}
+                className="px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-800/40 hover:bg-purple-900/50 transition-colors flex items-center gap-1 shrink-0"
+              >
+                <Sparkles className="w-2.5 h-2.5" />
+                <span>Заклинание</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggestionClick('Опрокидываю стол и импровизирую')}
+                className="px-2 py-0.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/40 hover:bg-amber-900/50 transition-colors shrink-0"
+              >
+                🤸 Окружение
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => handleSuggestionClick('Ищу укрытие от врагов')}
-            className="px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-colors flex items-center gap-1 shrink-0"
-          >
-            <Shield className="w-2.5 h-2.5" />
-            <span>Укрыться</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSuggestionClick('Использую заклинание')}
-            className="px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-800/40 hover:bg-purple-900/50 transition-colors flex items-center gap-1 shrink-0"
-          >
-            <Sparkles className="w-2.5 h-2.5" />
-            <span>Заклинание</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSuggestionClick('Опрокидываю стол и импровизирую')}
-            className="px-2 py-0.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/40 hover:bg-amber-900/50 transition-colors shrink-0"
-          >
-            🤸 Окружение
-          </button>
         </div>
 
         {/* Challenge DC badge */}
@@ -331,7 +374,11 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
             type="text"
             value={actionText}
             onChange={(e) => setActionText(e.target.value)}
-            placeholder="Шаг 2: Опишите действие героя (свободная тактика, диалог, укрытие, трюк, магия)..."
+            placeholder={
+              livingEnemies.length > 0
+                ? "Шаг 2: Опишите действие героя (свободная тактика, атака, укрытие, трюк, магия)..."
+                : "Шаг 2: Опишите действие героя (диалог с персонажем, осмотр, сделка, помощь, путь)..."
+            }
             className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30"
           />
         </div>

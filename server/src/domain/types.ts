@@ -107,7 +107,7 @@ export interface AIDMResponse {
   inventoryUpdates?: InventoryUpdate[];
   conditionUpdates?: ConditionUpdate[];
   ruleViolations?: string[];
-  mood?: 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';
+  mood?: MoodType;
   nextRoundDC?: number;
   nextRoundDCReason?: string;
   requiredCheckStat?: string;
@@ -135,5 +135,5 @@ export interface AIDMResponse {
   };
 }
 
-export type MoodType = 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';
+export type MoodType = 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral' | 'social' | 'exploration';
 

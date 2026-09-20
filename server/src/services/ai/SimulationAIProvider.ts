@@ -48,9 +48,9 @@ export class SimulationAIProvider implements IAIProvider {
         intent = 'defense';
       } else if (/прыж|толкн|сбит|слома|выбит|пнут|рывок|бег/.test(textLower)) {
         intent = 'athletics';
-      } else if (/осмотр|изуч|найт|замок|ловушк|взлом|разгляд|поиск/.test(textLower)) {
+      } else if (/осмотр|изуч|найт|замок|ловушк|взлом|разгляд|поиск|огляд|следы/.test(textLower)) {
         intent = 'investigation';
-      } else if (/крич|закрич|запуг|сказа|приказ|переговор|насмешк|призыв/.test(textLower)) {
+      } else if (/крич|закрич|запуг|сказа|приказ|переговор|насмешк|призыв|спроси|говор|бесед|диалог|купи|торг|обмен/.test(textLower)) {
         intent = 'dialogue';
       }
 
@@ -71,13 +71,26 @@ export class SimulationAIProvider implements IAIProvider {
     const playerUpdates: PlayerHpUpdate[] = [];
     const narrativeParagraphs: string[] = [];
 
+    const livingEnemiesInContext = (context.activeEnemies || []).filter(e => !e.isDead && e.hpCurrent > 0);
+    const isCombat = livingEnemiesInContext.length > 0;
+
     // 2. Setting theme & Atmosphere opener
     const isDarkDungeon = /подземел|катакомб|склеп|гробниц|пещер|шахт/i.test(setting);
     const isForest = /лес|чащ|болот|пущ|дерев/i.test(setting);
     const isRuins = /руин|замок|крепост|храм|башн/i.test(setting);
 
     let atmosphereIntro = '';
-    if (roundNumber === 1) {
+    if (!isCombat) {
+      if (isDarkDungeon) {
+        atmosphereIntro = 'Отряд осторожно продвигается по древним каменным галереям. Факелы отбрасывают тёплые отсветы на замшелые плиты, вокруг царит гулкая тишина и покой.';
+      } else if (isForest) {
+        atmosphereIntro = 'Лесной тракт манит прохладой и шелестом крон. Впереди у развилки виднеется походный костёр и силуэты встречных путников.';
+      } else if (isRuins) {
+        atmosphereIntro = 'Среди полуразрушенных арок и колонн гуляет лёгкий ветерок. Опасности не видно — отряд может свободно осмотреться и пообщаться.';
+      } else {
+        atmosphereIntro = 'Дорога вьётся среди холмов. Обстановка спокойная и располагающая к неспешной беседе, поиску зацепок и привалу.';
+      }
+    } else if (roundNumber === 1) {
       if (isDarkDungeon) {
         atmosphereIntro = 'Сырой воздух подземелья пахнет вековой пылью, озоном и близкой опасностью. Тени от факелов тревожно вздрагивают на каменных плитах, когда герои без колебаний вступают в бой.';
       } else if (isForest) {
@@ -97,234 +110,146 @@ export class SimulationAIProvider implements IAIProvider {
       }
     }
 
-    // 3. Compose the syncretic party onslaught (Paragraph 1 & 2)
+    // 3. Compose the syncretic party onslaught / actions (Paragraph 1 & 2)
     const partyProseLines: string[] = [];
 
     analyzedActions.forEach((item, index) => {
       let connector = '';
       if (index === 0) {
-        connector = analyzedActions.length === 1 ? 'В эпицентре происходящего ' : 'Во главе наступления ';
+        connector = analyzedActions.length === 1 ? 'В эпицентре происходящего ' : 'Во главе отряда ';
       } else if (index === 1) {
-        connector = 'Одновременно с этим, подхватив боевой темп, ';
+        connector = 'Одновременно с этим ';
       } else if (index === 2) {
-        connector = 'С противоположного фланга в схватку вступает ';
+        connector = 'Подхватив общий темп, ';
       } else if (index === 3) {
-        connector = 'Тем временем, зорко оценивая расстановку сил, ';
+        connector = 'Тем временем, зорко оценивая обстановку, ';
       } else {
-        connector = 'Не теряя ни секунды драгоценного времени, ';
+        connector = 'Не теряя ни секунды, ';
       }
 
       let outcomePhrase = '';
       if (item.isCritSuccess) {
         switch (item.intent) {
-          case 'melee':
-            outcomePhrase = `совершает сокрушительный, эталонный выпад — оружие с глухим хрустом рассекает вражескую броню, выбивая сноп ярких искр и отбрасывая ошеломлённого противника на каменный пол!`;
-            break;
-          case 'ranged':
-            outcomePhrase = `пускает оперённую стрелу со сверхъестественной точностью: свистящий снаряд насквозь пробивает щит вражеского застрельщика, заставляя того взвыть от боли!`;
-            break;
-          case 'magic':
-            outcomePhrase = `высвобождает сокрушительный вихрь чародейской энергии — ослепительная вспышка сотрясает всё помещение, испепеляя защиту неприятеля и обращая строй врагов в панику!`;
-            break;
-          case 'heal':
-            outcomePhrase = `направляет волну живительного сияния точно в центр отряда, исцеляя кровоточащие раны союзников и наполняя их мышцы несокрушимым приливом сил!`;
-            break;
-          case 'stealth':
-            outcomePhrase = `буквально растворяется в клубящихся тенях и бесшумно возникает за спиной врага, нанося хирургически точный удар в самое уязвимое сочленение защиты!`;
-            break;
-          case 'defense':
-            outcomePhrase = `встречает ярость врагов монолитным блоком — сокрушительный отпор гасит удар чудовищ, ошеломляя их и выбивая оружие из когтистых лап!`;
-            break;
-          case 'athletics':
-            outcomePhrase = `совершает безупречный атлетический рывок — сокрушительным тараном сбивает вражеский заслон, внося неразбериху в ряды неприятеля!`;
-            break;
           case 'dialogue':
-            outcomePhrase = `издаёт столь свирепый и громогласный клич, что враги цепенеют от первобытного ужаса, опуская щиты!`;
+            outcomePhrase = `находит безупречные, проникновенные слова — собеседник глубоко тронут искренностью героя, раскрывает сокровенную тайну и охотно предлагает свою помощь!`;
             break;
           case 'investigation':
-            outcomePhrase = `мгновенно подмечает скрытую слабость в позиции чудовищ, безукоризненно направляя удар точно в брешь!`;
+            outcomePhrase = `проявляет феноменальную наблюдательность: мгновенно подмечает скрытый знак на камне и находит потайной схрон с ценными вещами!`;
+            break;
+          case 'heal':
+            outcomePhrase = `направляет исцеляющее тепло точно в очаг боли — раны затягиваются на глазах, возвращая силы и бодрость духа!`;
+            break;
+          case 'melee':
+            outcomePhrase = `совершает сокрушительный, эталонный выпад — оружие с глухим хрустом рассекает вражескую броню, повергая врага наземь!`;
+            break;
+          case 'ranged':
+            outcomePhrase = `пускает оперённую стрелу со сверхъестественной точностью: свистящий снаряд насквозь пробивает преграду!`;
+            break;
+          case 'magic':
+            outcomePhrase = `высвобождает сокрушительный вихрь чародейской энергии — ослепительная вспышка сотрясает всё вокруг!`;
+            break;
+          case 'stealth':
+            outcomePhrase = `буквально растворяется в клубящихся тенях и бесшумно обходит преграду, оставаясь абсолютно незамеченным!`;
+            break;
+          case 'defense':
+            outcomePhrase = `встречает угрозу монолитным блоком, ошеломляя противника встречным контрударом!`;
+            break;
+          case 'athletics':
+            outcomePhrase = `совершает безупречный атлетический рывок, легко расчищая путь от завала!`;
             break;
           default:
-            outcomePhrase = `демонстрирует феноменальное мастерство: всё задуманное исполняется с безукоризненной лёгкостью, сокрушая любые расчёты противников!`;
+            outcomePhrase = `демонстрирует высшее мастерство: всё задуманное исполняется с безукоризненной лёгкостью!`;
         }
       } else if (item.isSuccess) {
         switch (item.intent) {
-          case 'melee':
-            outcomePhrase = `уверенным рубящим ударом продавливает оборону врага, оставляя глубокую кровавую борозду на доспехах неприятеля и оттесняя его назад.`;
-            break;
-          case 'ranged':
-            outcomePhrase = `находит открытую брешь во вражеском строю — меткий выстрел намертво пригвождает противника к преграде, сковывая его манёвр.`;
-            break;
-          case 'magic':
-            outcomePhrase = `сплетает боевое заклятие, направляя потоки стихийной мощи точно во вражеские ряды и сея дезориентацию среди нападающих.`;
-            break;
-          case 'heal':
-            outcomePhrase = `быстро и своевременно оказывает помощь, облегчая боль соратников и возвращая отряду утраченное тактическое равновесие.`;
-            break;
-          case 'stealth':
-            outcomePhrase = `ловко выскальзывает из поля зрения чудовищ, занимая доминирующую позицию для внезапной атаки.`;
-            break;
-          case 'defense':
-            outcomePhrase = `хладнокровно принимает удар на щит, гася импульс вражеской атаки и прикрывая соратников.`;
-            break;
-          case 'athletics':
-            outcomePhrase = `мощным силовым движением опрокидывает преграду и оттесняет противников на невыгодную позицию.`;
-            break;
           case 'dialogue':
-            outcomePhrase = `хлёстким окриком и властным приказом перехватывает внимание врагов, выигрывая время для отряда.`;
+            outcomePhrase = `умело ведёт беседу, располагая к себе встреченного персонажа и выясняя ценные дорожные подробности.`;
             break;
           case 'investigation':
-            outcomePhrase = `быстро вычисляет слабое место вражеской обороны, давая ценное тактическое преимущество.`;
+            outcomePhrase = `внимательно осматривает окружение, подмечая свежие следы и находя важные зацепки.`;
             break;
-          default:
-            outcomePhrase = `действует хладнокровно и решительно, добиваясь поставленной цели и склоняя чашу весов в пользу героев.`;
-        }
-      } else if (item.isSevereFail) {
-        switch (item.intent) {
+          case 'heal':
+            outcomePhrase = `своевременно оказывает помощь, облегчая боль и восстанавливая душевное равновесие.`;
+            break;
           case 'melee':
-            outcomePhrase = `совершает мощный замах, но нога предательски соскальзывает на мокрых плитах: удар рассекает лишь воздух, открывая опаснейшую брешь для контратаки!`;
+            outcomePhrase = `уверенным ударом теснит противника назад, нанося ощутимый урон.`;
             break;
           case 'ranged':
-            outcomePhrase = `спускает тетиву, но суматоха рукопашной сбивает прицел — стрела с визгом рикошетит от камней, а стрелок оказывается под угрозой ответного удара!`;
+            outcomePhrase = `находит открытую брешь — меткий выстрел точно поражает намеченную цель.`;
             break;
           case 'magic':
-            outcomePhrase = `пытается обуздать магические потоки, однако яростный вой врагов сбивает концентрацию — заклятие гаснет ядовитым дымом, обжигая пальцы!`;
-            break;
-          case 'defense':
-            outcomePhrase = `пытается закрыться блоком, однако свирепый таран врага проламывает заслон, сбивая дыхание бойца!`;
+            outcomePhrase = `сплетает заклятие, направляя потоки стихийной мощи точно по замыслу.`;
             break;
           case 'stealth':
-            outcomePhrase = `совершает неловкое движение — хруст под сапогом мгновенно выдаёт позицию и навлекает ярость врагов!`;
-            break;
-          default:
-            outcomePhrase = `сталкивается с непредвиденным сопротивлением: манёвр срывается в самый неподходящий миг, грозя обернуться тяжёлыми последствиями!`;
-        }
-      } else {
-        // Glancing blow / minor failure
-        switch (item.intent) {
-          case 'melee':
-            outcomePhrase = `наносит резкий выпад, однако острие со звоном соскальзывает по закалённому наплечнику неприятеля, не нанеся глубокого вреда.`;
-            break;
-          case 'ranged':
-            outcomePhrase = `выпускает снаряд, но цель в последний момент успевает укрыться за толстым щитом.`;
-            break;
-          case 'magic':
-            outcomePhrase = `направляет волну энергии, но плотный строй противников гасит основную часть магического удара.`;
+            outcomePhrase = `ловко выскальзывает из поля зрения, занимая скрытную позицию.`;
             break;
           case 'defense':
-            outcomePhrase = `едва успевает подставить защиту — удар приходится на излёте, но сильно утомляет руку.`;
+            outcomePhrase = `хладнокровно парирует выпад, прикрывая соратников.`;
+            break;
+          case 'athletics':
+            outcomePhrase = `силовым движением устраняет преграду, прокладывая дорогу вперёд.`;
             break;
           default:
-            outcomePhrase = `старается продавить ситуацию, однако оборона противников оказывается плотнее, чем казалось изначально.`;
+            outcomePhrase = `действует расчётливо и уверенно, добиваясь желаемого результата.`;
+        }
+      } else if (item.isCritFail) {
+        outcomePhrase = `оступается в самый неподходящий момент: движение выходит неуклюжим, привлекая ненужное внимание и ставя отряд в неловкое положение!`;
+      } else {
+        switch (item.intent) {
+          case 'dialogue':
+            outcomePhrase = `наталкивается на холодное непонимание или подозрительность собеседника.`;
+            break;
+          case 'investigation':
+            outcomePhrase = `не находит ничего примечательного среди камней и дорожной пыли.`;
+            break;
+          default:
+            outcomePhrase = `не успевает завершить задуманное в полной мере, теряя драгоценную инициативу.`;
         }
       }
 
       partyProseLines.push(`${connector}${item.characterName} ${outcomePhrase}`);
     });
 
-    // 4. Enemy Retaliation & Battlefield Evolution (Context-Adaptive)
+    narrativeParagraphs.push(atmosphereIntro);
+    narrativeParagraphs.push(partyProseLines.join(' '));
+
+    // 4. Enemy counterattack or peaceful NPC interaction
+    const critFails = analyzedActions.filter(a => a.isCritFail);
     const failedActions = analyzedActions.filter(a => !a.isSuccess);
     const critSuccesses = analyzedActions.filter(a => a.isCritSuccess);
 
-    let enemyResponseProse = '';
-    if (failedActions.length > 0) {
-      const targetVictims = failedActions.slice(0, 2);
-      const victimNames: string[] = [];
-
-      targetVictims.forEach(victim => {
-        const damage = victim.isCritFail ? -5 : victim.isSevereFail ? -4 : -2;
+    if (isCombat && failedActions.length > 0) {
+      const targetChar = characters.find(c => c.id === failedActions[0].characterId) || characters[0];
+      if (targetChar) {
+        const dmg = critFails.length > 0 ? 6 : 4;
         playerUpdates.push({
-          characterId: victim.characterId,
-          characterName: victim.characterName,
-          hpDelta: damage,
-          note: victim.isCritFail ? 'Критическая контратака врагов' : 'Ответный выпад противника',
+          characterId: targetChar.id,
+          characterName: targetChar.name,
+          hpDelta: -dmg,
+          note: 'Ответный выпад противника',
         });
-        victimNames.push(victim.characterName);
-      });
-
-      if (victimNames.length === 1) {
-        enemyResponseProse = `Почувствовав заминку, разъярённый противник мгновенно переходит в яростный контрнатиск: зазубренное железо со скрежетом рассекает воздух, настигая ${victimNames[0]} и заставляя пошатнуться под шквалом стали.`;
-      } else {
-        enemyResponseProse = `Воспользовавшись разрывом в строю, чудовища свирепо контратакуют: контрудар настигает ${victimNames.join(' и ')}, заставляя бойцов дорого заплатить за секундную оплошность.`;
+        narrativeParagraphs.push(`Враги пользуются заминкой и наносят ответный удар: ${targetChar.name} получает ${dmg} урона!`);
       }
-    } else if (critSuccesses.length > 0 || analyzedActions.length >= 2) {
-      enemyResponseProse = 'Слаженный натиск отряда производит ошеломляющий эффект: вражеский строй смят, несколько противников валятся на камни, а уцелевшие твари в панике пятятся назад.';
-    } else {
-      enemyResponseProse = 'Противники ошеломлены твёрдостью духа искателей приключений и пытаются перегруппироваться, выискивая бреши в монолитной стойке отряда.';
+    } else if (!isCombat) {
+      narrativeParagraphs.push('Встреченные персонажи внимательно выслушивают героев, а обстановка вокруг остаётся мирной и располагающей к продолжению диалога.');
     }
 
-    if (analyzedActions.length >= 2 || critSuccesses.length > 0 || failedActions.length > 0) {
-      narrativeParagraphs.push(atmosphereIntro);
-      narrativeParagraphs.push(partyProseLines.join(' '));
-      if (enemyResponseProse) {
-        narrativeParagraphs.push(enemyResponseProse);
-      }
-    } else {
-      narrativeParagraphs.push(`${atmosphereIntro} ${partyProseLines.join(' ')}`);
-      if (enemyResponseProse) {
-        narrativeParagraphs.push(enemyResponseProse);
-      }
-    }
-
-    // 6. Dynamic Loot drops (every 2 rounds, or on crit successes)
+    // 5. Dropped Loot if crit success
     const droppedLoot: AIDMResponse['droppedLoot'] = [];
-    if (critSuccesses.length > 0 || (roundNumber % 2 === 0 && failedActions.length === 0)) {
-      const lootTable: Array<{ name: string; type: 'weapon' | 'armor' | 'potion' | 'misc'; description: string; healAmount?: number; damage?: string; ac_bonus?: number }> = [
-        {
-          name: 'Флакон эльфийского исцеления',
-          type: 'potion',
-          description: 'Мерцающая рубиновая жидкость, восстанавливающая силы и залечивающая глубокие раны.',
-          healAmount: 8,
-        },
-        {
-          name: 'Зазубренный клевец дозорного',
-          type: 'weapon',
-          description: 'Тяжёлое боевое оружие с гравировкой на чёрном железе. Легко пробивает кольчугу.',
-          damage: '1d8+2',
-        },
-        {
-          name: 'Свиток ледяного шипа',
-          type: 'misc',
-          description: 'Пергамент с древними письменами, излучающий колющий арктический холод.',
-        },
-        {
-          name: 'Чешуйчатый щит стража глубин',
-          type: 'armor',
-          description: 'Кованый щит, укреплённый чешуей подземного ящера.',
-          ac_bonus: 2,
-        },
-      ];
-
-      const chosenLoot = lootTable[(roundNumber + analyzedActions.length) % lootTable.length];
-      droppedLoot.push(chosenLoot);
+    if (critSuccesses.length > 0) {
+      droppedLoot.push({
+        name: 'Флакон целебного эликсира',
+        type: 'potion',
+        description: 'Стеклянный флакон с рубиновым зельем. Восстанавливает 2d4+2 HP.',
+        healAmount: 8,
+      });
     }
 
-    // 7. Dynamic Situation & Next Round DC
+    // 6. Dynamic Situation & Next Round DC
     let nextRoundDC = 12;
-    let nextRoundDCReason = 'Преодоление рубежа обороны';
+    let nextRoundDCReason = 'Продолжение пути';
     let currentSituation = '';
-
-    if (failedActions.length > 0) {
-      nextRoundDC = Math.min(16, currentDC + 1);
-      nextRoundDCReason = 'Враги перехватывают инициативу и усиливают натиск';
-      currentSituation = 'Противники сомкнули кольцо вокруг раненых героев, тесня отряд к завалу. В воздухе свистят стрелы, а из глубины коридора доносится глухой топот подкрепления. Что предпринимает отряд?';
-    } else if (critSuccesses.length > 0) {
-      nextRoundDC = Math.max(10, currentDC - 1);
-      nextRoundDCReason = 'Противники дезориентированы и бросаются в бегство';
-      currentSituation = 'Остатки вражеского строя в панике пятятся вглубь галереи, бросая припасы. Впереди мерцает приоткрытая кованая дверь тайника. Что делает отряд?';
-    } else {
-      nextRoundDC = 13;
-      nextRoundDCReason = 'Тактическое маневрирование в изменившейся обстановке';
-      currentSituation = 'Линия соприкосновения разорвана. Враги оценивают силы героев, укрываясь за выступами камня и готовясь к новому залпу. Что предпринимает ваш герой?';
-    }
-
-    // 8. Lore Milestones
-    const newMilestones: string[] = [];
-    if (roundNumber === 1) {
-      newMilestones.push(`Отряд вступил в бой в локации "${setting || 'Неизведанные земли'}".`);
-    } else if (critSuccesses.length > 0) {
-      newMilestones.push(`Раунд ${roundNumber}: Герои совершили сокрушительный прорыв.`);
-    }
+    let choiceDilemma = '';
 
     // Process active enemies HP changes
     let activeEnemies = context.activeEnemies && context.activeEnemies.length > 0
@@ -333,7 +258,6 @@ export class SimulationAIProvider implements IAIProvider {
 
     const successfulAttacks = analyzedActions.filter(a => a.isSuccess && ['melee', 'ranged', 'magic'].includes(a.intent));
     if (activeEnemies.length > 0 && successfulAttacks.length > 0) {
-      // Find first living enemy
       const targetEnemy = activeEnemies.find(e => !e.isDead && e.hpCurrent > 0);
       if (targetEnemy) {
         const totalDmg = successfulAttacks.reduce((acc, a) => acc + (a.isCritSuccess ? 10 : 5), 0);
@@ -349,13 +273,56 @@ export class SimulationAIProvider implements IAIProvider {
 
     const livingCount = activeEnemies.filter(e => !e.isDead && e.hpCurrent > 0).length;
 
+    if (livingCount === 0) {
+      if (failedActions.length > 0) {
+        nextRoundDC = Math.min(15, currentDC + 1);
+        nextRoundDCReason = 'Преодоление недоверия или поиск потерянного следа';
+        currentSituation = 'Собеседник осторожничает, а следы на дороге теряются в сумерках.';
+        choiceDilemma = 'Попытаться убедить собеседника добрым словом, предложить ценный подарок или отправиться на поиски обходной тропы. Что предпринимает отряд?';
+      } else if (critSuccesses.length > 0) {
+        nextRoundDC = Math.max(10, currentDC - 1);
+        nextRoundDCReason = 'Удачное развитие знакомства или находка тайника';
+        currentSituation = 'Встреченный персонаж проникся полным доверием к отряду и готов открыть свои главные тайны.';
+        choiceDilemma = 'Расспросить NPC о древнем сокровище, предложить совместное странствие или выменять редкие артефакты. Каково решение героев?';
+      } else {
+        nextRoundDC = 12;
+        nextRoundDCReason = 'Оценка дорожной обстановки и выбор направления';
+        currentSituation = 'На развилке дорог воцарилось спокойствие. Персонажи готовы к продолжению беседы или выдвижению в путь.';
+        choiceDilemma = 'Осмотреть товары встречного торговца, свериться с картой дорог или двинуться дальше к цели. Как поступает каждый путник?';
+      }
+    } else if (failedActions.length > 0) {
+      nextRoundDC = Math.min(16, currentDC + 1);
+      nextRoundDCReason = 'Враги перехватывают инициативу и усиливают натиск';
+      currentSituation = 'Противники сомкнули кольцо вокруг раненых героев, тесня отряд к завалу. В воздухе свистят стрелы. Что предпринимает отряд?';
+      choiceDilemma = 'Рискнуть пробиться через строй неприятеля или занять круговую оборону у баррикады. Что делает ваш герой?';
+    } else if (critSuccesses.length > 0) {
+      nextRoundDC = Math.max(10, currentDC - 1);
+      nextRoundDCReason = 'Противники дезориентированы и бросаются в бегство';
+      currentSituation = 'Остатки вражеского строя в панике пятятся вглубь галереи, бросая оружие. Впереди открывается проход дальше.';
+      choiceDilemma = 'Добить отступающих врагов, осмотреть брошенные трофеи или не теряя времени устремиться в открывшийся проход. Что решает отряд?';
+    } else {
+      nextRoundDC = 13;
+      nextRoundDCReason = 'Тактическое маневрирование в изменившейся обстановке';
+      currentSituation = 'Линия соприкосновения разорвана. Враги оценивают силы героев, укрываясь за выступами камня. Что предпринимает ваш герой?';
+      choiceDilemma = 'Навязать противнику ближний бой, обстрелять из укрытия или применить хитрость с окружением. Как действует каждый?';
+    }
+
+    // 8. Lore Milestones
+    const newMilestones: string[] = [];
+    if (roundNumber === 1) {
+      newMilestones.push(`Отряд начал путь в локации "${setting || 'Неизведанные земли'}".`);
+    } else if (critSuccesses.length > 0) {
+      newMilestones.push(`Раунд ${roundNumber}: Герои добились выдающегося успеха.`);
+    }
+
     return {
       narrative: narrativeParagraphs.join('\n\n'),
       playerUpdates,
       currentSituation,
-      enemiesStatus: livingCount === 0 ? 'Все противники повержены или обращены в бегство' : `В бою: ${livingCount} противников`,
-      activeEnemies: activeEnemies.length > 0 ? activeEnemies : undefined,
-      mood: playerUpdates.length > 0 ? 'combat' : livingCount === 0 ? 'triumph' : 'tension',
+      choiceDilemma,
+      enemiesStatus: livingCount === 0 ? 'Врагов нет. Мирная обстановка.' : `В бою: ${livingCount} противников`,
+      activeEnemies: activeEnemies.length > 0 ? activeEnemies : [],
+      mood: isCombat ? (playerUpdates.length > 0 ? 'combat' : livingCount === 0 ? 'triumph' : 'tension') : 'social',
       nextRoundDC,
       nextRoundDCReason,
       droppedLoot: droppedLoot.length > 0 ? droppedLoot : undefined,
@@ -373,28 +340,79 @@ export class SimulationAIProvider implements IAIProvider {
     });
 
     const partyIntro = heroDescriptions.length > 0
-      ? `В этот опасный поход выдвигается разношёрстный отряд: ${heroDescriptions.join(', ')}. Каждый из них принёс своё мастерство, тайны и боевую выучку.`
+      ? `В этот поход выдвигается разношёрстный отряд искателей приключений: ${heroDescriptions.join(', ')}. Каждый из них принёс своё мастерство, тайны и готовность к дорожным испытаниям.`
       : 'Отряд отважных искателей приключений ступает на порог неизведанного.';
 
-    const narrative = `Кампания «${title}» берёт своё начало там, где надежда уступает место холодной стали. ${setting}
+    // 4 Dynamic prologue archetypes to avoid endless battles
+    const archetypes = ['caravan', 'wounded', 'guard', 'ambush'];
+    const chosenArchetype = archetypes[Math.floor(Math.random() * archetypes.length)];
 
-${partyIntro}
+    if (chosenArchetype === 'caravan') {
+      const narrative = `Кампания «${title}» берёт своё начало на старом тракте. ${setting}\n\n${partyIntro}\n\nНа широкой развилке дорог под сенью раскидистых вязов отряд замечает походный лагерь. Караван бродячего купца Бальтазара застрял на привале: сломанная ось одной из тяжелых повозок накренила фургон. Возницы хлопочут у костра, а сам купец, завидев вооружённых путников, приветливо машет рукой и приглашает разделить тепло очага, надеясь на помощь и обмен новостями.`;
+      return {
+        narrative,
+        playerUpdates: [],
+        currentSituation: 'Караван купца Бальтазара встал на развилке тракта из-за сломанной повозки. Купец рад встрече с отрядом.',
+        choiceDilemma: 'Помочь починить повозку проверкой Силы, расспросить купца о слухах и окрестных тайнах или поинтересоваться его товарами. Что делает каждый герой?',
+        activeEnemies: [],
+        enemiesStatus: 'Врагов поблизости нет. Обстановка мирная и дружелюбная.',
+        mood: 'social',
+        nextRoundDC: 11,
+        nextRoundDCReason: 'Осмотр повозки или дружелюбная беседа с купцом',
+        requiredCheckStat: 'cha',
+        newMilestones: [`Начало похода «${title}»: отряд встретил караван Бальтазара на тракте.`],
+        xpAwarded: 25,
+      };
+    }
 
-Тяжёлые своды отзываются эхом каждого шага. Внезапно из клубящегося полумрака доносится скрежет обнажаемого оружия: вражеский дозор активизируется, отрезая путь к отступлению и смыкая кольцо вокруг героев!`;
+    if (chosenArchetype === 'wounded') {
+      const narrative = `Кампания «${title}» начинается с тревожной находки в пути. ${setting}\n\n${partyIntro}\n\nСреди придорожных папоротников и замшелых камней герои замечают человека в изорванном походном плаще. Путник тяжело дышит, прижимая окровавленную ладонь к боку. В его ослабевших пальцах зажат кожаный тубус с нетронутой сургучной печатью. Заслышав шаги отряда, он с мольбой приподнимает голову: «Помогите... за мной следили... спасите письмо...»`;
+      return {
+        narrative,
+        playerUpdates: [],
+        currentSituation: 'У обочины обнаружен тяжелораненый гонец с запечатанным посланием. Ему срочно нужна помощь.',
+        choiceDilemma: 'Оказать раненому медицинскую помощь (зельем или проверкой Мудрости), расспросить его о нападавших или изучить сургучную печать на тубусе. Что предпринимает отряд?',
+        activeEnemies: [],
+        enemiesStatus: 'Поблизости врагов не видно, но вокруг витает ощущение скрытой опасности.',
+        mood: 'mystery',
+        nextRoundDC: 12,
+        nextRoundDCReason: 'Первая медицинская помощь или расшифровка печати',
+        requiredCheckStat: 'wis',
+        newMilestones: [`Начало похода «${title}»: отряд спас раненого гонца на дороге.`],
+        xpAwarded: 25,
+      };
+    }
 
-    const currentSituation = `Перед отрядом поднимаются вражеские застрельщики, перекрывая единственный выход за упавшей решеткой. Что предпринимает отряд?`;
+    if (chosenArchetype === 'guard') {
+      const narrative = `Кампания «${title}» начинается у рубежей цивилизации. ${setting}\n\n${partyIntro}\n\nПеред отрядом вырастают массивные деревянные ворота укреплённого сторожевого поста на каменном мосту. Завидев приближение путников, сержант местной стражи опускает алебарду и выходит вперёд в сопровождении двух дозорных. «Стой, путник! Дорога на перевал закрыта до рассвета по приказу коменданта. Назовитесь и покажите подорожные грамоты!» — звучит строгий, но спокойный голос командира.`;
+      return {
+        narrative,
+        playerUpdates: [],
+        currentSituation: 'Отряд остановлен бдительным патрулем стражи на мостовой заставе для досмотра и проверки документов.',
+        choiceDilemma: 'Попытаться убедить сержанта пропустить отряд (Харизма), расспросить о причинах перекрытия тракта или предложить свою помощь страже. Каково решение отряда?',
+        activeEnemies: [],
+        enemiesStatus: 'Стражники на заставе не враждебны, но соблюдают бдительность.',
+        mood: 'social',
+        nextRoundDC: 12,
+        nextRoundDCReason: 'Убедительные переговоры со стражей или демонстрация авторитета',
+        requiredCheckStat: 'cha',
+        newMilestones: [`Начало похода «${title}»: отряд прибыл на дозорную заставу у моста.`],
+        xpAwarded: 25,
+      };
+    }
 
-    let enemyName = 'Авангард противника';
+    // Default 4th: Tactical Encounter (Ambush)
+    let enemyName = 'Авангард разбойников';
     if (/кибер|cyber/i.test(genre)) enemyName = 'Кибер-наёмники «Синтек»';
-    else if (/мафи|mafia/i.test(genre)) enemyName = 'Боевики с автоматами Томпсона';
-    else if (/sci|космос/i.test(genre)) enemyName = 'Боевые охранные дроны';
-    else if (/хоррор|horror/i.test(genre)) enemyName = 'Одержимые сектанты';
-    else enemyName = 'Авангард разбойников';
+    else if (/мафи|mafia/i.test(genre)) enemyName = 'Боевики с автоматами';
+    else if (/sci|космос/i.test(genre)) enemyName = 'Охранные дроны';
 
+    const narrative = `Кампания «${title}» сразу испытывает героев на прочность. ${setting}\n\n${partyIntro}\n\nИз клубящегося тумана внезапно доносится скрежет обнажаемой стали. Неприятель перекрывает путь, намереваясь взять отряд врасплох!`;
     return {
       narrative,
       playerUpdates: [],
-      currentSituation,
+      currentSituation: `Перед отрядом занимают позиции ${enemyName}, отрезая путь дальше. Что предпринимает отряд?`,
+      choiceDilemma: 'Принять бой, попытаться занять укрытия или ошеломить противников внезапным маневром. Как действует каждый герой?',
       activeEnemies: [
         {
           id: 'enemy_1',
@@ -403,17 +421,16 @@ ${partyIntro}
           hpCurrent: 14,
           hpMax: 14,
           ac: 12,
-          status: 'Окружают отряд с обнажённым оружием',
+          status: 'Ощетинились оружием и готовы к атаке',
           isDead: false,
         }
       ],
-      enemiesStatus: 'Враги готовы к немедленному нападению',
-      mood: 'mystery',
+      enemiesStatus: 'Противники готовы к схватке',
+      mood: 'combat',
       nextRoundDC: 12,
-      nextRoundDCReason: 'Оценка обстановки и первый решительный шаг',
-      newMilestones: [
-        `Начало кампании «${title}»: отряд переступил порог неизвестности.`,
-      ],
+      nextRoundDCReason: 'Оценка угрозы и первый тактический шаг',
+      requiredCheckStat: 'dex',
+      newMilestones: [`Начало похода «${title}»: отряд отражает внезапную угрозу.`],
       xpAwarded: 25,
     };
   }

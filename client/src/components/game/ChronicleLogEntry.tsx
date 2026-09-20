@@ -18,6 +18,32 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
 }) => {
   const title = log.roundNumber === 0 ? 'Преамбула' : `Хроника Раунда ${log.roundNumber}`;
 
+  const { displayNarrative, effectiveSituation, effectiveDilemma } = React.useMemo(() => {
+    const raw = log.narrativeText || '';
+    let sit = log.currentSituation;
+    let dil = log.choiceDilemma;
+
+    const outcomeMatch = raw.match(/📌\s*Итог ситуации:\s*([\s\S]*?)(?=(\n*❓\s*Выбор|$))/i);
+    if (!sit && outcomeMatch && outcomeMatch[1]) {
+      sit = outcomeMatch[1].trim();
+    }
+    const dilemmaMatch = raw.match(/❓\s*Выбор[^:]*:\s*([\s\S]*)$/i);
+    if (!dil && dilemmaMatch && dilemmaMatch[1]) {
+      dil = dilemmaMatch[1].trim();
+    }
+
+    const clean = raw
+      .replace(/\n*📌\s*Итог ситуации:[\s\S]*?(?=(\n*❓\s*Выбор|$))/i, '')
+      .replace(/\n*❓\s*Выбор[\s\S]*$/i, '')
+      .trim();
+
+    return {
+      displayNarrative: clean,
+      effectiveSituation: sit,
+      effectiveDilemma: dil,
+    };
+  }, [log.narrativeText, log.currentSituation, log.choiceDilemma]);
+
   return (
     <div className="bg-fantasy-card/90 border border-fantasy-border/80 rounded-2xl p-5 shadow-lg relative group transition-all animate-card-reveal">
       {/* Header */}
@@ -44,7 +70,7 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
 
       {/* Story text */}
       <div className="text-sm text-slate-200 leading-relaxed whitespace-pre-line font-serif">
-        {log.narrativeText}
+        {displayNarrative}
       </div>
 
       {/* Step 2: Player Actions & Dice Check Verdicts */}
@@ -102,27 +128,27 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
       )}
 
       {/* Step 3: Current Situation & Choice Dilemma Callout */}
-      {(log.currentSituation || log.choiceDilemma) && (
+      {(effectiveSituation || effectiveDilemma) && (
         <div className="mt-4 p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-amber-950/40 border border-amber-500/40 space-y-2 shadow-md">
-          {log.currentSituation && (
+          {effectiveSituation && (
             <div className="flex items-start gap-2 text-xs">
               <Compass className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
                 <span className="font-bold text-amber-300 font-rpg uppercase tracking-wider text-[11px] mr-1.5">
                   Итог ситуации:
                 </span>
-                <span className="text-slate-200 font-sans">{log.currentSituation}</span>
+                <span className="text-slate-200 font-sans">{effectiveSituation}</span>
               </div>
             </div>
           )}
-          {log.choiceDilemma && (
+          {effectiveDilemma && (
             <div className="flex items-start gap-2 text-xs pt-1.5 border-t border-amber-500/20">
               <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
                 <span className="font-bold text-purple-300 font-rpg uppercase tracking-wider text-[11px] mr-1.5">
                   Выбор перед отрядом:
                 </span>
-                <span className="text-amber-100 font-medium font-sans">{log.choiceDilemma}</span>
+                <span className="text-amber-100 font-medium font-sans">{effectiveDilemma}</span>
               </div>
             </div>
           )}

@@ -18,11 +18,28 @@ export class DMResponseValidator {
         throw new Error('Response JSON missing valid narrative field');
       }
 
+      let currentSituation = typeof parsed.currentSituation === 'string' && parsed.currentSituation.trim() ? parsed.currentSituation.trim() : '';
+      let choiceDilemma = typeof parsed.choiceDilemma === 'string' && parsed.choiceDilemma.trim() ? parsed.choiceDilemma.trim() : undefined;
+
+      const outcomeMatch = parsed.narrative.match(/📌\s*Итог ситуации:\s*([\s\S]*?)(?=(\n*❓\s*Выбор|$))/i);
+      if (!currentSituation && outcomeMatch && outcomeMatch[1]) {
+        currentSituation = outcomeMatch[1].trim();
+      }
+      const dilemmaMatch = parsed.narrative.match(/❓\s*Выбор[^:]*:\s*([\s\S]*)$/i);
+      if (!choiceDilemma && dilemmaMatch && dilemmaMatch[1]) {
+        choiceDilemma = dilemmaMatch[1].trim();
+      }
+
+      const cleanedNarrative = parsed.narrative
+        .replace(/\n*📌\s*Итог ситуации:[\s\S]*?(?=(\n*❓\s*Выбор|$))/i, '')
+        .replace(/\n*❓\s*Выбор[\s\S]*$/i, '')
+        .trim();
+
       return {
-        narrative: parsed.narrative,
+        narrative: cleanedNarrative || parsed.narrative,
         playerUpdates: Array.isArray(parsed.playerUpdates) ? parsed.playerUpdates : [],
-        currentSituation: parsed.currentSituation || 'Что вы делаете дальше?',
-        choiceDilemma: typeof parsed.choiceDilemma === 'string' && parsed.choiceDilemma.trim() ? parsed.choiceDilemma.trim() : undefined,
+        currentSituation: currentSituation || 'Что вы делаете дальше?',
+        choiceDilemma,
         enemiesStatus: parsed.enemiesStatus,
         activeEnemies: Array.isArray(parsed.activeEnemies)
           ? parsed.activeEnemies.map((e: any, idx: number) => ({
