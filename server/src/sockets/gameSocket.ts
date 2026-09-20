@@ -201,16 +201,23 @@ export function setupGameSockets(io: Server) {
         try {
           const resolved = await gameSessionService.resolveRound(room.id);
           if (resolved) {
-            io.to(room.id).emit('round_resolved', {
-              ...resolved,
-              room: sanitizeRoom(resolved.room),
-            });
-            io.to(room.id).emit('room_players_updated', resolved.players);
-            io.to(room.id).emit('narrator_playing', {
-              logId: resolved.log.id,
-              narrativeText: resolved.log.narrativeText,
-              startedBy: 'DM',
-            });
+            if (resolved.rejectedAction) {
+              io.to(room.id).emit('action_rejected', resolved.rejectedAction);
+              io.to(room.id).emit('room_players_updated', resolved.players);
+              return;
+            }
+            if (resolved.log) {
+              io.to(room.id).emit('round_resolved', {
+                ...resolved,
+                room: sanitizeRoom(resolved.room),
+              });
+              io.to(room.id).emit('room_players_updated', resolved.players);
+              io.to(room.id).emit('narrator_playing', {
+                logId: resolved.log.id,
+                narrativeText: resolved.log.narrativeText,
+                startedBy: 'DM',
+              });
+            }
           }
         } catch (error: any) {
           console.error('Error resolving round via GameSessionService:', error);
@@ -227,26 +234,28 @@ export function setupGameSockets(io: Server) {
       const updated = gameSessionService.setTurnMode(room.id, mode);
       if (updated) {
         io.to(room.id).emit('room_updated', updated);
-        const data = gameSessionService.getRoomAndPlayers(roomCode);
-        if (data) {
-          io.to(room.id).emit('room_players_updated', data.players);
-        }
       }
     });
 
-    // Loot pickup from story
+    // Pickup battlefield loot
     socket.on('pickup_loot', ({ roomCode, lootId, characterId }: { roomCode: string; lootId: string; characterId: string }) => {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      const result = gameSessionService.pickupLoot(room.id, characterId, lootId);
+      const result = gameSessionService.pickupLoot(room.id, lootId, characterId);
       if (result) {
         io.to(room.id).emit('loot_picked_up', {
-          lootId,
-          characterId,
           item: result.item,
           character: result.character,
           room: sanitizeRoom(result.room),
+        });
+
+        const charName = result.character?.name || 'Герой';
+        io.to(room.id).emit('feed_activity', {
+          id: crypto.randomUUID(),
+          type: 'loot_pickup',
+          text: `📦 ${charName} подобрал трофей: ${result.item.name}`,
+          timestamp: new Date().toISOString(),
         });
 
         const updated = gameSessionService.getRoomAndPlayers(roomCode);
@@ -256,7 +265,7 @@ export function setupGameSockets(io: Server) {
       }
     });
 
-    // Use consumable item (e.g. healing potion)
+    // Use Consumable Item
     socket.on('use_item', ({ roomCode, characterId, itemId }: { roomCode: string; characterId: string; itemId: string }) => {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
@@ -268,6 +277,13 @@ export function setupGameSockets(io: Server) {
           character: result.character,
           itemName: result.itemName,
           healAmount: result.healAmount,
+        });
+
+        io.to(room.id).emit('feed_activity', {
+          id: crypto.randomUUID(),
+          type: 'item_used',
+          text: `🧪 ${result.character.name} использовал предмет: ${result.itemName}${result.healAmount > 0 ? ` (+${result.healAmount} HP)` : ''}`,
+          timestamp: new Date().toISOString(),
         });
 
         const updated = gameSessionService.getRoomAndPlayers(roomCode);
@@ -282,22 +298,33 @@ export function setupGameSockets(io: Server) {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      const result = gameSessionService.performShortRest(characterId, diceCount);
-      if (result.character) {
-        io.to(room.id).emit('character_updated', result.character);
-        io.to(room.id).emit('rest_completed', {
-          type: 'short',
-          characterId,
-          characterName: result.character.name,
-          healedHp: result.healedHp,
-          diceSpent: result.diceSpent,
-          rolls: result.rolls,
-        });
+      try {
+        const result = gameSessionService.performShortRest(room.id, characterId, diceCount);
+        if (result.character) {
+          io.to(room.id).emit('character_updated', result.character);
+          io.to(room.id).emit('rest_completed', {
+            type: 'short',
+            characterId,
+            characterName: result.character.name,
+            healedHp: result.healedHp,
+            diceSpent: result.diceSpent,
+            rolls: result.rolls,
+          });
 
-        const updated = gameSessionService.getRoomAndPlayers(roomCode);
-        if (updated) {
-          io.to(room.id).emit('room_players_updated', updated.players);
+          io.to(room.id).emit('feed_activity', {
+            id: crypto.randomUUID(),
+            type: 'rest',
+            text: `⛺ ${result.character.name} завершил короткий отдых (+${result.healedHp} HP)`,
+            timestamp: new Date().toISOString(),
+          });
+
+          const updated = gameSessionService.getRoomAndPlayers(roomCode);
+          if (updated) {
+            io.to(room.id).emit('room_players_updated', updated.players);
+          }
         }
+      } catch (err: any) {
+        socket.emit('error_message', err.message || 'Ошибка короткого отдыха');
       }
     });
 
@@ -306,20 +333,31 @@ export function setupGameSockets(io: Server) {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      const result = gameSessionService.performLongRest(characterId);
-      if (result.character) {
-        io.to(room.id).emit('character_updated', result.character);
-        io.to(room.id).emit('rest_completed', {
-          type: 'long',
-          characterId,
-          characterName: result.character.name,
-          healedHp: result.healedHp,
-        });
+      try {
+        const result = gameSessionService.performLongRest(room.id, characterId);
+        if (result.character) {
+          io.to(room.id).emit('character_updated', result.character);
+          io.to(room.id).emit('rest_completed', {
+            type: 'long',
+            characterId,
+            characterName: result.character.name,
+            healedHp: result.healedHp,
+          });
 
-        const updated = gameSessionService.getRoomAndPlayers(roomCode);
-        if (updated) {
-          io.to(room.id).emit('room_players_updated', updated.players);
+          io.to(room.id).emit('feed_activity', {
+            id: crypto.randomUUID(),
+            type: 'rest',
+            text: `🌙 ${result.character.name} завершил длительный отдых (здоровье полностью восстановлено)`,
+            timestamp: new Date().toISOString(),
+          });
+
+          const updated = gameSessionService.getRoomAndPlayers(roomCode);
+          if (updated) {
+            io.to(room.id).emit('room_players_updated', updated.players);
+          }
         }
+      } catch (err: any) {
+        socket.emit('error_message', err.message || 'Ошибка длительного отдыха');
       }
     });
 
@@ -332,10 +370,36 @@ export function setupGameSockets(io: Server) {
       if (updatedChar) {
         io.to(room.id).emit('character_updated', updatedChar);
 
+        const weapon = updatedChar.inventory?.find(i => i.id === itemId);
+        io.to(room.id).emit('feed_activity', {
+          id: crypto.randomUUID(),
+          type: 'weapon_equipped',
+          text: `⚔️ ${updatedChar.name} экипировал оружие: ${weapon?.name || 'оружие'}`,
+          timestamp: new Date().toISOString(),
+        });
+
         const updated = gameSessionService.getRoomAndPlayers(roomCode);
         if (updated) {
           io.to(room.id).emit('room_players_updated', updated.players);
         }
+      }
+    });
+
+    // Interactive Campaign Map: Select Route
+    socket.on('select_map_route', ({ roomCode, targetNodeId }: { roomCode: string; targetNodeId: string }) => {
+      const room = roomRepository.findByCode(roomCode);
+      if (!room) return;
+
+      const updatedRoom = gameSessionService.selectMapRoute(room.id, targetNodeId);
+      if (updatedRoom) {
+        io.to(room.id).emit('room_updated', sanitizeRoom(updatedRoom));
+        const chosenNode = updatedRoom.campaignMap?.nodes.find((n: any) => n.id === targetNodeId);
+        io.to(room.id).emit('feed_activity', {
+          id: crypto.randomUUID(),
+          type: 'route_selected',
+          text: `🧭 Отряд выбрал маршрут к локации: ${chosenNode?.title || 'Новый рубеж'}`,
+          timestamp: new Date().toISOString(),
+        });
       }
     });
 
@@ -406,15 +470,23 @@ export function setupGameSockets(io: Server) {
       try {
         const resolved = await gameSessionService.resolveRound(room.id);
         if (resolved) {
-          io.to(room.id).emit('round_resolved', {
-            ...resolved,
-            room: sanitizeRoom(resolved.room),
-          });
-          io.to(room.id).emit('narrator_playing', {
-            logId: resolved.log.id,
-            narrativeText: resolved.log.narrativeText,
-            startedBy: 'DM',
-          });
+          if (resolved.rejectedAction) {
+            io.to(room.id).emit('action_rejected', resolved.rejectedAction);
+            io.to(room.id).emit('room_players_updated', resolved.players);
+            return;
+          }
+          if (resolved.log) {
+            io.to(room.id).emit('round_resolved', {
+              ...resolved,
+              room: sanitizeRoom(resolved.room),
+            });
+            io.to(room.id).emit('room_players_updated', resolved.players);
+            io.to(room.id).emit('narrator_playing', {
+              logId: resolved.log.id,
+              narrativeText: resolved.log.narrativeText,
+              startedBy: 'DM',
+            });
+          }
         }
       } catch (error: any) {
         console.error('Error in force_resolve_round:', error);

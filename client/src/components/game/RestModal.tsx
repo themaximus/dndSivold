@@ -6,6 +6,8 @@ import { soundFx } from '../../utils/audio';
 interface RestModalProps {
   isOpen: boolean;
   character: Character | null;
+  isCombat?: boolean;
+  currentRound?: number;
   onClose: () => void;
   onShortRest: (diceCount: number) => Promise<{ healedHp: number; diceSpent: number; rolls: number[] } | void>;
   onLongRest: () => Promise<{ healedHp: number } | void>;
@@ -14,6 +16,8 @@ interface RestModalProps {
 export const RestModal: React.FC<RestModalProps> = ({
   isOpen,
   character,
+  isCombat = false,
+  currentRound,
   onClose,
   onShortRest,
   onLongRest,
@@ -29,6 +33,15 @@ export const RestModal: React.FC<RestModalProps> = ({
   const hdType = character.hitDiceType || 'd8';
   const conMod = Math.floor(((character.stats?.con ?? 10) - 10) / 2);
   const missingHp = character.hpMax - character.hpCurrent;
+
+  const shortRestsUsed = character.shortRestsCount ?? 0;
+  const isShortRestLimitReached = shortRestsUsed >= 2;
+  const longRestCooldown = (character.lastLongRestRound !== undefined && currentRound !== undefined)
+    ? Math.max(0, 6 - (currentRound - character.lastLongRestRound))
+    : 0;
+
+  const isShortRestDisabled = isProcessing || maxDice <= 0 || isCombat || isShortRestLimitReached;
+  const isLongRestDisabled = isProcessing || isCombat || longRestCooldown > 0;
 
   const handleShortRest = async () => {
     if (maxDice <= 0) {
@@ -88,8 +101,16 @@ export const RestModal: React.FC<RestModalProps> = ({
         </div>
 
         <div className="p-5 space-y-5 overflow-y-auto custom-scrollbar">
+          {/* Combat warning banner */}
+          {isCombat && (
+            <div className="p-3 bg-red-950/60 border border-red-500/60 rounded-xl flex items-center gap-2.5 text-xs text-red-200">
+              <Shield className="w-5 h-5 text-red-400 shrink-0" />
+              <span>⚔️ Нельзя отдыхать во время активного боя! Сначала одолейте противников или отступите в безопасную зону.</span>
+            </div>
+          )}
+
           {/* Character Status Overview */}
-          <div className="grid grid-cols-3 gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
             <div>
               <span className="text-slate-400 block mb-0.5">Здоровье (HP):</span>
               <span className="font-bold text-slate-100 text-sm flex items-center gap-1">
@@ -112,9 +133,16 @@ export const RestModal: React.FC<RestModalProps> = ({
             </div>
 
             <div>
-              <span className="text-slate-400 block mb-0.5">Модификатор ТЕЛ:</span>
+              <span className="text-slate-400 block mb-0.5">Мод. ТЕЛ:</span>
               <span className="font-bold text-blue-400 text-sm">
-                {conMod >= 0 ? `+${conMod}` : conMod} к броску кости
+                {conMod >= 0 ? `+${conMod}` : conMod} к кости
+              </span>
+            </div>
+
+            <div>
+              <span className="text-slate-400 block mb-0.5">Коротких отдыха:</span>
+              <span className={`font-bold text-sm ${isShortRestLimitReached ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {shortRestsUsed} / 2 {isShortRestLimitReached ? '(макс)' : ''}
               </span>
             </div>
           </div>
@@ -226,14 +254,20 @@ export const RestModal: React.FC<RestModalProps> = ({
                 </div>
               )}
 
+              {isShortRestLimitReached && (
+                <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-lg text-xs text-amber-300">
+                  ⚠️ Вы уже совершили 2 коротких отдыха до сна. Требуется длительный отдых!
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={handleShortRest}
-                disabled={isProcessing || maxDice <= 0}
+                disabled={isShortRestDisabled}
                 className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold font-rpg text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Dices className="w-4 h-4" />
-                {isProcessing ? 'Бросок костей...' : `Потратить ${diceCount} ${hdType} и восстановить HP`}
+                {isProcessing ? 'Бросок костей...' : isCombat ? 'Недоступно во время боя' : isShortRestLimitReached ? 'Лимит отдыха исчерпан (2/2)' : `Потратить ${diceCount} ${hdType} и восстановить HP`}
               </button>
             </div>
           ) : (
@@ -244,7 +278,7 @@ export const RestModal: React.FC<RestModalProps> = ({
                   Полноценный сон и восстановление сил
                 </h4>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  8 часов непрерывного отдыха в безопасном месте.
+                  8 часов непрерывного отдыха в безопасном месте (доступен не чаще раза в 6 раундов).
                 </p>
               </div>
 
@@ -263,18 +297,24 @@ export const RestModal: React.FC<RestModalProps> = ({
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>Снятие временных боевых состояний и стабилизация.</span>
+                  <span>Снятие временных боевых состояний и сброс счетчика коротких отдыхов.</span>
                 </li>
               </ul>
+
+              {longRestCooldown > 0 && (
+                <div className="p-3 bg-indigo-950/40 border border-indigo-500/40 rounded-lg text-xs text-indigo-300">
+                  ⚠️ Длительный отдых доступен не чаще одного раза в 6 раундов. До следующего отдыха осталось: <strong>{longRestCooldown} раунд(ов)</strong>.
+                </div>
+              )}
 
               <button
                 type="button"
                 onClick={handleLongRest}
-                disabled={isProcessing}
-                className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold font-rpg text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                disabled={isLongRestDisabled}
+                className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold font-rpg text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Moon className="w-4 h-4" />
-                {isProcessing ? 'Отдых...' : 'Провести длительный отдых'}
+                {isProcessing ? 'Отдых...' : isCombat ? 'Недоступно во время боя' : longRestCooldown > 0 ? `Перезарядка (${longRestCooldown} раунд.)` : 'Провести длительный отдых'}
               </button>
             </div>
           )}

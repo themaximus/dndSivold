@@ -64,6 +64,8 @@ export interface Character {
   hitDiceCurrent?: number;
   hitDiceType?: string;
   spellSlots?: Record<string, { current: number; max: number }>;
+  shortRestsCount?: number;
+  lastLongRestRound?: number;
   createdAt?: string;
 }
 
@@ -285,4 +287,16 @@ export interface GameLogEntry {
     note: string;
   }[];
   createdAt: string;
+}
+
+export interface FeedActivity {
+  id: string;
+  type: 'item_used' | 'weapon_equipped' | 'rest' | 'loot_pickup' | 'route_selected';
+  text: string;
+  timestamp: string;
+}
+
+export interface ActionRejectedEvent {
+  characterName: string;
+  reason: string;
 }

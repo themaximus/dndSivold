@@ -63,6 +63,8 @@ export interface CharacterEntity {
   hitDiceCurrent?: number;
   hitDiceType?: string;
   spellSlots?: Record<string, { current: number; max: number }>;
+  shortRestsCount?: number;
+  lastLongRestRound?: number;
   createdAt: string;
 }
 
@@ -339,6 +341,16 @@ class Database {
       this.data.turnActions.push(action);
       this.save();
       return action;
+    },
+    remove: (id: string) => {
+      this.data.turnActions = this.data.turnActions.filter(ta => ta.id !== id);
+      this.save();
+    },
+    removeByPlayerAndRound: (roomId: string, round: number, playerId: string) => {
+      this.data.turnActions = this.data.turnActions.filter(
+        ta => !(ta.roomId === roomId && ta.roundNumber === round && ta.playerId === playerId)
+      );
+      this.save();
     },
   };
 

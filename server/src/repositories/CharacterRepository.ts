@@ -24,7 +24,7 @@ export interface ICharacterRepository extends IRepository<CharacterEntity> {
     diceSpent: number;
     rolls: number[];
   };
-  performLongRest(id: string): { character: CharacterEntity | null; healedHp: number };
+  performLongRest(id: string, currentRound?: number): { character: CharacterEntity | null; healedHp: number };
   useSpellSlot(id: string, level: number): CharacterEntity | null;
   updateConditions(id: string, conditions: string[]): CharacterEntity | null;
   learnTalent(id: string, talentId: string, effects: any): CharacterEntity | null;
@@ -269,14 +269,18 @@ export class CharacterRepository implements ICharacterRepository {
       inventory.splice(idx, 1);
     }
 
-    // Apply healing if any
-    let updatedChar: CharacterEntity | null = null;
+    // Apply inventory decrement and healing atomically
+    const updates: Partial<CharacterEntity> = { inventory };
     if (healAmount > 0) {
-      updatedChar = this.updateHp(id, healAmount);
-    } else {
-      updatedChar = this.update(id, { inventory });
+      const newHp = Math.max(0, Math.min(char.hpMax, char.hpCurrent + healAmount));
+      updates.hpCurrent = newHp;
+      if (newHp > 0 && char.lifeState === 'downed') {
+        updates.lifeState = 'alive';
+        updates.deathSaves = { successes: 0, failures: 0, isStable: false };
+      }
     }
 
+    const updatedChar = this.update(id, updates);
     return { character: updatedChar, healAmount, itemName };
   }
 
@@ -354,7 +358,7 @@ export class CharacterRepository implements ICharacterRepository {
     return this.update(id, updates);
   }
 
-  public performShortRest(id: string, diceCount: number = 1): {
+  public performShortRest(id: string, diceCount = 1): {
     character: CharacterEntity | null;
     healedHp: number;
     diceSpent: number;
@@ -363,7 +367,15 @@ export class CharacterRepository implements ICharacterRepository {
     const char = this.findById(id);
     if (!char) return { character: null, healedHp: 0, diceSpent: 0, rolls: [] };
 
+    if ((char.shortRestsCount ?? 0) >= 2) {
+      throw new Error('Вы уже совершили максимум коротких отдыхов (2) до долгого отдыха! Требуется продолжительный отдых.');
+    }
+
     const currentDice = char.hitDiceCurrent ?? (char.level || 1);
+    if (currentDice <= 0) {
+      throw new Error('У вас не осталось доступных костей хитов для короткого отдыха!');
+    }
+
     const actualSpend = Math.min(Math.max(1, diceCount), currentDice);
     if (actualSpend <= 0) {
       return { character: char, healedHp: 0, diceSpent: 0, rolls: [] };
@@ -391,6 +403,7 @@ export class CharacterRepository implements ICharacterRepository {
       hpCurrent: newHp,
       hitDiceCurrent: newDice,
       conditions: updatedConditions,
+      shortRestsCount: (char.shortRestsCount || 0) + 1,
       lifeState: char.lifeState === 'downed' && newHp > 0 ? 'alive' : char.lifeState,
     });
 
@@ -402,9 +415,14 @@ export class CharacterRepository implements ICharacterRepository {
     };
   }
 
-  public performLongRest(id: string): { character: CharacterEntity | null; healedHp: number } {
+  public performLongRest(id: string, currentRound?: number): { character: CharacterEntity | null; healedHp: number } {
     const char = this.findById(id);
     if (!char) return { character: null, healedHp: 0 };
+
+    if (currentRound !== undefined && char.lastLongRestRound !== undefined && (currentRound - char.lastLongRestRound) < 6) {
+      const remaining = 6 - (currentRound - char.lastLongRestRound);
+      throw new Error(`Долгий отдых доступен не чаще одного раза в 6 раундов (24 часа в игре). До следующего отдыха осталось раундов: ${remaining}.`);
+    }
 
     const maxHd = char.hitDiceMax ?? (char.level || 1);
     const curHd = char.hitDiceCurrent ?? 0;
@@ -424,6 +442,8 @@ export class CharacterRepository implements ICharacterRepository {
       hitDiceCurrent: restoredHd,
       spellSlots: resetSlots,
       conditions: [],
+      shortRestsCount: 0,
+      lastLongRestRound: currentRound ?? 0,
       lifeState: char.lifeState === 'downed' ? 'alive' : char.lifeState,
     });
 

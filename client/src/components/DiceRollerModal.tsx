@@ -148,51 +148,64 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
           </div>
         </div>
 
-        {/* D20 Modifiers */}
+        {/* D20 Stat Challenge - Dictated by Dungeon Master */}
         {diceType === 'd20' && (
           <div className="mb-4">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Характеристика для модификатора
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Характеристика проверки (Назначена Мастером)
+              </label>
+              {defaultStatKey && (
+                <span className="text-[10px] font-mono px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-bold border border-amber-500/30">
+                  Выбор Мастера
+                </span>
+              )}
+            </div>
+
+            {/* Display character stats with DM required stat highlighted and locked */}
             <div className="grid grid-cols-3 gap-2">
               {[
-                { key: 'str', label: 'СИЛ', val: stats.str },
-                { key: 'dex', label: 'ЛОВ', val: stats.dex },
-                { key: 'con', label: 'ТЕЛ', val: stats.con },
-                { key: 'int', label: 'ИНТ', val: stats.int },
-                { key: 'wis', label: 'МУД', val: stats.wis },
-                { key: 'cha', label: 'ХАР', val: stats.cha },
+                { key: 'str', label: 'СИЛА (STR)', val: stats.str },
+                { key: 'dex', label: 'ЛОВКОСТЬ (DEX)', val: stats.dex },
+                { key: 'con', label: 'ТЕЛО (CON)', val: stats.con },
+                { key: 'int', label: 'ИНТЕЛЛЕКТ (INT)', val: stats.int },
+                { key: 'wis', label: 'МУДРОСТЬ (WIS)', val: stats.wis },
+                { key: 'cha', label: 'ХАРИЗМА (CHA)', val: stats.cha },
               ].map((st) => {
-                  const isRecommended = defaultStatKey && defaultStatKey.toLowerCase() === st.key;
-                  const mod = calcMod(st.val);
-                  return (
-                    <button
-                      key={st.key}
-                      type="button"
-                      onClick={() => setStatKey(st.key)}
-                      className={`p-2 rounded-lg border text-left transition-all relative ${
-                        statKey === st.key
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-1 ring-amber-400/40'
-                          : isRecommended
-                          ? 'bg-amber-500/10 border-amber-500/50 text-slate-200'
-                          : 'bg-fantasy-card border-fantasy-border text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400">{st.label}</span>
-                        {isRecommended && (
-                          <span className="text-[9px] font-mono px-1 py-0.2 bg-amber-500/30 text-amber-300 rounded font-bold">
-                            СЛ
-                          </span>
-                        )}
-                      </div>
-                      <div className="font-bold text-sm">
-                        {st.val} ({mod >= 0 ? `+${mod}` : mod})
-                      </div>
-                    </button>
-                  );
+                const isDMChoice = (defaultStatKey ? defaultStatKey.toLowerCase() : 'dex') === st.key;
+                const isSelected = statKey === st.key;
+                const mod = calcMod(st.val);
+
+                return (
+                  <div
+                    key={st.key}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      isSelected
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-2 ring-amber-400/40'
+                        : isDMChoice
+                        ? 'bg-amber-500/10 border-amber-500/40 text-slate-300'
+                        : 'bg-slate-900/40 border-slate-800 text-slate-500 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span>{st.label.split(' ')[0]}</span>
+                      {isSelected && (
+                        <span className="text-[9px] font-mono font-bold text-amber-400">
+                          {defaultStatKey ? 'СЛ ДМ' : 'АКТИВНА'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-bold text-sm mt-0.5">
+                      {st.val} <span className="text-xs font-mono font-normal">({mod >= 0 ? `+${mod}` : mod})</span>
+                    </div>
+                  </div>
+                );
               })}
             </div>
+
+            <p className="text-[11px] text-slate-400 mt-2 italic">
+              * Характеристику проверки назначает Мастер Подземелий по ситуации сцены.
+            </p>
 
             {/* Advantage / Disadvantage */}
             <div className="grid grid-cols-2 gap-2 mt-3">
@@ -227,20 +240,6 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
             </div>
           </div>
         )}
-
-        {/* Purpose */}
-        <div className="mb-5">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-            Цель броска
-          </label>
-          <input
-            type="text"
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
-            placeholder="Например: Атака гоблина мечом, проверка Скрытности"
-            className="w-full px-3 py-2 bg-fantasy-card border border-fantasy-border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
-          />
-        </div>
 
         {/* Roll Result Display */}
         {lastRoll && (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Room, RoomPlayer, GameLogEntry, DiceRollResult, Character, CharacterTalentTree, RoomLootItem } from '../types';
+import { Room, RoomPlayer, GameLogEntry, DiceRollResult, Character, CharacterTalentTree, RoomLootItem, FeedActivity, ActionRejectedEvent } from '../types';
 import { api } from '../services/api';
 import { getSocket, connectSocket } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,8 @@ export function useGameSession(roomCode: string) {
   const [isDMThinking, setIsDMThinking] = useState(false);
   const [talentTree, setTalentTree] = useState<CharacterTalentTree | null>(null);
   const [lastDeathSaveMessage, setLastDeathSaveMessage] = useState<string | null>(null);
+  const [rejectedAction, setRejectedAction] = useState<ActionRejectedEvent | null>(null);
+  const [recentActivities, setRecentActivities] = useState<FeedActivity[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -133,6 +135,17 @@ export function useGameSession(roomCode: string) {
       setTalentTree(data.tree);
     });
 
+    socket.on('action_rejected', (data: ActionRejectedEvent) => {
+      setIsDMThinking(false);
+      setHasSubmittedThisRound(false);
+      setRejectedAction(data);
+      soundFx.playCriticalFail();
+    });
+
+    socket.on('feed_activity', (data: FeedActivity) => {
+      setRecentActivities(prev => [data, ...prev.slice(0, 9)]);
+    });
+
     return () => {
       isMounted = false;
       socket.off('room_players_updated');
@@ -146,6 +159,8 @@ export function useGameSession(roomCode: string) {
       socket.off('character_updated');
       socket.off('death_save_result');
       socket.off('talents_loaded');
+      socket.off('action_rejected');
+      socket.off('feed_activity');
     };
   }, [roomCode, user?.id, myPlayer?.characterId]);
 
@@ -179,6 +194,12 @@ export function useGameSession(roomCode: string) {
       spellLevelUsed: meta?.spellLevelUsed,
     });
     setHasSubmittedThisRound(true);
+    setRejectedAction(null);
+  }, [roomCode]);
+
+  const selectMapRoute = useCallback((targetNodeId: string) => {
+    const socket = getSocket();
+    socket.emit('select_map_route', { roomCode, targetNodeId });
   }, [roomCode]);
 
   const pickupLoot = useCallback((lootId: string) => {
@@ -280,6 +301,10 @@ export function useGameSession(roomCode: string) {
     isDMThinking,
     talentTree,
     lastDeathSaveMessage,
+    rejectedAction,
+    setRejectedAction,
+    recentActivities,
+    selectMapRoute,
     submitAction,
     forceResolveRound,
     setTurnMode,

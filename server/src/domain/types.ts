@@ -122,6 +122,10 @@ export interface AIDMResponse {
   }>;
   newMilestones?: string[];
   xpAwarded?: number;
+  rejectedAction?: {
+    characterName: string;
+    reason: string;
+  };
 }
 
 export type MoodType = 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';

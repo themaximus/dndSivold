@@ -11,7 +11,7 @@ import {
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
-import { AIDMResponse, AIDMPrologueContext } from '../../domain/types';
+import { AIDMResponse, AIDMPrologueContext, CampaignMapNode, CampaignMapEdge } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
@@ -19,10 +19,14 @@ import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 import { campaignMapGenerator } from './CampaignMapGenerator';
 
 export interface RoundResolutionResult {
-  log: GameLogEntity;
+  log?: GameLogEntity;
   room: RoomEntity;
   players: RoomPlayerEntity[];
   nextRoundNumber: number;
+  rejectedAction?: {
+    characterName: string;
+    reason: string;
+  };
 }
 
 export class GameSessionService {
@@ -344,6 +348,35 @@ export class GameSessionService {
       dmResult = await fallback.generateRound(aiContext);
     }
 
+    // Handle Rejected Action if player's submission was critical absurdity
+    if (dmResult.rejectedAction) {
+      const rejectedCharName = (dmResult.rejectedAction.characterName || '').toLowerCase().trim();
+      const offendingAction = currentRoundActions.find(a =>
+        a.characterName.toLowerCase().trim().includes(rejectedCharName) ||
+        rejectedCharName.includes(a.characterName.toLowerCase().trim())
+      );
+
+      if (offendingAction) {
+        const playerRec = this.rooms.findPlayer(room.id, offendingAction.playerId);
+        if (playerRec) {
+          this.rooms.updatePlayer(playerRec.id, { hasActedThisRound: false });
+        }
+        this.turnActions.delete(offendingAction.id);
+      } else {
+        allPlayers.forEach(p => {
+          this.rooms.updatePlayer(p.id, { hasActedThisRound: false });
+        });
+      }
+
+      const updatedPlayers = this.rooms.findPlayersByRoomId(room.id);
+      return {
+        room,
+        players: updatedPlayers,
+        nextRoundNumber: room.roundNumber,
+        rejectedAction: dmResult.rejectedAction,
+      };
+    }
+
     // Apply player updates (HP changes) with exact ID or name matching
     if (Array.isArray(dmResult.playerUpdates)) {
       dmResult.playerUpdates.forEach(update => {
@@ -414,13 +447,54 @@ export class GameSessionService {
       this.characters.awardXp(c.id, xpToAward);
     });
 
+    // Format Actions Summary with Player text, Roll math and DC/AC Success/Failure verdicts
+    const formattedActionsSummary = currentRoundActions.map(a => {
+      const roll = a.diceRolls && a.diceRolls.length > 0 ? a.diceRolls[0] : null;
+      let verdict = '';
+      if (roll) {
+        const sign = roll.modifier >= 0 ? '+' : '';
+        const statLabel = roll.statName ? ` (${roll.statName.toUpperCase()})` : '';
+        const rollExpr = `d20 [${roll.baseRoll ?? roll.total}]${sign}${roll.modifier ?? 0}${statLabel} = ${roll.total}`;
+
+        const targetEnemy = room.activeEnemies?.find(e =>
+          e.id === a.targetEnemyId || (a.targetEnemyName && e.name.toLowerCase().includes(a.targetEnemyName.toLowerCase()))
+        );
+
+        if (a.actionType === 'attack' || targetEnemy) {
+          const ac = targetEnemy?.ac || 12;
+          const enemyName = targetEnemy?.name || a.targetEnemyName || 'Враг';
+          if (roll.isCriticalSuccess) {
+            verdict = `★ КРИТИЧЕСКОЕ ПОПАДАНИЕ! (${rollExpr} vs КД ${ac} ${enemyName})`;
+          } else if (roll.isCriticalFail) {
+            verdict = `✗ КРИТИЧЕСКИЙ ПРОМАХ! (${rollExpr} vs КД ${ac} ${enemyName})`;
+          } else if (roll.total >= ac) {
+            verdict = `★ ПОПАДАНИЕ (${rollExpr} vs КД ${ac} ${enemyName})`;
+          } else {
+            verdict = `✗ ПРОМАХ (${rollExpr} vs КД ${ac} ${enemyName})`;
+          }
+        } else {
+          const dc = room.targetDC || 12;
+          if (roll.isCriticalSuccess) {
+            verdict = `★ КРИТИЧЕСКИЙ УСПЕХ! (${rollExpr} vs СЛ ${dc})`;
+          } else if (roll.isCriticalFail) {
+            verdict = `✗ КРИТИЧЕСКИЙ ПРОВАЛ! (${rollExpr} vs СЛ ${dc})`;
+          } else if (roll.total >= dc) {
+            verdict = `★ УСПЕХ (${rollExpr} vs СЛ ${dc})`;
+          } else {
+            verdict = `✗ НЕУДАЧА (${rollExpr} vs СЛ ${dc})`;
+          }
+        }
+      }
+      return `【${a.characterName}】: «${a.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}`;
+    }).join('\n\n');
+
     // Save game log
     const newLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: room.roundNumber,
       narrativeText: dmResult.narrative,
-      actionsSummary: currentRoundActions.map(a => `${a.characterName}: ${a.actionText}`).join('\n'),
+      actionsSummary: formattedActionsSummary,
       targetDC: room.targetDC,
       dcReason: room.dcReason,
       requiredCheckStat: room.requiredCheckStat,
@@ -618,12 +692,60 @@ export class GameSessionService {
     return updated ? sanitizeRoom(updated) : null;
   }
 
-  public performShortRest(characterId: string, diceCount?: number) {
+  public performShortRest(roomId: string, characterId: string, diceCount?: number) {
+    const room = this.rooms.findById(roomId);
+    if (room && room.activeEnemies && room.activeEnemies.some(e => !e.isDead && e.hpCurrent > 0)) {
+      throw new Error('Нельзя отдыхать во время активного боя! Сначала одолейте противников.');
+    }
     return this.characters.performShortRest(characterId, diceCount);
   }
 
-  public performLongRest(characterId: string) {
-    return this.characters.performLongRest(characterId);
+  public performLongRest(roomId: string, characterId: string) {
+    const room = this.rooms.findById(roomId);
+    if (room && room.activeEnemies && room.activeEnemies.some(e => !e.isDead && e.hpCurrent > 0)) {
+      throw new Error('Нельзя отдыхать во время активного боя! Сначала одолейте противников.');
+    }
+    return this.characters.performLongRest(characterId, room?.roundNumber);
+  }
+
+  public selectMapRoute(roomId: string, targetNodeId: string): RoomEntity | null {
+    const room = this.rooms.findById(roomId);
+    if (!room || !room.campaignMap || !Array.isArray(room.campaignMap.nodes)) {
+      return null;
+    }
+
+    const map = room.campaignMap;
+    const targetNode = map.nodes.find((n: CampaignMapNode) => n.id === targetNodeId);
+    if (!targetNode) return null;
+
+    const oldCurrentId = map.currentNodeId;
+
+    const updatedNodes = map.nodes.map((node: CampaignMapNode) => {
+      if (node.id === oldCurrentId) {
+        return { ...node, status: 'visited' as const };
+      } else if (node.id === targetNodeId) {
+        return { ...node, status: 'current' as const };
+      } else {
+        const isReachableFromTarget = map.edges?.some((e: CampaignMapEdge) => e.from === targetNodeId && e.to === node.id);
+        if (isReachableFromTarget && node.status !== 'visited') {
+          return { ...node, status: 'discovered' as const };
+        }
+        return node;
+      }
+    });
+
+    const updatedMap = {
+      ...map,
+      nodes: updatedNodes,
+      currentNodeId: targetNodeId,
+    };
+
+    const updatedRoom = this.rooms.update(roomId, {
+      campaignMap: updatedMap,
+      currentSituation: `Отряд выбрал маршрут: «${targetNode.title}». ${targetNode.description}`,
+    });
+
+    return updatedRoom;
   }
 }
 

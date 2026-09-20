@@ -50,6 +50,9 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     isDMThinking,
     talentTree,
     lastDeathSaveMessage,
+    rejectedAction,
+    recentActivities,
+    selectMapRoute,
     submitAction,
     forceResolveRound,
     setTurnMode,
@@ -147,6 +150,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
           <StoryChronicle
             logs={logs}
             loadingLogId={loadingLogId}
+            recentActivities={recentActivities}
             isSpeakingText={isSpeakingText}
             onToggleVoice={toggleVoice}
           />
@@ -166,6 +170,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             attachedRolls={attachedRolls}
             lastDeathSaveMessage={lastDeathSaveMessage}
             activeEnemies={room.activeEnemies || []}
+            rejectedAction={rejectedAction}
             onRemoveRoll={handleRemoveRoll}
             onOpenDiceModal={handleOpenDiceModal}
             onSubmit={handleSubmitAction}
@@ -199,6 +204,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
       <RestModal
         isOpen={isRestOpen}
         character={myCharacter}
+        isCombat={(room.activeEnemies || []).some(e => !e.isDead && e.hpCurrent > 0)}
+        currentRound={room.roundNumber}
         onClose={() => setIsRestOpen(false)}
         onShortRest={shortRest}
         onLongRest={longRest}
@@ -240,6 +247,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         currentRound={room.roundNumber}
         duration={room.campaignDuration || 'medium'}
         genre={room.genre || 'fantasy'}
+        onSelectRoute={selectMapRoute}
       />
     </div>
   );

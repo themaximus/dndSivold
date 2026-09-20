@@ -71,6 +71,12 @@ export class DMResponseValidator {
         droppedLoot: Array.isArray(parsed.droppedLoot) ? parsed.droppedLoot : [],
         newMilestones: Array.isArray(parsed.newMilestones) ? parsed.newMilestones : [],
         xpAwarded: typeof parsed.xpAwarded === 'number' ? parsed.xpAwarded : 35,
+        rejectedAction: parsed.rejectedAction && typeof parsed.rejectedAction.reason === 'string'
+          ? {
+              characterName: String(parsed.rejectedAction.characterName || 'Игрок'),
+              reason: String(parsed.rejectedAction.reason),
+            }
+          : undefined,
       };
     } catch (err: any) {
       console.warn('JSON parsing error from AI response, using fallback format', err.message);

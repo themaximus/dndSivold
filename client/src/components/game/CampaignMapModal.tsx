@@ -25,6 +25,7 @@ interface CampaignMapModalProps {
   currentRound: number;
   duration?: 'short' | 'medium' | 'long';
   genre?: string;
+  onSelectRoute?: (targetNodeId: string) => void;
 }
 
 const GENRE_LABELS: Record<string, string> = {
@@ -50,6 +51,7 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
   currentRound,
   duration = 'medium',
   genre = 'fantasy',
+  onSelectRoute,
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
@@ -470,6 +472,21 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                 {selectedNode.description || 'Таинственный рубеж приключения. Готовьтесь преодолеть испытания и раскрыть тайны.'}
               </p>
             </div>
+
+            {/* Action Route Choice Button */}
+            {onSelectRoute && selectedNode.id !== currentNodeId && (selectedNode.status === 'discovered' || edges.some(e => e.from === currentNodeId && e.to === selectedNode.id)) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectRoute(selectedNode.id);
+                  onClose();
+                }}
+                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-rpg text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 shrink-0"
+              >
+                <Navigation className="w-4 h-4" />
+                <span>Выбрать этот маршрут</span>
+              </button>
+            )}
 
             {/* Map Legend */}
             <div className="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
