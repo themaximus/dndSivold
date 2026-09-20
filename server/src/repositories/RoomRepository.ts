@@ -65,7 +65,7 @@ export class RoomRepository implements IRoomRepository {
   public resetPlayersTurn(roomId: string): void {
     const players = this.findPlayersByRoomId(roomId);
     players.forEach(p => {
-      this.updatePlayer(p.id, { hasActedThisRound: false });
+      this.updatePlayer(p.id, { hasActedThisRound: false, hasRolledThisRound: false });
     });
   }
 

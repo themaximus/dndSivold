@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DiceRollResult } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useGameSession } from '../hooks/useGameSession';
@@ -59,12 +59,17 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     );
   }
 
+  useEffect(() => {
+    setAttachedRolls([]);
+  }, [room.roundNumber]);
+
   const handleAttachRoll = (roll: DiceRollResult) => {
-    setAttachedRolls(prev => [...prev, roll]);
+    // Strictly 1 dice roll per turn
+    setAttachedRolls([roll]);
   };
 
-  const handleRemoveRoll = (index: number) => {
-    setAttachedRolls(prev => prev.filter((_, i) => i !== index));
+  const handleRemoveRoll = () => {
+    // Rolls cannot be discarded mid-turn
   };
 
   const handleSubmitAction = (actionText: string) => {

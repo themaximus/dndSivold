@@ -1,14 +1,14 @@
 import React from 'react';
 import { DiceRollResult } from '../../types';
-import { Dices, X } from 'lucide-react';
+import { Dices } from 'lucide-react';
 
 interface AttachedRollsBarProps {
   rolls: DiceRollResult[];
   targetDC?: number;
-  onRemoveRoll: (index: number) => void;
+  onRemoveRoll?: (index: number) => void;
 }
 
-export const AttachedRollsBar: React.FC<AttachedRollsBarProps> = ({ rolls, targetDC, onRemoveRoll }) => {
+export const AttachedRollsBar: React.FC<AttachedRollsBarProps> = ({ rolls, targetDC }) => {
   if (rolls.length === 0) return null;
 
   return (
@@ -60,14 +60,6 @@ export const AttachedRollsBar: React.FC<AttachedRollsBarProps> = ({ rolls, targe
                   : `✗ Провал (${roll.total} < ${targetDC})`}
               </span>
             )}
-
-            <button
-              type="button"
-              onClick={() => onRemoveRoll(idx)}
-              className="ml-1 text-slate-400 hover:text-red-400"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </span>
         );
       })}

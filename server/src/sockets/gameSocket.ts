@@ -117,12 +117,25 @@ export function setupGameSockets(io: Server) {
       }
     });
 
-    // Perform server-side anti-cheat dice roll
+    // Perform server-side anti-cheat dice roll (Single roll per turn in active room)
     socket.on('roll_dice', (data: { roomCode: string; request: RollRequest }) => {
       const room = roomRepository.findByCode(data.roomCode);
       if (!room) return;
 
       const player = roomRepository.findPlayer(room.id, userId);
+      if (!player) return;
+
+      // In active gameplay, allow only 1 dice roll per turn/round
+      if (room.status === 'active') {
+        if (player.hasRolledThisRound) {
+          socket.emit('dice_roll_rejected', {
+            message: 'Вы уже бросили кубик в этом раунде! По правилам доступен только 1 бросок перед ходом.',
+          });
+          return;
+        }
+        roomRepository.updatePlayer(player.id, { hasRolledThisRound: true });
+      }
+
       const character = player?.characterId ? characterRepository.findById(player.characterId) : undefined;
       const rollResult = executeServerRoll(data.request, character);
 

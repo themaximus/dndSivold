@@ -29,6 +29,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   const calcMod = (val: number) => Math.floor((val - 10) / 2);
 
   const handleRoll = () => {
+    if (isRolling || lastRoll) return;
     setIsRolling(true);
     soundFx.playDiceRoll();
 
@@ -45,9 +46,19 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
       }
 
       socket.off('your_dice_result', handleResult);
+      socket.off('dice_roll_rejected', handleRejected);
+    };
+
+    const handleRejected = (data: { message: string }) => {
+      setIsRolling(false);
+      alert(data.message || 'Вы уже бросили кубик в этом раунде!');
+      socket.off('your_dice_result', handleResult);
+      socket.off('dice_roll_rejected', handleRejected);
+      onClose();
     };
 
     socket.on('your_dice_result', handleResult);
+    socket.on('dice_roll_rejected', handleRejected);
 
     socket.emit('roll_dice', {
       roomCode,
@@ -65,6 +76,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
       if (isRolling) {
         setIsRolling(false);
         socket.off('your_dice_result', handleResult);
+        socket.off('dice_roll_rejected', handleRejected);
       }
     }, 4000);
   };
@@ -76,12 +88,21 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     }
   };
 
+  const handleClose = () => {
+    if (isRolling) return;
+    if (lastRoll) {
+      onRollComplete(lastRoll);
+    }
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-fantasy-panel border border-fantasy-border rounded-2xl p-6 shadow-2xl relative">
         <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+          onClick={handleClose}
+          disabled={isRolling}
+          className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition-colors disabled:opacity-50"
         >
           <X className="w-5 h-5" />
         </button>
@@ -92,7 +113,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
           </div>
           <div>
             <h3 className="text-xl font-bold font-rpg text-amber-400">Бросок кубика</h3>
-            <p className="text-xs text-slate-400">Честный расчет на сервере (защита от читов)</p>
+            <p className="text-xs text-slate-400">Честный расчет на сервере — строго 1 бросок за ход</p>
           </div>
         </div>
 
@@ -236,24 +257,24 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
 
         {/* Actions */}
         <div className="flex gap-3">
-          <button
-            type="button"
-            disabled={isRolling}
-            onClick={handleRoll}
-            className="flex-1 py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold font-rpg rounded-xl shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Dices className={`w-5 h-5 ${isRolling ? 'animate-spin' : ''}`} />
-            {isRolling ? 'Кубик катится...' : 'Бросить кубик'}
-          </button>
-
-          {lastRoll && (
+          {lastRoll ? (
             <button
               type="button"
               onClick={confirmRoll}
-              className="py-3 px-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors flex items-center gap-1.5"
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold font-rpg rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 text-sm"
             >
               <Check className="w-5 h-5" />
-              Прикрепить к ходу
+              Прикрепить бросок к ходу ({lastRoll.total})
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isRolling}
+              onClick={handleRoll}
+              className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold font-rpg rounded-xl shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+            >
+              <Dices className={`w-5 h-5 ${isRolling ? 'animate-spin' : ''}`} />
+              {isRolling ? 'Кубик катится...' : 'Бросить кубик (1 попытка)'}
             </button>
           )}
         </div>

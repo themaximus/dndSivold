@@ -71,6 +71,7 @@ export interface RoomPlayer {
   character?: Character;
   isReady: boolean;
   hasActedThisRound: boolean;
+  hasRolledThisRound?: boolean;
   isOnline: boolean;
 }
 

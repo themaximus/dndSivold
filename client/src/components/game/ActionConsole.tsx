@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Character, DiceRollResult } from '../../types';
-import { Sparkles, Dices, Send, Clock, ShieldAlert, HeartCrack, Skull, Heart } from 'lucide-react';
+import { Sparkles, Dices, Send, Clock, ShieldAlert, HeartCrack, Skull, Heart, Check } from 'lucide-react';
 import { AttachedRollsBar } from './AttachedRollsBar';
 import { QuickActionButtons } from './QuickActionButtons';
 
@@ -233,18 +233,25 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           />
 
           <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={onOpenDiceModal}
-              className={`px-4 py-2 border font-bold text-xs font-rpg rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm ${
-                !hasD20Roll
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse hover:bg-amber-400'
-                  : 'bg-amber-500/15 hover:bg-amber-500 border-amber-500/40 text-amber-300 hover:text-black'
-              }`}
-            >
-              <Dices className="w-4 h-4" />
-              {hasD20Roll ? 'Добавить бросок' : 'Бросить d20 (СЛ)'}
-            </button>
+            {hasD20Roll ? (
+              <button
+                type="button"
+                disabled
+                className="px-4 py-2 border font-bold text-xs font-rpg rounded-xl flex items-center justify-center gap-1.5 shadow-sm bg-emerald-500/15 border-emerald-500/40 text-emerald-400 cursor-default"
+              >
+                <Check className="w-4 h-4 text-emerald-400" />
+                Бросок выполнен ({attachedRolls[0]?.total})
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenDiceModal}
+                className="px-4 py-2 border font-bold text-xs font-rpg rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm bg-amber-500 text-slate-950 border-amber-400 animate-pulse hover:bg-amber-400"
+              >
+                <Dices className="w-4 h-4" />
+                Бросить d20 (СЛ)
+              </button>
+            )}
 
             <button
               type="submit"

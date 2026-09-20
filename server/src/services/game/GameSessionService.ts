@@ -155,6 +155,7 @@ export class GameSessionService {
       targetDC: startDC,
       dcReason: startDCReason,
     });
+    this.rooms.resetPlayersTurn(room.id);
 
     // Process prologue milestones
     if (Array.isArray(prologueResult.newMilestones) && prologueResult.newMilestones.length > 0) {
