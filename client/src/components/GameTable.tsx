@@ -49,7 +49,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     learnTalent,
   } = useGameSession(roomCode);
 
-  const { loadingLogId, isSpeakingText, toggleVoice } = useNarrativeVoice();
+  const { loadingLogId, isSpeakingText, toggleVoice } = useNarrativeVoice(roomCode);
 
   useEffect(() => {
     setAttachedRolls([]);

@@ -84,7 +84,6 @@ export function useGameSession(roomCode: string) {
       }
 
       soundFx.playTurnStart();
-      soundFx.speakNarrative(data.log.narrativeText);
 
       confetti({
         particleCount: 50,

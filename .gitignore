@@ -18,6 +18,8 @@ data/*.tmp
 !data/database.default.json
 
 # Temporary files & logs
+server/data/audio_cache/
+*.mp3
 *.tmp
 *.log
 npm-debug.log*

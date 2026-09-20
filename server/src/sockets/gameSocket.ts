@@ -109,11 +109,21 @@ export function setupGameSockets(io: Server) {
 
       const updated = await gameSessionService.startGame(room.id, userId);
       if (updated) {
+        const logs = gameLogRepository.findByRoomId(room.id);
         io.to(room.id).emit('game_started', {
           room: sanitizeRoom(updated.room),
           players: updated.players,
-          logs: gameLogRepository.findByRoomId(room.id),
+          logs,
         });
+
+        if (logs.length > 0) {
+          io.to(room.id).emit('narrator_playing', {
+            logId: logs[0].id,
+            narrativeText: logs[0].narrativeText,
+            mood: 'mystery',
+            startedBy: 'DM',
+          });
+        }
       }
     });
 
@@ -175,6 +185,11 @@ export function setupGameSockets(io: Server) {
             io.to(room.id).emit('round_resolved', {
               ...resolved,
               room: sanitizeRoom(resolved.room),
+            });
+            io.to(room.id).emit('narrator_playing', {
+              logId: resolved.log.id,
+              narrativeText: resolved.log.narrativeText,
+              startedBy: 'DM',
             });
           }
         } catch (error: any) {
@@ -314,11 +329,38 @@ export function setupGameSockets(io: Server) {
             ...resolved,
             room: sanitizeRoom(resolved.room),
           });
+          io.to(room.id).emit('narrator_playing', {
+            logId: resolved.log.id,
+            narrativeText: resolved.log.narrativeText,
+            startedBy: 'DM',
+          });
         }
       } catch (error: any) {
         console.error('Error in force_resolve_round:', error);
         io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером');
       }
+    });
+
+    // Synchronize TTS Narrator playback across all players in the room
+    socket.on('narrator_play', ({ roomCode, logId, narrativeText, mood }: { roomCode: string; logId: string; narrativeText: string; mood?: string }) => {
+      const room = roomRepository.findByCode(roomCode);
+      if (!room) return;
+
+      io.to(room.id).emit('narrator_playing', {
+        logId,
+        narrativeText,
+        mood,
+        startedBy: username,
+      });
+    });
+
+    socket.on('narrator_stop', ({ roomCode }: { roomCode: string }) => {
+      const room = roomRepository.findByCode(roomCode);
+      if (!room) return;
+
+      io.to(room.id).emit('narrator_stopped', {
+        stoppedBy: username,
+      });
     });
 
     socket.on('disconnect', () => {
