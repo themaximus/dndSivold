@@ -4,7 +4,7 @@
   "description": "Multiplayer D&D Platform with AI Dungeon Master",
   "main": "server/dist/index.js",
   "scripts": {
-    "postinstall": "npm --prefix client install && npm --prefix server install",
+    "postinstall": "npm --prefix client install --include=dev && npm --prefix server install --include=dev",
     "build": "npm --prefix client run build && npm --prefix server run build",
     "start": "node server/dist/index.js",
     "server": "npm --prefix server run dev",
