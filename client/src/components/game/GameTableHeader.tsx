@@ -1,0 +1,132 @@
+import React from 'react';
+import { Room } from '../../types';
+import { ArrowLeft, Clock, Package, Award, BookMarked } from 'lucide-react';
+
+interface GameTableHeaderProps {
+  room: Room;
+  readyCount: number;
+  totalActivePlayers: number;
+  inventoryCount?: number;
+  skillPoints?: number;
+  milestonesCount?: number;
+  onOpenInventory?: () => void;
+  onOpenTalents?: () => void;
+  onOpenJournal?: () => void;
+  onLeave: () => void;
+}
+
+export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
+  room,
+  readyCount,
+  totalActivePlayers,
+  inventoryCount = 0,
+  skillPoints = 0,
+  milestonesCount = 0,
+  onOpenInventory,
+  onOpenTalents,
+  onOpenJournal,
+  onLeave,
+}) => {
+  const handleCopyInvite = () => {
+    const url = `${window.location.origin}/?room=${room.code}`;
+    navigator.clipboard.writeText(url);
+    alert(`Ссылка на комнату скопирована в буфер обмена!\n\n${url}`);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-fantasy-panel border border-fantasy-border rounded-2xl p-4 mb-4 shadow-xl">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onLeave}
+          className="p-2 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-slate-800 transition-colors"
+          title="В лобби"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold font-rpg text-amber-400">
+              {room.title}
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              Раунд {room.roundNumber}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 truncate max-w-xl">
+            {room.setting}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Quick launcher: Inventory */}
+        {onOpenInventory && (
+          <button
+            onClick={onOpenInventory}
+            className="px-3 py-1.5 bg-fantasy-card hover:bg-slate-800 border border-fantasy-border hover:border-amber-500/50 rounded-xl text-slate-200 hover:text-amber-300 text-xs font-semibold transition-all flex items-center gap-1.5 relative shadow-sm"
+          >
+            <Package className="w-3.5 h-3.5 text-amber-400" />
+            <span>Инвентарь</span>
+            {inventoryCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-slate-800 text-[10px] text-amber-300 rounded font-mono">
+                {inventoryCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Quick launcher: Talents */}
+        {onOpenTalents && (
+          <button
+            onClick={onOpenTalents}
+            className={`px-3 py-1.5 border rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 relative shadow-sm ${
+              skillPoints > 0
+                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 animate-pulse hover:bg-amber-500 hover:text-black'
+                : 'bg-fantasy-card hover:bg-slate-800 border-fantasy-border hover:border-amber-500/50 text-slate-200 hover:text-amber-300'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5 text-amber-400" />
+            <span>Таланты</span>
+            {skillPoints > 0 && (
+              <span className="px-1.5 py-0.2 bg-amber-500 text-black font-bold text-[10px] rounded-full">
+                +{skillPoints}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Quick launcher: Lore Journal */}
+        {onOpenJournal && (
+          <button
+            onClick={onOpenJournal}
+            className="px-3 py-1.5 bg-fantasy-card hover:bg-slate-800 border border-fantasy-border hover:border-purple-500/50 rounded-xl text-slate-200 hover:text-purple-300 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <BookMarked className="w-3.5 h-3.5 text-purple-400" />
+            <span>Журнал</span>
+            {milestonesCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-slate-800 text-[10px] text-purple-300 rounded font-mono">
+                {milestonesCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Round Action Status */}
+        <div className="flex items-center gap-2 bg-fantasy-card px-3 py-1.5 rounded-xl border border-fantasy-border text-xs">
+          <Clock className="w-4 h-4 text-amber-400" />
+          <span className="text-slate-300">
+            Ход: <strong className="text-amber-400">{readyCount}</strong> из <strong>{totalActivePlayers}</strong>
+          </span>
+        </div>
+
+        <button
+          onClick={handleCopyInvite}
+          className="px-3 py-1.5 bg-fantasy-card hover:bg-slate-800 border border-fantasy-border rounded-xl text-amber-300 hover:text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+          title="Скопировать ссылку для приглашения друзей"
+        >
+          <span>Пригласить</span>
+        </button>
+      </div>
+    </div>
+  );
+};

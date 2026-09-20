@@ -1,0 +1,14 @@
+{
+  "name": "dnd-sivold",
+  "version": "1.0.0",
+  "description": "Multiplayer D&D Platform with AI Dungeon Master",
+  "main": "server/dist/index.js",
+  "scripts": {
+    "postinstall": "npm --prefix client install && npm --prefix server install",
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "start": "node server/dist/index.js",
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "dev": "node run-dev.js"
+  }
+}
