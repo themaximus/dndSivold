@@ -222,16 +222,12 @@ export class SimulationAIProvider implements IAIProvider {
       partyProseLines.push(`${connector}${item.characterName} ${outcomePhrase}`);
     });
 
-    narrativeParagraphs.push(atmosphereIntro);
-    narrativeParagraphs.push(partyProseLines.join(' '));
-
-    // 4. Enemy Retaliation & Battlefield Evolution (Paragraph 3)
+    // 4. Enemy Retaliation & Battlefield Evolution (Concise)
     const failedActions = analyzedActions.filter(a => !a.isSuccess);
     const critSuccesses = analyzedActions.filter(a => a.isCritSuccess);
 
     let enemyResponseProse = '';
     if (failedActions.length > 0) {
-      // Pick characters who failed to take damage
       const targetVictims = failedActions.slice(0, 2);
       const victimNames: string[] = [];
 
@@ -247,26 +243,20 @@ export class SimulationAIProvider implements IAIProvider {
       });
 
       if (victimNames.length === 1) {
-        enemyResponseProse = `Почувствовав заминку, разъярённый противник мгновенно переходит в яростный контрнатиск. Ощерив зазубренное железо, враги набрасываются на ${victimNames[0]}, нанося хлёсткий рассекающий удар и вынуждая героя пошатнуться под шквалом стали.`;
+        enemyResponseProse = `Почувствовав заминку, враги контратакуют: удар настигает ${victimNames[0]}.`;
       } else {
-        enemyResponseProse = `Воспользовавшись образовавшимися разрывами в строю, чудовища свирепо огрызаются. Их вожак оглашает своды хриплым боевым кличем, и контрудар настигает ${victimNames.join(' и ')}, заставляя бойцов дорого заплатить за секундную оплошность.`;
+        enemyResponseProse = `Воспользовавшись оплошностью, враги свирепо контратакуют ${victimNames.join(' и ')}.`;
       }
     } else if (critSuccesses.length > 0 || analyzedActions.length >= 2) {
-      enemyResponseProse = 'Слаженный и свирепый натиск отряда производит ошеломляющий эффект. Вражеский авангард смят и разорван: несколько противников валятся на камни, захлёбываясь хрипом, а уцелевшие твари в панике пятятся назад, оглашая своды испуганными криками.';
+      enemyResponseProse = 'Вражеский строй смят: уцелевшие противники в панике пятятся назад.';
     } else {
-      enemyResponseProse = 'Противники ошеломлены твёрдостью духа искателей приключений. Они перегруппировываются на ходу, тяжело дыша и выискивая глазами бреши в монолитной стойке отряда.';
+      enemyResponseProse = 'Противники ошеломлены натиском героев и пытаются перегруппироваться.';
     }
 
-    narrativeParagraphs.push(enemyResponseProse);
-
-    // 5. Dynamic Tactical Conclusion & Environment Aftermath (Paragraph 4)
-    let climaxProse = '';
-    if (failedActions.length === 0) {
-      climaxProse = 'Воздух наполнен запахом триумфа и озона. Пыль битвы медленно оседает, открывая взору разбитую вражескую позицию и путь вперёд.';
-    } else {
-      climaxProse = 'Капли крови окропляют холодный камень. Противники всё ещё опасны и стягивают последние резервы для решающего удара.';
+    narrativeParagraphs.push(`${atmosphereIntro} ${partyProseLines.join(' ')}`);
+    if (enemyResponseProse) {
+      narrativeParagraphs.push(enemyResponseProse);
     }
-    narrativeParagraphs.push(climaxProse);
 
     // 6. Dynamic Loot drops (every 2 rounds, or on crit successes)
     const droppedLoot: AIDMResponse['droppedLoot'] = [];
@@ -308,24 +298,24 @@ export class SimulationAIProvider implements IAIProvider {
 
     if (failedActions.length > 0) {
       nextRoundDC = Math.min(16, currentDC + 1);
-      nextRoundDCReason = 'Враги закрепились на рубеже и усиливают натиск';
-      currentSituation = 'Потрепанные, но свирепые противники сплотились вокруг своего командира, перекрывая проход за упавшей решеткой, пока из темноты нарастает топот подкрепления. Что предпринимает отряд?';
+      nextRoundDCReason = 'Враги усиливают натиск';
+      currentSituation = 'Противники сомкнули кольцо вокруг раненых. Что предпринимает отряд?';
     } else if (critSuccesses.length > 0) {
       nextRoundDC = Math.max(10, currentDC - 1);
-      nextRoundDCReason = 'Противники дезориентированы и бросаются в бегство';
-      currentSituation = 'Остатки врагов в панике отступают вглубь коридоров. На полу видны брошенные припасы, а впереди мерцает приоткрытая кованая дверь тайника. Что делает отряд?';
+      nextRoundDCReason = 'Противники дезориентированы';
+      currentSituation = 'Остатки врагов в панике пятятся к выходу. Что делает отряд?';
     } else {
       nextRoundDC = 13;
-      nextRoundDCReason = 'Тактическое маневрирование в изменившейся обстановке';
-      currentSituation = 'Линия соприкосновения разорвана. Враги оценивают силы героев, держа дистанцию и готовясь к новому залпу. Что предпринимает ваш герой?';
+      nextRoundDCReason = 'Тактическое маневрирование';
+      currentSituation = 'Враги перегруппировываются для нового выпада. Что предпринимает ваш герой?';
     }
 
     // 8. Lore Milestones
     const newMilestones: string[] = [];
     if (roundNumber === 1) {
-      newMilestones.push(`Отряд вступил в бой в локации "${setting || 'Неизведанные земли'}" и принял первое боевое крещение.`);
+      newMilestones.push(`Отряд вступил в бой в локации "${setting || 'Неизведанные земли'}".`);
     } else if (critSuccesses.length > 0) {
-      newMilestones.push(`Раунд ${roundNumber}: Герои совершили сокрушительный прорыв, сломив хребет вражескому сопротивлению.`);
+      newMilestones.push(`Раунд ${roundNumber}: Герои совершили сокрушительный прорыв.`);
     }
 
     return {
@@ -345,33 +335,25 @@ export class SimulationAIProvider implements IAIProvider {
   public async generatePrologue(context: AIDMPrologueContext): Promise<AIDMResponse> {
     const { title, setting, characters } = context;
 
-    const heroDescriptions = characters.map(c => {
-      const bioSnippet = c.bio ? ` (${c.bio})` : '';
-      return `${c.name} — ${c.race} ${c.characterClass}${bioSnippet}`;
-    });
+    const heroNames = characters.map(c => `${c.name} (${c.characterClass})`).join(', ');
+    const partyIntro = heroNames
+      ? `Отряд во главе с ${heroNames} ступает на порог испытания.`
+      : 'Отряд приключенцев ступает на порог неизведанного.';
 
-    const partyIntro = heroDescriptions.length > 0
-      ? `Судьба и древние знамения свели воедино этот разношёрстный отряд приключенцев: ${heroDescriptions.join(', ')}. Каждый из них принёс в поход своё мастерство, свои тайны и своё оружие.`
-      : 'Группа отважных искателей приключений ступает на порог неизведанного мира.';
+    const narrative = `${setting} ${partyIntro}
 
-    const narrative = `Древние хроники гласят, что земля эта помнит падение забытых империй и шепот тёмных владык. Кампания «${title}» берёт своё начало там, где надежда уступает место холодной стали.
+Внезапно из полумрака доносится скрежет стали и глухое рычание: враги уже близко, перекрывая путь к отступлению.`;
 
-${setting}
-
-${partyIntro}
-
-Тяжёлые кованые врата со скрежетом захлопываются позади героев, отрезая путь к отступлению. В воздухе витает горьковатый запах серы, вековой сырости и застарелой магии. Пляшущий огонь факелов выхватывает из клубящегося полумрака полуразрушенные колонны и осыпающиеся своды, а из глубины коридора уже доносится зловещее эхо приближающейся опасности.`;
-
-    const currentSituation = `Отряд оказался перед расходящимися в темноту тоннелями. Впереди мерцают багровые руны, а по полу стелется холодный туман. Что предпринимает отряд?`;
+    const currentSituation = `Перед отрядом поднимаются противники, смыкая кольцо. Что предпринимает отряд?`;
 
     return {
       narrative,
       playerUpdates: [],
       currentSituation,
-      enemiesStatus: 'Окрестности погружены в тревожное безмолвие, враги затаились в тенях',
+      enemiesStatus: 'Враги готовы к немедленному нападению',
       mood: 'mystery',
       nextRoundDC: 12,
-      nextRoundDCReason: 'Оценка обстановки в полумраке и первый шаг в неизвестность',
+      nextRoundDCReason: 'Оценка обстановки и первый решительный шаг',
       newMilestones: [
         `Начало кампании «${title}»: отряд переступил порог неизвестности.`,
       ],
