@@ -81,6 +81,17 @@ export interface RoomLootItem {
   roundDropped: number;
 }
 
+export interface RoomEnemy {
+  id: string;
+  name: string;
+  type?: string;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  status: string;
+  isDead: boolean;
+}
+
 export interface RoomEntity {
   id: string;
   code: string;
@@ -97,6 +108,7 @@ export interface RoomEntity {
   turnMode?: 'simultaneous' | 'turn_by_turn';
   activePlayerUserId?: string;
   turnOrder?: string[];
+  activeEnemies?: RoomEnemy[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   deepseekApiKey?: string;

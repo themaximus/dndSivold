@@ -23,6 +23,22 @@ export class DMResponseValidator {
         playerUpdates: Array.isArray(parsed.playerUpdates) ? parsed.playerUpdates : [],
         currentSituation: parsed.currentSituation || 'Что вы делаете дальше?',
         enemiesStatus: parsed.enemiesStatus,
+        activeEnemies: Array.isArray(parsed.activeEnemies)
+          ? parsed.activeEnemies.map((e: any, idx: number) => ({
+              id: typeof e.id === 'string' && e.id ? e.id : `enemy_${idx + 1}`,
+              name: typeof e.name === 'string' && e.name ? e.name : 'Противник',
+              type: typeof e.type === 'string' ? e.type : 'monster',
+              hpCurrent: typeof e.hpCurrent === 'number' ? Math.max(0, e.hpCurrent) : 10,
+              hpMax: typeof e.hpMax === 'number' ? Math.max(1, e.hpMax) : 10,
+              ac: typeof e.ac === 'number' ? e.ac : 12,
+              status: typeof e.status === 'string' ? e.status : 'В боевой стойке',
+              isDead: Boolean(e.isDead || (typeof e.hpCurrent === 'number' && e.hpCurrent <= 0)),
+            }))
+          : undefined,
+        inventoryUpdates: Array.isArray(parsed.inventoryUpdates)
+          ? parsed.inventoryUpdates.filter((u: any) => u && (u.characterId || u.characterName) && u.item && u.item.name)
+          : [],
+        ruleViolations: Array.isArray(parsed.ruleViolations) ? parsed.ruleViolations : [],
         mood: parsed.mood,
         nextRoundDC: typeof parsed.nextRoundDC === 'number' ? parsed.nextRoundDC : 13,
         nextRoundDCReason: parsed.nextRoundDCReason,

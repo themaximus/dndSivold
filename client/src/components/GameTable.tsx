@@ -12,6 +12,7 @@ import { InventoryModal } from './game/InventoryModal';
 import { TalentTreeModal } from './game/TalentTreeModal';
 import { CampaignJournalModal } from './game/CampaignJournalModal';
 import { DiceRollerModal } from './DiceRollerModal';
+import { OpponentsHUD } from './game/OpponentsHUD';
 
 interface GameTableProps {
   roomCode: string;
@@ -103,18 +104,20 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         onLeave={onLeave}
       />
 
-      {/* Main Grid: Party HUD (Left) + Chronicle & Action Console (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
+      {/* Main Grid: Party HUD (Left) + Chronicle & Action Console (Center) + Opponents HUD (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
         {/* Party HUD Column */}
-        <PartyHUD
-          players={players}
-          currentUserId={user?.id}
-          activePlayerUserId={room.activePlayerUserId}
-          turnMode={room.turnMode}
-        />
+        <div className="lg:col-span-3 flex flex-col min-h-0">
+          <PartyHUD
+            players={players}
+            currentUserId={user?.id}
+            activePlayerUserId={room.activePlayerUserId}
+            turnMode={room.turnMode}
+          />
+        </div>
 
         {/* DM Chronicle + Action Console Column */}
-        <div className="lg:col-span-3 flex flex-col min-h-0 bg-fantasy-panel border border-fantasy-border rounded-2xl shadow-xl overflow-hidden">
+        <div className="lg:col-span-6 flex flex-col min-h-0 bg-fantasy-panel border border-fantasy-border rounded-2xl shadow-xl overflow-hidden">
           {/* Battlefield Loot Drops if any items dropped */}
           <LootDropsBar
             loot={room.availableLoot || []}
@@ -147,6 +150,13 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             onOpenDiceModal={() => setIsDiceModalOpen(true)}
             onSubmit={handleSubmitAction}
             onRollDeathSave={rollDeathSave}
+          />
+        </div>
+
+        {/* Opponents & Threats Column */}
+        <div className="lg:col-span-3 flex flex-col min-h-0">
+          <OpponentsHUD
+            enemies={room.activeEnemies || []}
           />
         </div>
       </div>

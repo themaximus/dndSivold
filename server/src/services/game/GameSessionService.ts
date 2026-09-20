@@ -153,7 +153,6 @@ export class GameSessionService {
     // Initialize turn order for party
     const partyPlayers = this.rooms.findPlayersByRoomId(room.id).filter(p => p.characterId);
     const turnOrder = partyPlayers.map(p => p.userId);
-
     this.rooms.update(room.id, {
       status: 'active',
       roundNumber: 1,
@@ -165,6 +164,7 @@ export class GameSessionService {
       turnMode: room.turnMode || 'simultaneous',
       turnOrder,
       activePlayerUserId: turnOrder[0] || undefined,
+      activeEnemies: prologueResult.activeEnemies || [],
     });
     this.rooms.resetPlayersTurn(room.id);
 
@@ -298,6 +298,7 @@ export class GameSessionService {
       campaignPlot: room.campaignPlot,
       loreJournal: room.loreJournal,
       characters: activeCharacters,
+      activeEnemies: room.activeEnemies || [],
       actions: currentRoundActions,
       previousHistory: previousLogs,
     };
@@ -324,6 +325,25 @@ export class GameSessionService {
           this.characters.updateHp(target.id, update.hpDelta || 0);
           update.characterId = target.id;
           update.characterName = target.name;
+        }
+      });
+    }
+
+    // Process Dynamic Inventory Updates (items consumed, lost, broken or acquired)
+    if (Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.length > 0) {
+      dmResult.inventoryUpdates.forEach(invUpdate => {
+        const target = this.characters.findById(invUpdate.characterId) ||
+          activeCharacters.find(c =>
+            c.name.toLowerCase().trim() === (invUpdate.characterName || invUpdate.characterId || '').toLowerCase().trim() ||
+            c.name.toLowerCase().includes((invUpdate.characterName || invUpdate.characterId || '').toLowerCase().trim())
+          );
+
+        if (target && invUpdate.item && invUpdate.item.name) {
+          if (invUpdate.action === 'remove') {
+            this.characters.removeItemFromInventory(target.id, invUpdate.item.name, invUpdate.item.quantity || 1);
+          } else if (invUpdate.action === 'add') {
+            this.characters.addItemToInventory(target.id, invUpdate.item);
+          }
         }
       });
     }
@@ -394,6 +414,10 @@ export class GameSessionService {
     const nextCheckStat = dmResult.requiredCheckStat || room.requiredCheckStat || 'dex';
     const firstActiveUserId = (room.turnOrder && room.turnOrder.length > 0) ? room.turnOrder[0] : undefined;
 
+    const updatedEnemies = Array.isArray(dmResult.activeEnemies)
+      ? dmResult.activeEnemies
+      : (room.activeEnemies || []);
+
     this.rooms.update(room.id, {
       roundNumber: nextRound,
       currentSituation: dmResult.currentSituation || 'Что вы делаете дальше?',
@@ -402,6 +426,7 @@ export class GameSessionService {
       requiredCheckStat: nextCheckStat,
       activePlayerUserId: firstActiveUserId,
       campaignPlot: dmResult.campaignPlot || room.campaignPlot,
+      activeEnemies: updatedEnemies,
     });
     this.rooms.resetPlayersTurn(room.id);
 

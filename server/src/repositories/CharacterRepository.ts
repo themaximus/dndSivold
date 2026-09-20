@@ -14,6 +14,7 @@ export interface ICharacterRepository extends IRepository<CharacterEntity> {
     isNat1: boolean
   ): { character: CharacterEntity | null; message: string; state: 'alive' | 'downed' | 'dead' | 'stable' };
   addItemToInventory(id: string, item: any): CharacterEntity | null;
+  removeItemFromInventory(id: string, itemNameOrId: string, quantity?: number): CharacterEntity | null;
   useConsumableItem(id: string, itemId: string): { character: CharacterEntity | null; healAmount: number; itemName: string };
   equipWeapon(id: string, itemId: string): CharacterEntity | null;
   awardXp(id: string, xpAmount: number): CharacterEntity | null;
@@ -161,6 +162,31 @@ export class CharacterRepository implements ICharacterRepository {
         ac_bonus: item.ac_bonus,
         healAmount: item.healAmount,
       });
+    }
+
+    return this.update(id, { inventory });
+  }
+
+  public removeItemFromInventory(id: string, itemNameOrId: string, quantity = 1): CharacterEntity | null {
+    const char = this.findById(id);
+    if (!char) return null;
+
+    const inventory = [...(char.inventory || [])];
+    const targetQuery = itemNameOrId.toLowerCase().trim();
+    const idx = inventory.findIndex(i =>
+      i.id === itemNameOrId ||
+      i.name.toLowerCase().trim() === targetQuery ||
+      i.name.toLowerCase().includes(targetQuery) ||
+      targetQuery.includes(i.name.toLowerCase().trim())
+    );
+
+    if (idx === -1) return char;
+
+    const item = inventory[idx];
+    if (item.quantity && item.quantity > quantity) {
+      item.quantity -= quantity;
+    } else {
+      inventory.splice(idx, 1);
     }
 
     return this.update(id, { inventory });

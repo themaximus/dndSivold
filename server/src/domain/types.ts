@@ -9,6 +9,32 @@ export interface AIDMPrologueContext {
   campaignPlot?: string;
 }
 
+export interface RoomEnemy {
+  id: string;
+  name: string;
+  type?: 'boss' | 'elite' | 'minion' | 'monster' | 'beast' | 'undead' | string;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  status: string;
+  isDead: boolean;
+}
+
+export interface InventoryUpdate {
+  characterId: string;
+  characterName?: string;
+  action: 'add' | 'remove';
+  item: {
+    name: string;
+    quantity?: number;
+    type?: 'weapon' | 'armor' | 'potion' | 'misc';
+    description?: string;
+    damage?: string;
+    healAmount?: number;
+    ac_bonus?: number;
+  };
+}
+
 export interface AIDMContext {
   apiKey?: string;
   model?: string;
@@ -21,6 +47,7 @@ export interface AIDMContext {
   campaignPlot?: string;
   loreJournal?: LoreMilestone[];
   characters: CharacterEntity[];
+  activeEnemies?: RoomEnemy[];
   actions: TurnActionEntity[];
   previousHistory: string[];
 }
@@ -38,6 +65,9 @@ export interface AIDMResponse {
   playerUpdates: PlayerHpUpdate[];
   currentSituation: string;
   enemiesStatus?: string;
+  activeEnemies?: RoomEnemy[];
+  inventoryUpdates?: InventoryUpdate[];
+  ruleViolations?: string[];
   mood?: 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';
   nextRoundDC?: number;
   nextRoundDCReason?: string;
@@ -56,3 +86,4 @@ export interface AIDMResponse {
 }
 
 export type MoodType = 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';
+

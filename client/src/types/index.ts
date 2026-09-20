@@ -124,6 +124,17 @@ export interface CharacterTalentTree {
   quentaBranch: { name: string; talents: TalentNode[] };
 }
 
+export interface RoomEnemy {
+  id: string;
+  name: string;
+  type?: 'boss' | 'elite' | 'minion' | 'monster' | 'beast' | 'undead' | string;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  status: string;
+  isDead: boolean;
+}
+
 export interface Room {
   id: string;
   code: string;
@@ -141,6 +152,7 @@ export interface Room {
   turnMode?: 'simultaneous' | 'turn_by_turn';
   activePlayerUserId?: string;
   turnOrder?: string[];
+  activeEnemies?: RoomEnemy[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   createdAt: string;
