@@ -411,19 +411,36 @@ export function setupGameSockets(io: Server) {
       }
     });
 
-    // Interactive Campaign Map: Select Route
-    socket.on('select_map_route', ({ roomCode, targetNodeId }: { roomCode: string; targetNodeId: string }) => {
+    // Finish Session / Adventure (Cliffhanger or Module Triumph)
+    socket.on('finish_adventure', ({
+      roomCode,
+      finishType,
+      title,
+      epilogue
+    }: {
+      roomCode: string;
+      finishType: 'cliffhanger' | 'triumph' | 'open_ended';
+      title?: string;
+      epilogue?: string;
+    }) => {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      const updatedRoom = gameSessionService.selectMapRoute(room.id, targetNodeId);
-      if (updatedRoom) {
-        io.to(room.id).emit('room_updated', sanitizeRoom(updatedRoom));
-        const chosenNode = updatedRoom.campaignMap?.nodes.find((n: any) => n.id === targetNodeId);
+      const result = gameSessionService.finishAdventure(room.id, finishType, title, epilogue);
+      if (result) {
+        io.to(room.id).emit('room_updated', sanitizeRoom(result.room));
+        io.to(room.id).emit('new_log', result.log);
+        io.to(room.id).emit('adventure_finished', {
+          finishType,
+          title: title || (finishType === 'cliffhanger' ? 'Сессия завершена' : 'Триумф приключения'),
+          epilogue: result.log.narrativeText,
+        });
         io.to(room.id).emit('feed_activity', {
           id: crypto.randomUUID(),
-          type: 'route_selected',
-          text: `🧭 Отряд выбрал маршрут к локации: ${chosenNode?.title || 'Новый рубеж'}`,
+          type: 'adventure_finished',
+          text: finishType === 'cliffhanger'
+            ? '🌙 Сессия завершена на захватывающем клиффхэнгере! До встречи на следующей встрече!'
+            : '🏆 Приключение триумфально завершено! Поздравляем отряд с великой победой!',
           timestamp: new Date().toISOString(),
         });
       }

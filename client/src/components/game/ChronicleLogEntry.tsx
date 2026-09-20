@@ -47,7 +47,19 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
         {log.narrativeText}
       </div>
 
-      {/* Current Situation & Choice Dilemma Callout */}
+      {/* Step 2: Player Actions & Dice Check Verdicts */}
+      {log.actionsSummary && (
+        <div className="mt-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
+          <div className="font-rpg font-semibold text-amber-400 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+            <span>🎲 Ходы героев и проверки:</span>
+          </div>
+          <div className="font-sans text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+            {log.actionsSummary}
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Current Situation & Choice Dilemma Callout */}
       {(log.currentSituation || log.choiceDilemma) && (
         <div className="mt-4 p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-amber-950/40 border border-amber-500/40 space-y-2 shadow-md">
           {log.currentSituation && (
@@ -72,18 +84,6 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Player Actions & Dice Check Verdicts */}
-      {log.actionsSummary && (
-        <div className="mt-4 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-1.5">
-          <div className="font-rpg font-semibold text-amber-400 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-            <span>🎲 Ходы героев и проверки:</span>
-          </div>
-          <div className="font-sans text-xs text-slate-300 whitespace-pre-line leading-relaxed">
-            {log.actionsSummary}
-          </div>
         </div>
       )}
 

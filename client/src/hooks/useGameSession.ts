@@ -19,6 +19,11 @@ export function useGameSession(roomCode: string) {
   const [lastDeathSaveMessage, setLastDeathSaveMessage] = useState<string | null>(null);
   const [rejectedAction, setRejectedAction] = useState<ActionRejectedEvent | null>(null);
   const [recentActivities, setRecentActivities] = useState<FeedActivity[]>([]);
+  const [finishedAdventure, setFinishedAdventure] = useState<{
+    finishType: 'cliffhanger' | 'triumph' | 'open_ended';
+    title: string;
+    epilogue: string;
+  } | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -146,6 +151,10 @@ export function useGameSession(roomCode: string) {
       setRecentActivities(prev => [data, ...prev.slice(0, 9)]);
     });
 
+    socket.on('adventure_finished', (data: { finishType: 'cliffhanger' | 'triumph' | 'open_ended'; title: string; epilogue: string }) => {
+      setFinishedAdventure(data);
+    });
+
     return () => {
       isMounted = false;
       socket.off('room_players_updated');
@@ -161,6 +170,7 @@ export function useGameSession(roomCode: string) {
       socket.off('talents_loaded');
       socket.off('action_rejected');
       socket.off('feed_activity');
+      socket.off('adventure_finished');
     };
   }, [roomCode, user?.id, myPlayer?.characterId]);
 
@@ -197,9 +207,13 @@ export function useGameSession(roomCode: string) {
     setRejectedAction(null);
   }, [roomCode]);
 
-  const selectMapRoute = useCallback((targetNodeId: string) => {
+  const finishAdventure = useCallback((data: {
+    finishType: 'cliffhanger' | 'triumph' | 'open_ended';
+    title?: string;
+    epilogue?: string;
+  }) => {
     const socket = getSocket();
-    socket.emit('select_map_route', { roomCode, targetNodeId });
+    socket.emit('finish_adventure', { roomCode, ...data });
   }, [roomCode]);
 
   const pickupLoot = useCallback((lootId: string) => {
@@ -326,7 +340,9 @@ export function useGameSession(roomCode: string) {
     rejectedAction,
     setRejectedAction,
     recentActivities,
-    selectMapRoute,
+    finishedAdventure,
+    setFinishedAdventure,
+    finishAdventure,
     submitAction,
     forceResolveRound,
     setTurnMode,

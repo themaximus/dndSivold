@@ -1,6 +1,6 @@
 import React from 'react';
 import { Room } from '../../types';
-import { ArrowLeft, Clock, Package, Award, BookMarked, Zap, ListOrdered, Users, Map, Flame } from 'lucide-react';
+import { ArrowLeft, Clock, Package, Award, BookMarked, Zap, ListOrdered, Users, BookOpen, Flame, Flag } from 'lucide-react';
 
 interface GameTableHeaderProps {
   room: Room;
@@ -16,7 +16,8 @@ interface GameTableHeaderProps {
   onOpenInventory?: () => void;
   onOpenTalents?: () => void;
   onOpenJournal?: () => void;
-  onOpenMap?: () => void;
+  onOpenGuide?: () => void;
+  onOpenFinishModal?: () => void;
   onOpenRest?: () => void;
   onLeave: () => void;
 }
@@ -50,7 +51,8 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
   onOpenInventory,
   onOpenTalents,
   onOpenJournal,
-  onOpenMap,
+  onOpenGuide,
+  onOpenFinishModal,
   onOpenRest,
   onLeave,
 }) => {
@@ -96,17 +98,27 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* Quick launcher: Interactive Campaign Map */}
-        {onOpenMap && (
+        {/* Quick launcher: Authentic D&D Guide */}
+        {onOpenGuide && (
           <button
-            onClick={onOpenMap}
-            className="px-3 py-1.5 bg-fantasy-card hover:bg-slate-800 border border-fantasy-border hover:border-emerald-500/50 rounded-xl text-slate-200 hover:text-emerald-300 text-xs font-semibold transition-all flex items-center gap-1.5 relative shadow-sm"
+            onClick={onOpenGuide}
+            className="px-3 py-1.5 bg-fantasy-card hover:bg-slate-800 border border-fantasy-border hover:border-amber-500/50 rounded-xl text-slate-200 hover:text-amber-300 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+            title="О D&D 5e: 3-шаговый цикл, характеристики, отсутствие рельсов"
           >
-            <Map className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Карта</span>
-            {room.campaignMap?.currentNodeId && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            )}
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>О D&D</span>
+          </button>
+        )}
+
+        {/* Quick launcher: Host Finish Session / Adventure */}
+        {isHost && onOpenFinishModal && (
+          <button
+            onClick={onOpenFinishModal}
+            className="px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/50 hover:border-purple-400 rounded-xl text-purple-200 hover:text-white text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+            title="Завершить сессию на клиффхэнгере или объявить победу в модуле"
+          >
+            <Flag className="w-3.5 h-3.5 text-purple-400" />
+            <span>Сессия / Финал</span>
           </button>
         )}
 

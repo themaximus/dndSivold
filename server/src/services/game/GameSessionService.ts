@@ -11,12 +11,11 @@ import {
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
-import { AIDMResponse, AIDMPrologueContext, CampaignMapNode, CampaignMapEdge } from '../../domain/types';
+import { AIDMResponse, AIDMPrologueContext } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
-import { campaignMapGenerator } from './CampaignMapGenerator';
 
 export interface RoundResolutionResult {
   log?: GameLogEntity;
@@ -157,14 +156,6 @@ export class GameSessionService {
     const startCheckStat = prologueResult.requiredCheckStat || 'dex';
     const campaignPlot = prologueResult.campaignPlot || room.campaignPlot || 'Генеральная сюжетная арка: исследование тайны, нарастание угрозы, кульминация.';
 
-    // Initialize or adopt campaign map
-    const campaignMap = prologueResult.campaignMap || campaignMapGenerator.generateCampaignMap(
-      room.title,
-      room.setting,
-      room.genre || 'fantasy',
-      room.campaignDuration || 'medium'
-    );
-
     // Initialize turn order for party
     const partyPlayers = this.rooms.findPlayersByRoomId(room.id).filter(p => p.characterId);
     const turnOrder = partyPlayers.map(p => p.userId);
@@ -176,7 +167,6 @@ export class GameSessionService {
       dcReason: startDCReason,
       requiredCheckStat: startCheckStat,
       campaignPlot,
-      campaignMap,
       turnMode: room.turnMode || 'simultaneous',
       turnOrder,
       activePlayerUserId: turnOrder[0] || undefined,
@@ -595,17 +585,10 @@ export class GameSessionService {
       });
     }
 
-    // Advance campaign map if initialized
-    let updatedCampaignMap = dmResult.campaignMap || room.campaignMap;
-    if (updatedCampaignMap) {
-      updatedCampaignMap = campaignMapGenerator.advanceCampaignMap(
-        updatedCampaignMap,
-        nextRound,
-        room.campaignDuration || 'medium'
-      );
-    }
+    const isFinished = !!(dmResult.campaignFinished && dmResult.campaignFinished.isFinished);
 
     this.rooms.update(room.id, {
+      status: isFinished ? 'finished' : 'active',
       roundNumber: nextRound,
       currentSituation: dmResult.currentSituation || 'Что вы делаете дальше?',
       targetDC: nextDC,
@@ -613,7 +596,6 @@ export class GameSessionService {
       requiredCheckStat: nextCheckStat,
       activePlayerUserId: firstActiveUserId,
       campaignPlot: dmResult.campaignPlot || room.campaignPlot,
-      campaignMap: updatedCampaignMap,
       activeEnemies: updatedEnemies,
     });
     this.rooms.resetPlayersTurn(room.id);
@@ -712,44 +694,55 @@ export class GameSessionService {
     return this.characters.performLongRest(characterId, room?.roundNumber);
   }
 
-  public selectMapRoute(roomId: string, targetNodeId: string): RoomEntity | null {
+  public finishAdventure(
+    roomId: string,
+    finishType: 'cliffhanger' | 'triumph' | 'open_ended',
+    title?: string,
+    epilogue?: string
+  ): { room: RoomEntity; log: GameLogEntity } | null {
     const room = this.rooms.findById(roomId);
-    if (!room || !room.campaignMap || !Array.isArray(room.campaignMap.nodes)) {
-      return null;
-    }
+    if (!room) return null;
 
-    const map = room.campaignMap;
-    const targetNode = map.nodes.find((n: CampaignMapNode) => n.id === targetNodeId);
-    if (!targetNode) return null;
+    const finalTitle = title || (
+      finishType === 'cliffhanger'
+        ? 'Сессия завершена (Клиффхэнгер)'
+        : finishType === 'triumph'
+        ? 'Триумф Приключения: Великая Победа!'
+        : 'Эпилог Приключения'
+    );
 
-    const oldCurrentId = map.currentNodeId;
-
-    const updatedNodes = map.nodes.map((node: CampaignMapNode) => {
-      if (node.id === oldCurrentId) {
-        return { ...node, status: 'visited' as const };
-      } else if (node.id === targetNodeId) {
-        return { ...node, status: 'current' as const };
-      } else {
-        const isReachableFromTarget = map.edges?.some((e: CampaignMapEdge) => e.from === targetNodeId && e.to === node.id);
-        if (isReachableFromTarget && node.status !== 'visited') {
-          return { ...node, status: 'discovered' as const };
-        }
-        return node;
-      }
-    });
-
-    const updatedMap = {
-      ...map,
-      nodes: updatedNodes,
-      currentNodeId: targetNodeId,
-    };
+    const defaultEpilogue = epilogue || (
+      finishType === 'cliffhanger'
+        ? 'Пыль битвы осела, но из тьмы впереди донесся леденящий душу рокот. Взоры искателей приключений устремлены во мрак... На этом напряженном моменте игровая сессия подходит к концу. Продолжение следует!'
+        : finishType === 'triumph'
+        ? 'Славный поход увенчался триумфальной победой! Враги повержены, зло рассеяно, а имена героев навеки вписаны в скрижали легенд этого мира!'
+        : 'Приключение подошло к своему логическому завершению. Герои преодолели суровые испытания, но впереди их ждет бескрайний и полный неизведанных тайн мир.'
+    );
 
     const updatedRoom = this.rooms.update(roomId, {
-      campaignMap: updatedMap,
-      currentSituation: `Отряд выбрал маршрут: «${targetNode.title}». ${targetNode.description}`,
+      status: 'finished',
+      currentSituation: `${finalTitle}: ${defaultEpilogue}`,
     });
+    if (!updatedRoom) return null;
 
-    return updatedRoom;
+    const epilogueLog: GameLogEntity = {
+      id: crypto.randomUUID(),
+      roomId: room.id,
+      roundNumber: room.roundNumber,
+      narrativeText: `📜 ${finalTitle.toUpperCase()}\n\n${defaultEpilogue}`,
+      currentSituation: 'Приключение завершено',
+      choiceDilemma: finishType === 'cliffhanger' ? 'Дожить до следующей сессии и приготовиться к развязке!' : 'Отпраздновать победу и подготовиться к новому модулю!',
+      targetDC: undefined,
+      requiredCheckStat: undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.gameLogs.create(epilogueLog);
+
+    return {
+      room: updatedRoom,
+      log: epilogueLog,
+    };
   }
 }
 

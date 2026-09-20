@@ -11,7 +11,8 @@ import { LootDropsBar } from './game/LootDropsBar';
 import { InventoryModal } from './game/InventoryModal';
 import { TalentTreeModal } from './game/TalentTreeModal';
 import { CampaignJournalModal } from './game/CampaignJournalModal';
-import { CampaignMapModal } from './game/CampaignMapModal';
+import { DndGuideModal } from './game/DndGuideModal';
+import { AdventureFinishModal } from './game/AdventureFinishModal';
 import { RestModal } from './game/RestModal';
 import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
@@ -34,7 +35,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
-  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
   const [isRestOpen, setIsRestOpen] = useState(false);
 
   // Custom Domain Hooks
@@ -52,7 +54,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     lastDeathSaveMessage,
     rejectedAction,
     recentActivities,
-    selectMapRoute,
+    finishedAdventure,
+    finishAdventure,
     submitAction,
     forceResolveRound,
     setTurnMode,
@@ -121,7 +124,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         onOpenInventory={() => setIsInventoryOpen(true)}
         onOpenTalents={() => setIsTalentsOpen(true)}
         onOpenJournal={() => setIsJournalOpen(true)}
-        onOpenMap={() => setIsMapOpen(true)}
+        onOpenGuide={() => setIsGuideOpen(true)}
+        onOpenFinishModal={() => setIsFinishModalOpen(true)}
         onOpenRest={() => setIsRestOpen(true)}
         onLeave={onLeave}
       />
@@ -238,16 +242,20 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         campaignTitle={room.title}
       />
 
-      {/* Interactive Campaign Story Route Map Modal */}
-      <CampaignMapModal
-        isOpen={isMapOpen}
-        onClose={() => setIsMapOpen(false)}
-        mapData={room.campaignMap}
-        campaignTitle={room.title}
-        currentRound={room.roundNumber}
-        duration={room.campaignDuration || 'medium'}
-        genre={room.genre || 'fantasy'}
-        onSelectRoute={selectMapRoute}
+      {/* Authentic D&D 5e Guide Modal */}
+      <DndGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+      />
+
+      {/* Adventure Finale / Session Cliffhanger Modal */}
+      <AdventureFinishModal
+        isOpen={isFinishModalOpen || !!finishedAdventure || room.status === 'finished'}
+        onClose={() => setIsFinishModalOpen(false)}
+        room={room}
+        isHost={room.hostUserId === user?.id}
+        onFinishAdventure={finishAdventure}
+        onReturnToLobby={onLeave}
       />
     </div>
   );

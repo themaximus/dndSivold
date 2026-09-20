@@ -127,6 +127,12 @@ export interface AIDMResponse {
     characterName: string;
     reason: string;
   };
+  campaignFinished?: {
+    isFinished: boolean;
+    finishType: 'triumph' | 'cliffhanger' | 'open_ended';
+    title: string;
+    epilogue: string;
+  };
 }
 
 export type MoodType = 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';
