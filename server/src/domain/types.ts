@@ -6,6 +6,7 @@ export interface AIDMPrologueContext {
   title: string;
   setting: string;
   characters: CharacterEntity[];
+  campaignPlot?: string;
 }
 
 export interface AIDMContext {
@@ -16,6 +17,8 @@ export interface AIDMContext {
   currentSituation: string;
   currentDC?: number;
   currentDCReason?: string;
+  requiredCheckStat?: string;
+  campaignPlot?: string;
   loreJournal?: LoreMilestone[];
   characters: CharacterEntity[];
   actions: TurnActionEntity[];
@@ -38,6 +41,8 @@ export interface AIDMResponse {
   mood?: 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';
   nextRoundDC?: number;
   nextRoundDCReason?: string;
+  requiredCheckStat?: string;
+  campaignPlot?: string;
   droppedLoot?: Array<{
     name: string;
     type: 'weapon' | 'armor' | 'potion' | 'misc';

@@ -173,6 +173,7 @@ export function setupGameSockets(io: Server) {
         userId,
         characterName,
         hasActedThisRound: true,
+        room,
       });
 
       // If all active players have submitted, resolve round with AI DM
@@ -186,6 +187,7 @@ export function setupGameSockets(io: Server) {
               ...resolved,
               room: sanitizeRoom(resolved.room),
             });
+            io.to(room.id).emit('room_players_updated', resolved.players);
             io.to(room.id).emit('narrator_playing', {
               logId: resolved.log.id,
               narrativeText: resolved.log.narrativeText,
@@ -195,6 +197,21 @@ export function setupGameSockets(io: Server) {
         } catch (error: any) {
           console.error('Error resolving round via GameSessionService:', error);
           io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером');
+        }
+      }
+    });
+
+    // Host toggles turn mode (simultaneous vs turn_by_turn)
+    socket.on('set_turn_mode', ({ roomCode, mode }: { roomCode: string; mode: 'simultaneous' | 'turn_by_turn' }) => {
+      const room = roomRepository.findByCode(roomCode);
+      if (!room || room.hostUserId !== userId) return;
+
+      const updated = gameSessionService.setTurnMode(room.id, mode);
+      if (updated) {
+        io.to(room.id).emit('room_updated', updated);
+        const data = gameSessionService.getRoomAndPlayers(roomCode);
+        if (data) {
+          io.to(room.id).emit('room_players_updated', data.players);
         }
       }
     });

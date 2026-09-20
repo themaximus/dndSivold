@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Character, DiceRollResult } from '../../types';
-import { Sparkles, Dices, Send, Clock, ShieldAlert, HeartCrack, Skull, Heart, Check } from 'lucide-react';
+import { Sparkles, Dices, Send, Clock, ShieldAlert, Skull, Package } from 'lucide-react';
 import { AttachedRollsBar } from './AttachedRollsBar';
 import { QuickActionButtons } from './QuickActionButtons';
 
@@ -11,6 +11,10 @@ interface ActionConsoleProps {
   currentSituation?: string;
   targetDC?: number;
   dcReason?: string;
+  requiredCheckStat?: string;
+  isMyTurn?: boolean;
+  activePlayerName?: string;
+  turnMode?: 'simultaneous' | 'turn_by_turn';
   character: Character | null;
   attachedRolls: DiceRollResult[];
   lastDeathSaveMessage?: string | null;
@@ -20,6 +24,15 @@ interface ActionConsoleProps {
   onRollDeathSave?: (rollResult: { rollTotal: number; isNat20: boolean; isNat1: boolean }) => void;
 }
 
+const STAT_LABELS: Record<string, string> = {
+  str: 'СИЛА (STR)',
+  dex: 'ЛОВКОСТЬ (DEX)',
+  con: 'ТЕЛОСЛОЖЕНИЕ (CON)',
+  int: 'ИНТЕЛЛЕКТ (INT)',
+  wis: 'МУДРОСТЬ (WIS)',
+  cha: 'ХАРИЗМА (CHA)',
+};
+
 export const ActionConsole: React.FC<ActionConsoleProps> = ({
   hasCharacter,
   hasSubmittedThisRound,
@@ -27,6 +40,10 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   currentSituation,
   targetDC = 12,
   dcReason,
+  requiredCheckStat,
+  isMyTurn = true,
+  activePlayerName,
+  turnMode = 'simultaneous',
   character,
   attachedRolls,
   lastDeathSaveMessage,
@@ -88,7 +105,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           <span>Герой пал на поле боя...</span>
         </div>
         <p className="text-xs text-slate-300 max-w-md mx-auto">
-          Вы получили 3 провала спасбросков от смерти и испустили последний вздох. Ожидайте воскрешения, мощного зелья или исхода похода отряда.
+          Вы получили 3 провала спасбросков от смерти и испустили последний вздох. Ожидайте воскрешения или исхода похода отряда.
         </p>
       </div>
     );
@@ -99,53 +116,23 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
     const saves = character.deathSaves || { successes: 0, failures: 0, isStable: false };
 
     return (
-      <div className="p-4 bg-rose-950/40 border-t border-rose-500/30 space-y-3">
+      <div className="p-4 bg-rose-950/40 border-t border-rose-500/50 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-rose-300 font-rpg font-semibold text-xs">
-            <HeartCrack className="w-4 h-4 text-rose-400 animate-pulse" />
-            <span>ПЕРСОНАЖ ПРИ СМЕРТИ (0 HP) — СПАСБРОСОК ОТ СМЕРТИ</span>
+          <div className="flex items-center gap-2 text-rose-400 font-rpg font-bold text-sm">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+            <span>ПРИ СМЕРТИ (0 HP) — СПАСБРОСКИ ОТ СМЕРТИ</span>
           </div>
 
-          {/* Successes & Failures Tracker */}
-          <div className="flex items-center gap-4 text-xs font-mono">
-            <div className="flex items-center gap-1 text-emerald-400">
-              <span className="text-[11px] font-sans">Успехи:</span>
-              {[...Array(3)].map((_, i) => (
-                <div
-                  key={`succ-${i}`}
-                  className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                    i < saves.successes
-                      ? 'bg-emerald-500 border-emerald-400 text-black text-[9px] font-bold'
-                      : 'border-slate-600 bg-slate-800/80'
-                  }`}
-                >
-                  {i < saves.successes ? '✓' : ''}
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-1 text-rose-400">
-              <span className="text-[11px] font-sans">Провалы:</span>
-              {[...Array(3)].map((_, i) => (
-                <div
-                  key={`fail-${i}`}
-                  className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                    i < saves.failures
-                      ? 'bg-rose-500 border-rose-400 text-white text-[9px] font-bold'
-                      : 'border-slate-600 bg-slate-800/80'
-                  }`}
-                >
-                  {i < saves.failures ? '☠' : ''}
-                </div>
-              ))}
-            </div>
+          <div className="flex items-center gap-4 text-xs font-mono font-bold">
+            <span className="text-emerald-400">Успехи: {saves.successes}/3</span>
+            <span className="text-rose-400">Провалы: {saves.failures}/3</span>
           </div>
         </div>
 
         {lastDeathSaveMessage && (
-          <div className="text-xs text-amber-300 font-medium px-3 py-1.5 bg-black/40 border border-amber-500/30 rounded-lg">
+          <p className="text-xs text-amber-300 italic bg-black/40 px-3 py-1.5 rounded-lg border border-rose-500/30">
             {lastDeathSaveMessage}
-          </div>
+          </p>
         )}
 
         <div className="flex items-center justify-between gap-3 pt-1">
@@ -182,7 +169,23 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
     );
   }
 
-  // 4. Standard Turn Action Input
+  // 4. Turn-by-turn mode: not your turn
+  if (turnMode === 'turn_by_turn' && !isMyTurn) {
+    return (
+      <div className="p-4 bg-fantasy-card/95 border-t border-fantasy-border flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 text-xs text-amber-300">
+          <Clock className="w-4 h-4 text-amber-400 animate-spin" />
+          <span>
+            Сейчас совершает ход: <strong className="text-amber-400 font-bold">{activePlayerName || 'Соратник'}</strong>... Ожидайте своей очереди.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // 5. Standard Turn Action Input
+  const statLabel = requiredCheckStat ? STAT_LABELS[requiredCheckStat.toLowerCase()] || requiredCheckStat.toUpperCase() : null;
+
   return (
     <div className="p-4 bg-fantasy-card border-t border-fantasy-border space-y-3">
       {/* Target DC & Situation Banner */}
@@ -192,6 +195,11 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           <span className="text-amber-200 font-semibold font-rpg tracking-wide">
             СЛОЖНОСТЬ (СЛ): <strong className="text-amber-400 text-sm font-mono">{targetDC}</strong>
           </span>
+          {statLabel && (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              Проверка: {statLabel}
+            </span>
+          )}
           {dcReason && (
             <span className="text-slate-400 text-[11px] hidden sm:inline">
               — {dcReason}
@@ -228,7 +236,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
             rows={2}
             value={actionText}
             onChange={e => setActionText(e.target.value)}
-            placeholder="Опишите ваши действия в этом раунде (например: 'Делаю выпад мечом по гоблину и прячусь за бочку')..."
+            placeholder="Опишите ваши действия (персонаж может использовать только то, что есть в его инвентаре или в руках)..."
             className="flex-1 px-4 py-2.5 bg-fantasy-panel border border-fantasy-border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 resize-none"
           />
 
@@ -238,37 +246,48 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
                 type="button"
                 disabled
                 className="px-4 py-2 border font-bold text-xs font-rpg rounded-xl flex items-center justify-center gap-1.5 shadow-sm bg-emerald-500/15 border-emerald-500/40 text-emerald-400 cursor-default"
+                title="Бросок d20 зафиксирован на этот раунд"
               >
-                <Check className="w-4 h-4 text-emerald-400" />
-                Бросок выполнен ({attachedRolls[0]?.total})
+                ✓ Бросок сделан
               </button>
             ) : (
               <button
                 type="button"
                 onClick={onOpenDiceModal}
-                className="px-4 py-2 border font-bold text-xs font-rpg rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm bg-amber-500 text-slate-950 border-amber-400 animate-pulse hover:bg-amber-400"
+                disabled={isDMThinking}
+                className="px-4 py-2 border font-bold text-xs font-rpg rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50 text-amber-300 animate-pulse"
+                title="Обязательный бросок d20 перед ходом"
               >
-                <Dices className="w-4 h-4" />
-                Бросить d20 (СЛ)
+                <Dices className="w-4 h-4 text-amber-400" />
+                Бросить d20
               </button>
             )}
 
             <button
               type="submit"
-              disabled={isDMThinking}
-              className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold font-rpg rounded-xl shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-xs"
+              disabled={isDMThinking || !hasD20Roll}
+              className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold font-rpg text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!hasD20Roll ? 'Сначала сделайте бросок d20' : 'Отправить ход'}
             >
               <Send className="w-3.5 h-3.5" />
-              Завершить ход
+              Ход
             </button>
           </div>
         </div>
 
-        {/* Quick Action Shortcuts */}
-        <QuickActionButtons
-          character={character}
-          onSelectAction={handleSelectQuickAction}
-        />
+        {/* Quick Inventory Summary / Hint */}
+        {character && character.inventory && (
+          <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
+            <span className="flex items-center gap-1">
+              <Package className="w-3 h-3 text-amber-400/80" />
+              Доступно в инвентаре: {character.inventory.map(i => i.name).slice(0, 4).join(', ')}{character.inventory.length > 4 ? '...' : ''}
+            </span>
+            <span className="text-slate-500">Предметы из пустоты не появляются</span>
+          </div>
+        )}
+
+        {/* Quick Action Suggestion Buttons */}
+        <QuickActionButtons character={character} onSelectAction={handleSelectQuickAction} />
       </form>
     </div>
   );

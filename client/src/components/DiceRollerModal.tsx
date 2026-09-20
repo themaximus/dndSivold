@@ -7,6 +7,7 @@ import { Dices, Sparkles, X, ShieldAlert, Check } from 'lucide-react';
 interface DiceRollerModalProps {
   roomCode: string;
   character?: Character;
+  defaultStatKey?: string;
   onClose: () => void;
   onRollComplete: (roll: DiceRollResult) => void;
 }
@@ -14,11 +15,12 @@ interface DiceRollerModalProps {
 export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   roomCode,
   character,
+  defaultStatKey,
   onClose,
   onRollComplete,
 }) => {
   const [diceType, setDiceType] = useState('d20');
-  const [statKey, setStatKey] = useState<string>('str');
+  const [statKey, setStatKey] = useState<string>(defaultStatKey ? defaultStatKey.toLowerCase() : 'str');
   const [purpose, setPurpose] = useState('');
   const [advantage, setAdvantage] = useState(false);
   const [disadvantage, setDisadvantage] = useState(false);
@@ -155,24 +157,34 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
                 { key: 'wis', label: 'МУД', val: stats.wis },
                 { key: 'cha', label: 'ХАР', val: stats.cha },
               ].map((st) => {
-                const mod = calcMod(st.val);
-                return (
-                  <button
-                    key={st.key}
-                    type="button"
-                    onClick={() => setStatKey(st.key)}
-                    className={`p-2 rounded-lg border text-left transition-all ${
-                      statKey === st.key
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                        : 'bg-fantasy-card border-fantasy-border text-slate-300 hover:border-slate-500'
-                    }`}
-                  >
-                    <div className="text-xs text-slate-400">{st.label}</div>
-                    <div className="font-bold text-sm">
-                      {st.val} ({mod >= 0 ? `+${mod}` : mod})
-                    </div>
-                  </button>
-                );
+                  const isRecommended = defaultStatKey && defaultStatKey.toLowerCase() === st.key;
+                  const mod = calcMod(st.val);
+                  return (
+                    <button
+                      key={st.key}
+                      type="button"
+                      onClick={() => setStatKey(st.key)}
+                      className={`p-2 rounded-lg border text-left transition-all relative ${
+                        statKey === st.key
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-1 ring-amber-400/40'
+                          : isRecommended
+                          ? 'bg-amber-500/10 border-amber-500/50 text-slate-200'
+                          : 'bg-fantasy-card border-fantasy-border text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-400">{st.label}</span>
+                        {isRecommended && (
+                          <span className="text-[9px] font-mono px-1 py-0.2 bg-amber-500/30 text-amber-300 rounded font-bold">
+                            СЛ
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-bold text-sm">
+                        {st.val} ({mod >= 0 ? `+${mod}` : mod})
+                      </div>
+                    </button>
+                  );
               })}
             </div>
 

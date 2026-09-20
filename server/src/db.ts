@@ -92,6 +92,11 @@ export interface RoomEntity {
   currentSituation: string;
   targetDC?: number;
   dcReason?: string;
+  requiredCheckStat?: string;
+  campaignPlot?: string;
+  turnMode?: 'simultaneous' | 'turn_by_turn';
+  activePlayerUserId?: string;
+  turnOrder?: string[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   deepseekApiKey?: string;
@@ -133,6 +138,7 @@ export interface GameLogEntity {
   actionsSummary?: string;
   targetDC?: number;
   dcReason?: string;
+  requiredCheckStat?: string;
   droppedLoot?: RoomLootItem[];
   playerUpdates?: {
     characterId: string;

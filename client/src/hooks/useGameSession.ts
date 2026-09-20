@@ -56,12 +56,19 @@ export function useGameSession(roomCode: string) {
       }
     });
 
-    socket.on('player_action_submitted', (data: { userId: string; characterName: string; hasActedThisRound: boolean }) => {
+    socket.on('room_updated', (updatedRoom: Room) => {
+      setRoom(updatedRoom);
+    });
+
+    socket.on('player_action_submitted', (data: { userId: string; characterName: string; hasActedThisRound: boolean; room?: Room }) => {
       setPlayers(prev =>
         prev.map(p => (p.userId === data.userId ? { ...p, hasActedThisRound: true } : p))
       );
       if (data.userId === user?.id) {
         setHasSubmittedThisRound(true);
+      }
+      if (data.room) {
+        setRoom(data.room);
       }
     });
 
@@ -129,6 +136,7 @@ export function useGameSession(roomCode: string) {
     return () => {
       isMounted = false;
       socket.off('room_players_updated');
+      socket.off('room_updated');
       socket.off('player_action_submitted');
       socket.off('dm_thinking');
       socket.off('round_resolved');
@@ -140,6 +148,11 @@ export function useGameSession(roomCode: string) {
       socket.off('talents_loaded');
     };
   }, [roomCode, user?.id, myPlayer?.characterId]);
+
+  const setTurnMode = useCallback((mode: 'simultaneous' | 'turn_by_turn') => {
+    const socket = getSocket();
+    socket.emit('set_turn_mode', { roomCode, mode });
+  }, [roomCode]);
 
   const submitAction = useCallback((actionText: string, attachedRolls: DiceRollResult[]) => {
     const socket = getSocket();
@@ -231,6 +244,7 @@ export function useGameSession(roomCode: string) {
     lastDeathSaveMessage,
     submitAction,
     forceResolveRound,
+    setTurnMode,
     pickupLoot,
     useItem,
     equipWeapon,

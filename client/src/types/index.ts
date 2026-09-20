@@ -136,6 +136,11 @@ export interface Room {
   hasDeepSeekKey: boolean;
   targetDC?: number;
   dcReason?: string;
+  requiredCheckStat?: string;
+  campaignPlot?: string;
+  turnMode?: 'simultaneous' | 'turn_by_turn';
+  activePlayerUserId?: string;
+  turnOrder?: string[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   createdAt: string;
@@ -200,6 +205,7 @@ export interface GameLogEntry {
   actionsSummary?: string;
   targetDC?: number;
   dcReason?: string;
+  requiredCheckStat?: string;
   droppedLoot?: RoomLootItem[];
   playerUpdates?: {
     characterId: string;

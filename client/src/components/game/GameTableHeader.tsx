@@ -1,6 +1,6 @@
 import React from 'react';
 import { Room } from '../../types';
-import { ArrowLeft, Clock, Package, Award, BookMarked, Zap } from 'lucide-react';
+import { ArrowLeft, Clock, Package, Award, BookMarked, Zap, ListOrdered, Users } from 'lucide-react';
 
 interface GameTableHeaderProps {
   room: Room;
@@ -12,6 +12,7 @@ interface GameTableHeaderProps {
   isHost?: boolean;
   isDMThinking?: boolean;
   onForceResolve?: () => void;
+  onToggleTurnMode?: (mode: 'simultaneous' | 'turn_by_turn') => void;
   onOpenInventory?: () => void;
   onOpenTalents?: () => void;
   onOpenJournal?: () => void;
@@ -28,6 +29,7 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
   isHost = false,
   isDMThinking = false,
   onForceResolve,
+  onToggleTurnMode,
   onOpenInventory,
   onOpenTalents,
   onOpenJournal,
@@ -115,6 +117,52 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
               </span>
             )}
           </button>
+        )}
+
+        {/* Turn Mode Selector / Indicator */}
+        {isHost && onToggleTurnMode ? (
+          <button
+            onClick={() => onToggleTurnMode(room.turnMode === 'turn_by_turn' ? 'simultaneous' : 'turn_by_turn')}
+            className={`px-3 py-1.5 border rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm ${
+              room.turnMode === 'turn_by_turn'
+                ? 'bg-purple-950/50 border-purple-500/60 text-purple-200 hover:bg-purple-900/60'
+                : 'bg-fantasy-card hover:bg-slate-800 border-fantasy-border text-slate-300 hover:text-amber-300'
+            }`}
+            title={`Режим ходов: ${room.turnMode === 'turn_by_turn' ? 'По очереди (нажмите, чтобы переключить на общий ход)' : 'Общий ход (нажмите, чтобы переключить на поочередный ход)'}`}
+          >
+            {room.turnMode === 'turn_by_turn' ? (
+              <>
+                <ListOrdered className="w-3.5 h-3.5 text-purple-400" />
+                <span>По очереди</span>
+              </>
+            ) : (
+              <>
+                <Users className="w-3.5 h-3.5 text-amber-400" />
+                <span>Общий ход</span>
+              </>
+            )}
+          </button>
+        ) : (
+          <div
+            className={`px-3 py-1.5 border rounded-xl text-xs font-medium flex items-center gap-1.5 ${
+              room.turnMode === 'turn_by_turn'
+                ? 'bg-purple-950/30 border-purple-500/40 text-purple-300'
+                : 'bg-fantasy-card border-fantasy-border text-slate-300'
+            }`}
+            title={`Режим ходов: ${room.turnMode === 'turn_by_turn' ? 'По очереди' : 'Общий ход'}`}
+          >
+            {room.turnMode === 'turn_by_turn' ? (
+              <>
+                <ListOrdered className="w-3.5 h-3.5 text-purple-400" />
+                <span>По очереди</span>
+              </>
+            ) : (
+              <>
+                <Users className="w-3.5 h-3.5 text-amber-400" />
+                <span>Общий ход</span>
+              </>
+            )}
+          </div>
         )}
 
         {/* Round Action Status */}

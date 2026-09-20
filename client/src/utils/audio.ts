@@ -212,6 +212,10 @@ export class NeuralVoiceService {
   private isSpeaking: boolean = false;
   private activeText: string | null = null;
   private speechListeners: Array<(isSpeaking: boolean, text: string | null) => void> = [];
+  private abortController: AbortController | null = null;
+  private playbackSessionId: number = 0;
+  private lastStartedAt: number = 0;
+  private lastStartedText: string = '';
 
   constructor(private ambience: AmbienceSynthesizer) {}
 
@@ -244,13 +248,23 @@ export class NeuralVoiceService {
     const cleanText = text.replace(/<[^>]*>?/gm, '').trim();
     if (!cleanText) return false;
 
-    // Toggle off if currently speaking this exact text
+    const now = Date.now();
+    // Prevent duplicate triggers for the exact same text within 2.5 seconds
     if (this.isSpeaking && this.activeText === cleanText) {
+      if (now - this.lastStartedAt < 2500) {
+        return true;
+      }
       this.stop();
       return false;
     }
 
+    // Stop any current audio and cancel in-flight network requests
     this.stop();
+
+    const sessionId = ++this.playbackSessionId;
+    this.abortController = new AbortController();
+    this.lastStartedAt = now;
+    this.lastStartedText = cleanText;
 
     try {
       this.notify(true, cleanText);
@@ -259,13 +273,23 @@ export class NeuralVoiceService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: cleanText, mood }),
+        signal: this.abortController.signal,
       });
+
+      // If a newer playback was started or stop was called, abort
+      if (sessionId !== this.playbackSessionId) {
+        return false;
+      }
 
       if (!response.ok) {
         throw new Error(`TTS server responded with ${response.status}`);
       }
 
       const blob = await response.blob();
+      if (sessionId !== this.playbackSessionId) {
+        return false;
+      }
+
       const blobUrl = URL.createObjectURL(blob);
       this.currentBlobUrl = blobUrl;
 
@@ -273,26 +297,43 @@ export class NeuralVoiceService {
       this.currentAudio = audio;
 
       audio.onended = () => {
-        this.stop();
+        if (sessionId === this.playbackSessionId) {
+          this.stop();
+        }
       };
 
       audio.onerror = (e) => {
         console.error('Audio playback error:', e);
-        this.stop();
+        if (sessionId === this.playbackSessionId) {
+          this.stop();
+        }
       };
 
       await audio.play();
       return true;
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // Request was deliberately aborted by a newer action; silently exit
+        return false;
+      }
       console.error('Neural voice playback failed:', err);
-      this.stop();
+      if (sessionId === this.playbackSessionId) {
+        this.stop();
+      }
       return false;
     }
   }
 
   public stop(): void {
+    this.playbackSessionId++;
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
     if (this.currentAudio) {
       this.currentAudio.pause();
+      this.currentAudio.onended = null;
+      this.currentAudio.onerror = null;
       this.currentAudio.currentTime = 0;
       this.currentAudio = null;
     }

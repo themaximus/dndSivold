@@ -26,6 +26,8 @@ export class DMResponseValidator {
         mood: parsed.mood,
         nextRoundDC: typeof parsed.nextRoundDC === 'number' ? parsed.nextRoundDC : 13,
         nextRoundDCReason: parsed.nextRoundDCReason,
+        requiredCheckStat: typeof parsed.requiredCheckStat === 'string' ? parsed.requiredCheckStat.toLowerCase() : undefined,
+        campaignPlot: typeof parsed.campaignPlot === 'string' ? parsed.campaignPlot : undefined,
         droppedLoot: Array.isArray(parsed.droppedLoot) ? parsed.droppedLoot : [],
         newMilestones: Array.isArray(parsed.newMilestones) ? parsed.newMilestones : [],
         xpAwarded: typeof parsed.xpAwarded === 'number' ? parsed.xpAwarded : 35,

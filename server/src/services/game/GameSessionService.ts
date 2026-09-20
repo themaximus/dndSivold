@@ -147,6 +147,12 @@ export class GameSessionService {
 
     const startDC = prologueResult.nextRoundDC || 12;
     const startDCReason = prologueResult.nextRoundDCReason || 'Оценка обстановки и первый решительный шаг';
+    const startCheckStat = prologueResult.requiredCheckStat || 'dex';
+    const campaignPlot = prologueResult.campaignPlot || room.campaignPlot || 'Генеральная сюжетная арка: исследование тайны, нарастание угрозы, кульминация.';
+
+    // Initialize turn order for party
+    const partyPlayers = this.rooms.findPlayersByRoomId(room.id).filter(p => p.characterId);
+    const turnOrder = partyPlayers.map(p => p.userId);
 
     this.rooms.update(room.id, {
       status: 'active',
@@ -154,6 +160,11 @@ export class GameSessionService {
       currentSituation: prologueResult.currentSituation || 'Что предпринимает отряд?',
       targetDC: startDC,
       dcReason: startDCReason,
+      requiredCheckStat: startCheckStat,
+      campaignPlot,
+      turnMode: room.turnMode || 'simultaneous',
+      turnOrder,
+      activePlayerUserId: turnOrder[0] || undefined,
     });
     this.rooms.resetPlayersTurn(room.id);
 
@@ -175,6 +186,7 @@ export class GameSessionService {
       narrativeText: prologueResult.narrative,
       targetDC: startDC,
       dcReason: startDCReason,
+      requiredCheckStat: startCheckStat,
       createdAt: new Date().toISOString(),
     });
 
@@ -213,20 +225,47 @@ export class GameSessionService {
       submittedAt: new Date().toISOString(),
     });
 
-    this.rooms.updatePlayer(player.id, { hasActedThisRound: true });
+    this.rooms.updatePlayer(player.id, {
+      hasActedThisRound: true,
+      hasRolledThisRound: true,
+    });
 
     const allPlayers = this.rooms.findPlayersByRoomId(room.id);
     const playersWithChar = allPlayers.filter(p => p.characterId);
     const onlineActive = playersWithChar.filter(p => p.isOnline);
     const targetPlayers = onlineActive.length > 0 ? onlineActive : playersWithChar;
-    const readyPlayers = targetPlayers.filter(p => p.hasActedThisRound);
-    const shouldResolveRound = targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
+
+    let shouldResolveRound = false;
+    let nextActiveUserId: string | undefined;
+
+    if (room.turnMode === 'turn_by_turn') {
+      const order = (room.turnOrder && room.turnOrder.length > 0)
+        ? room.turnOrder.filter(uid => targetPlayers.some(p => p.userId === uid))
+        : targetPlayers.map(p => p.userId);
+
+      const currentIndex = order.indexOf(userId);
+      const nextIndex = currentIndex + 1;
+
+      if (nextIndex < order.length) {
+        nextActiveUserId = order[nextIndex];
+        this.rooms.update(room.id, { activePlayerUserId: nextActiveUserId });
+      } else {
+        shouldResolveRound = true;
+        this.rooms.update(room.id, { activePlayerUserId: order[0] });
+      }
+    } else {
+      const readyPlayers = targetPlayers.filter(p => p.hasActedThisRound);
+      shouldResolveRound = targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
+    }
+
+    const updatedRoom = this.rooms.findByCode(roomCode) || room;
 
     return {
-      room: sanitizeRoom(room),
+      room: sanitizeRoom(updatedRoom),
       player,
       characterName: charName,
       shouldResolveRound,
+      nextActiveUserId,
     };
   }
 
@@ -255,6 +294,8 @@ export class GameSessionService {
       currentSituation: room.currentSituation,
       currentDC: room.targetDC,
       currentDCReason: room.dcReason,
+      requiredCheckStat: room.requiredCheckStat,
+      campaignPlot: room.campaignPlot,
       loreJournal: room.loreJournal,
       characters: activeCharacters,
       actions: currentRoundActions,
@@ -269,10 +310,21 @@ export class GameSessionService {
       dmResult = await fallback.generateRound(aiContext);
     }
 
-    // Apply player updates (HP changes)
+    // Apply player updates (HP changes) with exact ID or name matching
     if (Array.isArray(dmResult.playerUpdates)) {
       dmResult.playerUpdates.forEach(update => {
-        this.characters.updateHp(update.characterId, update.hpDelta || 0);
+        const target = this.characters.findById(update.characterId) ||
+          activeCharacters.find(c =>
+            c.name.toLowerCase().trim() === (update.characterName || update.characterId || '').toLowerCase().trim() ||
+            c.name.toLowerCase().includes((update.characterName || update.characterId || '').toLowerCase().trim()) ||
+            (update.characterName || update.characterId || '').toLowerCase().includes(c.name.toLowerCase().trim())
+          );
+
+        if (target) {
+          this.characters.updateHp(target.id, update.hpDelta || 0);
+          update.characterId = target.id;
+          update.characterName = target.name;
+        }
       });
     }
 
@@ -318,12 +370,15 @@ export class GameSessionService {
       actionsSummary: currentRoundActions.map(a => `${a.characterName}: ${a.actionText}`).join('\n'),
       targetDC: room.targetDC,
       dcReason: room.dcReason,
+      requiredCheckStat: room.requiredCheckStat,
       droppedLoot: droppedLootItems.length > 0 ? droppedLootItems : undefined,
       playerUpdates: dmResult.playerUpdates?.map(u => {
-        const c = this.characters.findById(u.characterId);
+        const c = this.characters.findById(u.characterId) ||
+          activeCharacters.find(ch => ch.name.toLowerCase().trim() === (u.characterName || u.characterId || '').toLowerCase().trim());
+        const resolvedName = c?.name || u.characterName || (activeCharacters[0]?.name) || 'Герой';
         return {
-          characterId: u.characterId,
-          characterName: c?.name || 'Герой',
+          characterId: c?.id || u.characterId,
+          characterName: resolvedName,
           hpDelta: u.hpDelta,
           hpCurrent: c?.hpCurrent || 0,
           note: u.note,
@@ -336,12 +391,17 @@ export class GameSessionService {
     const nextRound = room.roundNumber + 1;
     const nextDC = dmResult.nextRoundDC || 12;
     const nextDCReason = dmResult.nextRoundDCReason || 'Преодоление препятствий';
+    const nextCheckStat = dmResult.requiredCheckStat || room.requiredCheckStat || 'dex';
+    const firstActiveUserId = (room.turnOrder && room.turnOrder.length > 0) ? room.turnOrder[0] : undefined;
 
     this.rooms.update(room.id, {
       roundNumber: nextRound,
       currentSituation: dmResult.currentSituation || 'Что вы делаете дальше?',
       targetDC: nextDC,
       dcReason: nextDCReason,
+      requiredCheckStat: nextCheckStat,
+      activePlayerUserId: firstActiveUserId,
+      campaignPlot: dmResult.campaignPlot || room.campaignPlot,
     });
     this.rooms.resetPlayersTurn(room.id);
 
@@ -407,6 +467,20 @@ export class GameSessionService {
     if (!talent) return null;
 
     return this.characters.learnTalent(characterId, talentId, talent.effects);
+  }
+
+  public setTurnMode(roomId: string, mode: 'simultaneous' | 'turn_by_turn') {
+    const room = this.rooms.findById(roomId);
+    if (!room) return null;
+    const allPlayers = this.rooms.findPlayersByRoomId(roomId).filter(p => p.characterId);
+    const turnOrder = allPlayers.map(p => p.userId);
+    const activePlayerUserId = mode === 'turn_by_turn' ? (turnOrder[0] || undefined) : undefined;
+    const updated = this.rooms.update(roomId, {
+      turnMode: mode,
+      turnOrder,
+      activePlayerUserId,
+    });
+    return updated ? sanitizeRoom(updated) : null;
   }
 }
 

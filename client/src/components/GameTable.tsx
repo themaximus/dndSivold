@@ -41,6 +41,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     lastDeathSaveMessage,
     submitAction,
     forceResolveRound,
+    setTurnMode,
     pickupLoot,
     useItem,
     equipWeapon,
@@ -62,6 +63,11 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
       </div>
     );
   }
+
+  const isTurnByTurn = room.turnMode === 'turn_by_turn';
+  const isMyTurn = !isTurnByTurn || !room.activePlayerUserId || room.activePlayerUserId === user?.id;
+  const activePlayer = players.find(p => p.userId === room.activePlayerUserId);
+  const activePlayerName = activePlayer?.character?.name || activePlayer?.username || 'Игрок';
 
   const handleAttachRoll = (roll: DiceRollResult) => {
     // Strictly 1 dice roll per turn
@@ -90,6 +96,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         isHost={room.hostUserId === user?.id}
         isDMThinking={isDMThinking}
         onForceResolve={forceResolveRound}
+        onToggleTurnMode={setTurnMode}
         onOpenInventory={() => setIsInventoryOpen(true)}
         onOpenTalents={() => setIsTalentsOpen(true)}
         onOpenJournal={() => setIsJournalOpen(true)}
@@ -99,7 +106,12 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
       {/* Main Grid: Party HUD (Left) + Chronicle & Action Console (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
         {/* Party HUD Column */}
-        <PartyHUD players={players} currentUserId={user?.id} />
+        <PartyHUD
+          players={players}
+          currentUserId={user?.id}
+          activePlayerUserId={room.activePlayerUserId}
+          turnMode={room.turnMode}
+        />
 
         {/* DM Chronicle + Action Console Column */}
         <div className="lg:col-span-3 flex flex-col min-h-0 bg-fantasy-panel border border-fantasy-border rounded-2xl shadow-xl overflow-hidden">
@@ -124,6 +136,10 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             currentSituation={room.currentSituation}
             targetDC={room.targetDC || 12}
             dcReason={room.dcReason}
+            requiredCheckStat={room.requiredCheckStat}
+            isMyTurn={isMyTurn}
+            activePlayerName={activePlayerName}
+            turnMode={room.turnMode}
             character={myCharacter}
             attachedRolls={attachedRolls}
             lastDeathSaveMessage={lastDeathSaveMessage}
@@ -140,6 +156,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         <DiceRollerModal
           roomCode={roomCode}
           character={myCharacter || undefined}
+          defaultStatKey={room.requiredCheckStat}
           onClose={() => setIsDiceModalOpen(false)}
           onRollComplete={handleAttachRoll}
         />

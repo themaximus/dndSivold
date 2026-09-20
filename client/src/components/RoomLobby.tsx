@@ -13,7 +13,8 @@ import {
   Sparkles,
   ArrowLeft,
   UserCheck,
-  Clock
+  Clock,
+  ListOrdered
 } from 'lucide-react';
 
 interface RoomLobbyProps {
@@ -98,6 +99,10 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
       }
     });
 
+    socket.on('room_updated', (updatedRoom: Room) => {
+      setRoom(updatedRoom);
+    });
+
     socket.on('game_started', () => {
       onGameStarted();
     });
@@ -109,10 +114,16 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
     return () => {
       isMounted = false;
       socket.off('room_players_updated');
+      socket.off('room_updated');
       socket.off('game_started');
       socket.off('error_message');
     };
   }, [roomCode, user?.id]);
+
+  const handleSetTurnMode = (mode: 'simultaneous' | 'turn_by_turn') => {
+    const socket = getSocket();
+    socket.emit('set_turn_mode', { roomCode, mode });
+  };
 
   const handleSelectCharacter = (charId: string) => {
     setSelectedCharId(charId);
@@ -386,23 +397,64 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
 
             {/* Host Start Game Action */}
             {isHost && (
-              <div className="mt-8 pt-6 border-t border-fantasy-border flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-sm font-bold font-rpg text-slate-200">
-                    Панель создателя комнаты
-                  </h4>
-                  <p className="text-xs text-slate-400">
-                    Убедитесь, что все ваши друзья выбрали персонажей, и нажмите кнопку запуска.
-                  </p>
+              <div className="mt-8 pt-6 border-t border-fantasy-border space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-fantasy-card p-4 rounded-xl border border-fantasy-border">
+                  <div>
+                    <h5 className="text-xs font-bold font-rpg text-amber-300 uppercase tracking-wider">
+                      Режим ходов отряда
+                    </h5>
+                    <p className="text-[11px] text-slate-400">
+                      {room.turnMode === 'turn_by_turn'
+                        ? 'Пошаговый: игроки ходят строго по очереди один за другим'
+                        : 'Одновременный: все игроки заявляют действия одновременно в рамках раунда'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSetTurnMode('simultaneous')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                        room.turnMode !== 'turn_by_turn'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Общий ход</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetTurnMode('turn_by_turn')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                        room.turnMode === 'turn_by_turn'
+                          ? 'bg-purple-600 text-white shadow-md font-bold'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+                      }`}
+                    >
+                      <ListOrdered className="w-3.5 h-3.5" />
+                      <span>По очереди</span>
+                    </button>
+                  </div>
                 </div>
 
-                <button
-                  onClick={handleStartGame}
-                  className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-extrabold font-rpg rounded-xl shadow-xl shadow-amber-600/30 transition-all flex items-center justify-center gap-2"
-                >
-                  <Play className="w-5 h-5 fill-current" />
-                  Запустить игру
-                </button>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-bold font-rpg text-slate-200">
+                      Панель создателя комнаты
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Убедитесь, что все ваши друзья выбрали персонажей, и нажмите кнопку запуска.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleStartGame}
+                    className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-extrabold font-rpg rounded-xl shadow-xl shadow-amber-600/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    Запустить игру
+                  </button>
+                </div>
               </div>
             )}
           </div>
