@@ -9,6 +9,7 @@ import {
   roomRepository,
   gameLogRepository,
 } from '../repositories';
+import { sanitizeRoom } from '../services/security/CryptoService';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -59,7 +60,7 @@ export function setupGameSockets(io: Server) {
       if (updated) {
         io.to(updated.room.id).emit('room_players_updated', updated.players);
         socket.emit('room_state', {
-          room: updated.room,
+          room: sanitizeRoom(updated.room),
           players: updated.players,
           logs: gameLogRepository.findByRoomId(updated.room.id),
         });
@@ -100,7 +101,7 @@ export function setupGameSockets(io: Server) {
       const updated = gameSessionService.startGame(room.id, userId);
       if (updated) {
         io.to(room.id).emit('game_started', {
-          room: updated.room,
+          room: sanitizeRoom(updated.room),
           players: updated.players,
           logs: gameLogRepository.findByRoomId(room.id),
         });
@@ -153,7 +154,10 @@ export function setupGameSockets(io: Server) {
         try {
           const resolved = await gameSessionService.resolveRound(room.id);
           if (resolved) {
-            io.to(room.id).emit('round_resolved', resolved);
+            io.to(room.id).emit('round_resolved', {
+              ...resolved,
+              room: sanitizeRoom(resolved.room),
+            });
           }
         } catch (error: any) {
           console.error('Error resolving round via GameSessionService:', error);
@@ -174,7 +178,7 @@ export function setupGameSockets(io: Server) {
           characterId,
           item: result.item,
           character: result.character,
-          room: result.room,
+          room: sanitizeRoom(result.room),
         });
 
         const updated = gameSessionService.getRoomAndPlayers(roomCode);

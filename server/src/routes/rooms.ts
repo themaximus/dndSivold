@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db, RoomEntity } from '../db';
 import { authMiddleware } from './auth';
+import { cryptoService, sanitizeRoom } from '../services/security/CryptoService';
+import { config } from '../config';
 
 const router = Router();
 
@@ -28,6 +30,9 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
       code = generateRoomCode();
     }
 
+    // Encrypt room API key using AES-256-GCM before saving to database
+    const encryptedKey = deepseekApiKey?.trim() ? cryptoService.encrypt(deepseekApiKey.trim()) : undefined;
+
     const newRoom: RoomEntity = {
       id: crypto.randomUUID(),
       code,
@@ -37,13 +42,13 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
       status: 'waiting',
       roundNumber: 1,
       currentSituation: 'Отряд собрался вместе перед началом опасного пути. Осмотритесь и подготовьтесь к первому действию.',
-      deepseekApiKey: deepseekApiKey?.trim() || undefined,
+      deepseekApiKey: encryptedKey,
       deepseekModel: deepseekModel?.trim() || 'deepseek-chat',
       createdAt: new Date().toISOString(),
     };
 
     const saved = db.rooms.create(newRoom);
-    res.status(201).json(saved);
+    res.status(201).json(sanitizeRoom(saved));
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Ошибка при создании комнаты' });
   }
@@ -66,12 +71,7 @@ router.get('/:code', authMiddleware, (req: Request, res: Response): void => {
   const logs = db.gameLogs.findByRoomId(room.id);
 
   res.json({
-    room: {
-      ...room,
-      hasDeepSeekKey: !!(room.deepseekApiKey || process.env.DEEPSEEK_API_KEY),
-      // Don't expose the full API key to all players
-      deepseekApiKey: undefined,
-    },
+    room: sanitizeRoom(room),
     players: hydratedPlayers,
     logs,
   });
@@ -93,12 +93,16 @@ router.post('/:code/settings', authMiddleware, (req: Request, res: Response): vo
 
   const { deepseekApiKey, deepseekModel, setting } = req.body;
   const updates: Partial<RoomEntity> = {};
-  if (deepseekApiKey !== undefined) updates.deepseekApiKey = deepseekApiKey.trim();
+
+  // Encrypt updated API key if provided
+  if (deepseekApiKey !== undefined) {
+    updates.deepseekApiKey = deepseekApiKey.trim() ? cryptoService.encrypt(deepseekApiKey.trim()) : undefined;
+  }
   if (deepseekModel !== undefined) updates.deepseekModel = deepseekModel.trim();
   if (setting !== undefined) updates.setting = setting.trim();
 
   const updated = db.rooms.update(room.id, updates);
-  res.json({ success: true, room: updated });
+  res.json({ success: true, room: sanitizeRoom(updated) });
 });
 
 export default router;

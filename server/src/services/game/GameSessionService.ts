@@ -13,6 +13,7 @@ import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
+import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 
 export interface RoundResolutionResult {
   log: GameLogEntity;
@@ -55,7 +56,7 @@ export class GameSessionService {
       character: p.characterId ? this.characters.findById(p.characterId) : undefined,
     }));
 
-    return { room, players: populatedPlayers };
+    return { room: sanitizeRoom(room), players: populatedPlayers };
   }
 
   public joinRoom(roomCode: string, userId: string, username: string) {
@@ -153,7 +154,7 @@ export class GameSessionService {
     const shouldResolveRound = activePlayers.length > 0 && readyPlayers.length === activePlayers.length;
 
     return {
-      room,
+      room: sanitizeRoom(room),
       player,
       characterName: charName,
       shouldResolveRound,
@@ -173,9 +174,10 @@ export class GameSessionService {
     const previousLogs = this.gameLogs.findByRoomId(room.id).map(l => l.narrativeText);
 
     // AI Provider resolution with DC, quenta, and milestones context
-    const provider = this.aiFactory.getProvider(room.deepseekApiKey, room.deepseekModel);
+    const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
+    const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
     const dmResult = await provider.generateRound({
-      apiKey: room.deepseekApiKey,
+      apiKey: decryptedApiKey,
       model: room.deepseekModel,
       setting: room.setting,
       roundNumber: room.roundNumber,
@@ -282,7 +284,7 @@ export class GameSessionService {
     const { room, item } = this.rooms.removeLoot(roomId, lootId);
     if (!item) return null;
     const updatedChar = this.characters.addItemToInventory(characterId, item);
-    return { room, character: updatedChar, item };
+    return { room: sanitizeRoom(room), character: updatedChar, item };
   }
 
   public useItem(characterId: string, itemId: string) {

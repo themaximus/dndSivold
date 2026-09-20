@@ -12,6 +12,11 @@ server/dist/
 .env.*
 !.env.example
 
+# Local Database runtime files (prevent leaking user keys or states)
+data/database.json
+data/*.tmp
+!data/database.default.json
+
 # Temporary files & logs
 *.tmp
 *.log

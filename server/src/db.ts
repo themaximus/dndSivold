@@ -180,7 +180,19 @@ class Database {
         this.save();
       }
     } else {
-      this.save();
+      const defaultPath = path.join(config.dataDir, 'database.default.json');
+      if (fs.existsSync(defaultPath)) {
+        try {
+          fs.copyFileSync(defaultPath, this.filePath);
+          const raw = fs.readFileSync(this.filePath, 'utf-8');
+          this.data = JSON.parse(raw);
+        } catch (err) {
+          console.error('Failed to initialize from database.default.json, creating empty db', err);
+          this.save();
+        }
+      } else {
+        this.save();
+      }
     }
   }
 
