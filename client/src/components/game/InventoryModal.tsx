@@ -69,60 +69,76 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
               return (
                 <div
                   key={item.id}
-                  className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-4 ${
+                  className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
                     isEquipped
                       ? 'bg-amber-950/25 border-amber-500/50'
                       : 'bg-fantasy-panel/70 border-fantasy-border hover:border-slate-600'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-slate-800/80 rounded-lg border border-slate-700/60 mt-0.5">
-                      {getItemIcon(item.type)}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-slate-800/80 rounded-lg border border-slate-700/60 mt-0.5">
+                        {getItemIcon(item.type)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-slate-100">{item.name}</span>
+                          {item.quantity > 1 && (
+                            <span className="text-xs text-amber-400 font-mono font-bold">x{item.quantity}</span>
+                          )}
+                          {isEquipped && (
+                            <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold rounded-full flex items-center gap-1">
+                              <Check className="w-2.5 h-2.5" /> Экипировано
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{item.description}</p>
+                        <div className="flex items-center gap-3 mt-1 text-[11px] font-mono">
+                          {item.damage && <span className="text-amber-400">Урон: {item.damage}</span>}
+                          {item.ac_bonus && <span className="text-blue-400">КБ: +{item.ac_bonus}</span>}
+                          {item.healAmount && <span className="text-emerald-400">Исцеление: +{item.healAmount} HP</span>}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-slate-100">{item.name}</span>
-                        {item.quantity > 1 && (
-                          <span className="text-xs text-amber-400 font-mono font-bold">x{item.quantity}</span>
-                        )}
-                        {isEquipped && (
-                          <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold rounded-full flex items-center gap-1">
-                            <Check className="w-2.5 h-2.5" /> Экипировано
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{item.description}</p>
-                      <div className="flex items-center gap-3 mt-1 text-[11px] font-mono">
-                        {item.damage && <span className="text-amber-400">Урон: {item.damage}</span>}
-                        {item.ac_bonus && <span className="text-blue-400">КБ: +{item.ac_bonus}</span>}
-                        {item.healAmount && <span className="text-emerald-400">Исцеление: +{item.healAmount} HP</span>}
-                      </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {isPotion && (
+                        <button
+                          type="button"
+                          onClick={() => onUseItem(item.id)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                        >
+                          <Heart className="w-3.5 h-3.5" />
+                          Выпить
+                        </button>
+                      )}
+
+                      {isWeapon && !isEquipped && (
+                        <button
+                          type="button"
+                          onClick={() => onEquipWeapon(item.id)}
+                          className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 border border-amber-500/40 text-amber-300 hover:text-black font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <Sword className="w-3.5 h-3.5" />
+                          Экипировать
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {isPotion && (
-                      <button
-                        type="button"
-                        onClick={() => onUseItem(item.id)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
-                      >
-                        <Heart className="w-3.5 h-3.5" />
-                        Выпить
-                      </button>
-                    )}
-
-                    {isWeapon && !isEquipped && (
-                      <button
-                        type="button"
-                        onClick={() => onEquipWeapon(item.id)}
-                        className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 border border-amber-500/40 text-amber-300 hover:text-black font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
-                      >
-                        <Sword className="w-3.5 h-3.5" />
-                        Экипировать
-                      </button>
-                    )}
-                  </div>
+                  {item.history && item.history.length > 0 && (
+                    <div className="mt-1 pt-2 border-t border-slate-700/40 space-y-1">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Хроника предмета:</span>
+                      <ul className="space-y-0.5 pl-1">
+                        {item.history.map((h, i) => (
+                          <li key={i} className="text-[11px] text-slate-300 flex items-start gap-1.5 leading-relaxed">
+                            <span className="text-amber-500/80 text-[10px] select-none mt-0.5">•</span>
+                            <span>{h}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               );
             })

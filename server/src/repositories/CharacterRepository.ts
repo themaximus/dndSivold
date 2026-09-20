@@ -13,9 +13,9 @@ export interface ICharacterRepository extends IRepository<CharacterEntity> {
     isNat20: boolean,
     isNat1: boolean
   ): { character: CharacterEntity | null; message: string; state: 'alive' | 'downed' | 'dead' | 'stable' };
-  addItemToInventory(id: string, item: any): CharacterEntity | null;
-  removeItemFromInventory(id: string, itemNameOrId: string, quantity?: number): CharacterEntity | null;
-  useConsumableItem(id: string, itemId: string): { character: CharacterEntity | null; healAmount: number; itemName: string };
+  addItemToInventory(id: string, item: any, historyReason?: string): CharacterEntity | null;
+  removeItemFromInventory(id: string, itemNameOrId: string, quantity?: number, reason?: string): CharacterEntity | null;
+  useConsumableItem(id: string, itemId: string, targetName?: string): { character: CharacterEntity | null; healAmount: number; itemName: string };
   equipWeapon(id: string, itemId: string): CharacterEntity | null;
   awardXp(id: string, xpAmount: number): CharacterEntity | null;
   performShortRest(id: string, diceCount?: number): {
@@ -79,8 +79,20 @@ export class CharacterRepository implements ICharacterRepository {
     }
 
     if (Array.isArray(char.inventory)) {
-      const cleanedInventory = char.inventory.filter(i => i && typeof i.name === 'string' && i.name.trim().length > 0);
-      if (cleanedInventory.length !== char.inventory.length) {
+      let invChanged = false;
+      const cleanedInventory = char.inventory
+        .filter(i => i && typeof i.name === 'string' && i.name.trim().length > 0)
+        .map(i => {
+          if (!Array.isArray(i.history) || i.history.length === 0) {
+            invChanged = true;
+            return {
+              ...i,
+              history: ['Стартовое снаряжение искателя приключений.'],
+            };
+          }
+          return i;
+        });
+      if (invChanged || cleanedInventory.length !== char.inventory.length) {
         updates.inventory = cleanedInventory;
         needsUpdate = true;
       }
@@ -209,7 +221,7 @@ export class CharacterRepository implements ICharacterRepository {
     }
   }
 
-  public addItemToInventory(id: string, item: any): CharacterEntity | null {
+  public addItemToInventory(id: string, item: any, historyReason?: string): CharacterEntity | null {
     const char = this.findById(id);
     if (!char) return null;
 
@@ -221,9 +233,19 @@ export class CharacterRepository implements ICharacterRepository {
     const inventory = [...(char.inventory || [])];
     const existing = inventory.find(i => i.name.toLowerCase().trim() === cleanName.toLowerCase());
 
+    const note = historyReason || (Array.isArray(item.history) && item.history.length > 0 ? item.history[item.history.length - 1] : 'Получен в ходе странствий.');
+
     if (existing) {
       existing.quantity = (existing.quantity || 1) + (item.quantity || 1);
+      const hist = Array.isArray(existing.history) ? [...existing.history] : ['Стартовое снаряжение искателя приключений.'];
+      if (note && !hist.includes(note)) {
+        hist.push(note);
+      }
+      existing.history = hist;
     } else {
+      const hist = Array.isArray(item.history) && item.history.length > 0
+        ? [...item.history]
+        : [note];
       inventory.push({
         id: item.id || crypto.randomUUID(),
         name: cleanName,
@@ -233,13 +255,14 @@ export class CharacterRepository implements ICharacterRepository {
         damage: item.damage,
         ac_bonus: item.ac_bonus,
         healAmount: item.healAmount,
+        history: hist,
       });
     }
 
     return this.update(id, { inventory });
   }
 
-  public removeItemFromInventory(id: string, itemNameOrId: string, quantity = 1): CharacterEntity | null {
+  public removeItemFromInventory(id: string, itemNameOrId: string, quantity = 1, reason?: string): CharacterEntity | null {
     const char = this.findById(id);
     if (!char) return null;
 
@@ -254,17 +277,30 @@ export class CharacterRepository implements ICharacterRepository {
 
     if (idx === -1) return char;
 
-    const item = inventory[idx];
+    const item = { ...inventory[idx] };
+    const updates: Partial<CharacterEntity> = {};
+
     if (item.quantity && item.quantity > quantity) {
       item.quantity -= quantity;
+      if (reason) {
+        const hist = Array.isArray(item.history) ? [...item.history] : ['Стартовое снаряжение искателя приключений.'];
+        hist.push(reason);
+        item.history = hist;
+      }
+      inventory[idx] = item;
     } else {
       inventory.splice(idx, 1);
+      // If the removed item was currently equipped as active weapon, unequip it immediately!
+      if (char.activeWeaponId && (char.activeWeaponId === item.id || char.activeWeaponId.toLowerCase() === item.name.toLowerCase())) {
+        updates.activeWeaponId = undefined;
+      }
     }
 
-    return this.update(id, { inventory });
+    updates.inventory = inventory;
+    return this.update(id, updates);
   }
 
-  public useConsumableItem(id: string, itemId: string): { character: CharacterEntity | null; healAmount: number; itemName: string } {
+  public useConsumableItem(id: string, itemId: string, targetName?: string): { character: CharacterEntity | null; healAmount: number; itemName: string } {
     const char = this.findById(id);
     if (!char) return { character: null, healAmount: 0, itemName: '' };
 
@@ -272,19 +308,26 @@ export class CharacterRepository implements ICharacterRepository {
     const idx = inventory.findIndex(i => i.id === itemId);
     if (idx === -1) return { character: char, healAmount: 0, itemName: '' };
 
-    const item = inventory[idx];
+    const item = { ...inventory[idx] };
     const healAmount = item.healAmount || (item.type === 'potion' ? 8 : 0);
     const itemName = item.name;
 
     if (item.quantity > 1) {
       item.quantity -= 1;
+      const hist = Array.isArray(item.history) ? [...item.history] : ['Стартовое снаряжение искателя приключений.'];
+      hist.push(`Использован 1 шт.${targetName ? ` на цели: ${targetName}` : ' для исцеления.'}`);
+      item.history = hist;
+      inventory[idx] = item;
     } else {
       inventory.splice(idx, 1);
+      if (char.activeWeaponId && (char.activeWeaponId === item.id || char.activeWeaponId.toLowerCase() === item.name.toLowerCase())) {
+        char.activeWeaponId = undefined;
+      }
     }
 
     // Apply inventory decrement and healing atomically
-    const updates: Partial<CharacterEntity> = { inventory };
-    if (healAmount > 0) {
+    const updates: Partial<CharacterEntity> = { inventory, activeWeaponId: char.activeWeaponId };
+    if (healAmount > 0 && (!targetName || targetName.toLowerCase() === char.name.toLowerCase())) {
       const newHp = Math.max(0, Math.min(char.hpMax, char.hpCurrent + healAmount));
       updates.hpCurrent = newHp;
       if (newHp > 0 && char.lifeState === 'downed') {

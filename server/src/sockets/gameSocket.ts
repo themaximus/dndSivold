@@ -271,23 +271,26 @@ export function setupGameSockets(io: Server) {
     });
 
     // Use Consumable Item
-    socket.on('use_item', ({ roomCode, characterId, itemId }: { roomCode: string; characterId: string; itemId: string }) => {
+    socket.on('use_item', ({ roomCode, characterId, itemId, targetName }: { roomCode: string; characterId: string; itemId: string; targetName?: string }) => {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      const result = gameSessionService.useItem(characterId, itemId);
+      const result = gameSessionService.useItem(characterId, itemId, targetName);
       if (result.character) {
         io.to(room.id).emit('item_used', {
           characterId,
           character: result.character,
           itemName: result.itemName,
           healAmount: result.healAmount,
+          targetName,
         });
 
+        const healNote = result.healAmount > 0 ? ` (+${result.healAmount} HP)` : '';
+        const targetNote = targetName ? ` на цели «${targetName}»` : '';
         io.to(room.id).emit('feed_activity', {
           id: crypto.randomUUID(),
           type: 'item_used',
-          text: `🧪 ${result.character.name} использовал предмет: ${result.itemName}${result.healAmount > 0 ? ` (+${result.healAmount} HP)` : ''}`,
+          text: `🧪 ${result.character.name} использовал предмет: «${result.itemName}»${targetNote}${healNote}`,
           timestamp: new Date().toISOString(),
         });
 

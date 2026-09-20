@@ -79,6 +79,12 @@ export class DMPromptBuilder {
 ФУНДАМЕНТАЛЬНЫЙ КОДЕКС ЗАКОНОВ МИРА D&D:
 Перед генерацией ответа Мастер ОБЯЗАН проверить действия игроков по следующим законам:
 
+ЗОЛОТОЕ ПРАВИЛО МАСТЕРА — ОБРАЩЕНИЕ К КОНТЕКСТУ МИРА И ПЕРСОНАЖЕЙ:
+Перед тем как сгенерировать ответ, Мастер ОБЯЗАН:
+1. Обратиться к КВЕНТАМ И ПРЕДЫСТОРИЯМ ИГРОКОВ (раздел «Квента / Личная история») — учитывать их происхождение, мотивы, характер и слабости в диалогах, поведении NPC и сюжетных поворотах.
+2. Обратиться к ИСТОРИИ КАЖДОГО ПРЕДМЕТА (раздел «Хроника предмета») — помнить, откуда он взялся, каково его состояние, и если игрок задействует его в ходе, продолжать его историю.
+3. Обратиться к ЖУРНАЛУ ИГРЫ И ХРОНИКЕ ВЕХ («Хроника ключевых вех истории») — помнить обещания персонажей, прошлые решения и развивать события последовательно.
+
 ЗАКОН 1: УНИВЕРСАЛЬНАЯ СЕТТИНГОВАЯ КОГЕРЕНТНОСТЬ (ЛЮБОЙ ЖАНР ПО ПРАВИЛАМ D&D 5E)
 Игра поддерживает ЛЮБОЙ жанр приключения по правилам D&D (броски d20, проверки характеристик СИЛ/ЛОВ/ТЕЛ/ИНТ/МУД/ХАР, класс брони, урон, раунды):
 - Фэнтези: мечи, луки, арбалеты, доспехи, свитки, заклинания, зелья. Огнестрел и лазеры запрещены.
@@ -111,11 +117,15 @@ export class DMPromptBuilder {
 - ЕСЛИ ИДЕТ РЕАЛЬНЫЙ БОЙ: ЛЮБОЙ противник, который по тексту narrative непосредственно атакует, стреляет или угрожает жизни отряда, ОБЯЗАН БЫТЬ В МАССИВЕ "activeEnemies" с "hpCurrent" > 0 и "isDead": false.
 - Если враги повержены, сдались или бежали — Мастер ОБЯЗАН прямо объявить о победе/затишье в "currentSituation", а поле "mood" выставить в "calm", "mystery" или "social".
 
-ЗАКОН 6: АВТОМАТИЧЕСКОЕ ИЗМЕНЕНИЕ ИНВЕНТАРЯ ("inventoryUpdates")
-- Если персонаж потратил, выпил, сломал, бросил или передал предмет:
-  добавь в "inventoryUpdates" объект с "action": "remove", указав "characterId", "characterName" и имя предмета.
-- Если персонаж нашёл, купил, выменял или получил в награду предмет:
-  добавь в "inventoryUpdates" объект с "action": "add", описав предмет (name, type, description, damage, healAmount). Имя предмета ОБЯЗАНО быть не пустым!
+ЗАКОН 6: ДИНАМИЧЕСКИЙ ИНВЕНТАРЬ, РАСХОД, ПОЛОМКА И ПОЛУЧЕНИЕ ПРЕДМЕТОВ ("inventoryUpdates"):
+- УДАЛЕНИЕ, РАСХОД ИЛИ ПОЛОМКА («action»: «remove»):
+  * Если персонаж выпил зелье, применил свиток, перевязал рану, накормил или исцелил союзника/путника — предмет УДАЛЯЕТСЯ из рюкзака («action»: «remove», с указанием понятной причины в «reason»).
+  * Если оружие или щит СЛОМАЛИСЬ в бою (критический провал d20=1, удар о каменную плоть, парирование сокрушительного удара великана) — предмет ЛОМАЕТСЯ и УДАЛЯЕТСЯ («action»: «remove», «reason»: «Клинок раскололся от колоссального удара»). Если это оружие было экипировано, оно автоматически снимается, а все его бонусы исчезают!
+  * Если персонажа ОГРАБИЛИ карманники, бандиты или воры в толпе — похищенный предмет УДАЛЯЕТСЯ («action»: «remove», «reason»: «Срезано с пояса ловким вором»).
+- ПОЛУЧЕНИЕ НОВЫХ ПРЕДМЕТОВ («action»: «add»):
+  * Если отряд получил предмет в награду от путника/каравана/торговца, приобрёл в лавке или нашёл ценный трофей — добавь в «inventoryUpdates» объект с «action»: «add», указав понятное «name», «type», «description», параметры и начальную историю «history» из одного лаконичного предложения (например, ["Подарено раненым гонцом в благодарность за спасение"]).
+- ВНИМАНИЕ К НАЗВАНИЯМ ПРЕДМЕТОВ В ЗАЯВКАХ ИГРОКОВ:
+  * Если игрок упомянул название предмета из своего инвентаря — обязательно развивай судьбу этого предмета! Если он его использовал или повредил — отрази это в "inventoryUpdates".
 
 ЗАКОН 7: БОЕВАЯ СИСТЕМА D&D 5E — АТАКИ ПО КБ ВРАГА И СОСТОЯНИЯ (CONDITIONS)
 - АТАКА ПО ЦЕЛИ: Если игрок заявил атаку и указал цель из списка врагов с её КБ:
@@ -139,6 +149,10 @@ export class DMPromptBuilder {
     - ВНИМАНИЕ: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать фразы "📌 Итог ситуации:" или "❓ Выбор перед вами:" внутри текста "narrative"!
       Поле "narrative" содержит ТОЛЬКО чистое художественное повествование сцены для погружения и озвучки. Итог и дилемма передаются ИСКЛЮЧИТЕЛЬНО в свои поля "currentSituation" и "choiceDilemma" — интерфейс игры сам отображает их в специальной красивой плашке!
 
+11. РАЗВЁРНУТЫЙ ЖУРНАЛ И ХРОНИКА ("newMilestones"):
+    - Веди более развернутые и подробные отчеты о ходах в журнале игры ("newMilestones").
+    - Каждая запись в "newMilestones" должна состоять из 1–2 информативных предложений, фиксирующих ключевые события раунда: действия героев, использование или утрату снаряжения, реакцию NPC и итог хода.
+
 ОБЯЗАТЕЛЬНЫЙ ФОРМАТ ОТВЕТА (ТОЛЬКО ЧИСТЫЙ JSON без markdown блоков \`\`\`):
 {
   "narrative": "Художественное повествование раунда с описанием действий героев, диалогов, реакций встреченных NPC или изменения обстановки...",
@@ -152,7 +166,17 @@ export class DMPromptBuilder {
   ],
   "activeEnemies": [],
   "conditionUpdates": [],
-  "inventoryUpdates": [],
+  "inventoryUpdates": [
+    {
+      "characterId": "точный-uuid-персонажа",
+      "characterName": "Точное Имя Персонажа",
+      "action": "remove",
+      "reason": "Клинок раскололся о гранитного голема.",
+      "item": {
+        "name": "Стальной меч"
+      }
+    }
+  ],
   "ruleViolations": [],
   "currentSituation": "Бродячий торговец Бальтазар с облегчением благодарит отряд за помощь и раскладывает свои диковинки.",
   "choiceDilemma": "Осмотреть редкие товары торговца, расспросить его о слухах про близлежащие руины или предложить сопровождать его дальше по тракту. Что предпринимает отряд?",
@@ -163,7 +187,7 @@ export class DMPromptBuilder {
   "requiredCheckStat": "cha",
   "droppedLoot": [],
   "newMilestones": [
-    "Отряд встретил торговца Бальтазара на перекрёстке трактов."
+    "Отряд спас бродячего торговца Бальтазара на перекрёстке трактов и заключил с ним выгодную сделку."
   ],
   "xpAwarded": 30,
   "rejectedAction": null,
@@ -173,30 +197,25 @@ export class DMPromptBuilder {
 
   public buildUserPrompt(context: AIDMContext): string {
     const partyInfo = this.formatPartyInfo(context.characters);
-    const actionsSummary = this.formatActionsSummary(context.actions);
+    const actionsSummary = this.formatActionsSummary(context.actions, context.characters);
 
     const livingEnemies = (context.activeEnemies || []).filter(e => !e.isDead && e.hpCurrent > 0);
     const enemiesSummary = livingEnemies.length > 0
       ? livingEnemies.map(e => `* [ID: "${e.id}"] ${e.name} (${e.type || 'враг'}): HP ${e.hpCurrent}/${e.hpMax}, КБ ${e.ac || 12}. Статус: ${e.status}`).join('\n')
-      : 'В сцене нет активных противников (мирная обстановка, социальная встреча или исследование).';
-
-    const loreSummary = context.loreJournal && context.loreJournal.length > 0
-      ? context.loreJournal.map(m => `* [Раунд ${m.round}]: ${m.milestone}`).join('\n')
-      : 'Приключение только началось. Значимых вех пока нет.';
-
-    const historySnippet = context.previousHistory && context.previousHistory.length > 0
-      ? context.previousHistory.slice(-3).map((text, idx, arr) => `[Хроника недавних событий (раунд ${Math.max(1, context.roundNumber - (arr.length - idx))}]:\n${text}`).join('\n\n')
-      : 'Герои только начали поход и делают первые шаги в неизвестность.';
+      : 'Врагов в текущей сцене нет (мирная фаза, диалог, исследование, отдых или затишье).';
 
     const durationRounds = context.campaignDuration === 'short' ? '10 раундов' : context.campaignDuration === 'long' ? '20+ раундов' : '16 раундов';
+    const loreSummary = (context.loreJournal && context.loreJournal.length > 0)
+      ? context.loreJournal.slice(-8).map(m => `[Раунд ${m.round}]: ${m.milestone}`).join('\n')
+      : 'Летопись только начинается.';
+
+    const historySnippet = (context.previousHistory && context.previousHistory.length > 0)
+      ? context.previousHistory.slice(-3).map((h, i) => `[Предыдущее событие ${i + 1}]:\n${h}`).join('\n\n')
+      : 'События только разворачиваются.';
 
     const encounterGuidance = livingEnemies.length === 0
-      ? `ОБСТАНОВКА МИРНАЯ / ИССЛЕДОВАТЕЛЬСКАЯ (АКТИВНЫХ ВРАГОВ НЕТ):
-Бой не ведется! Отряд исследует окружение, общается или путешествует.
-НЕ НАВЯЗЫВАЙ НОВЫЙ БОЙ БЕЗ ВЕСКОЙ ПРИЧИНЫ! Развивай социальные взаимодействия и дорожные тайны!
-Импульс для случайного события / встречи (используй для вдохновения):
-👉 ${this.getRandomEncounterSeed(context.genre)}
-Оставь "activeEnemies": [], выстави mood в "social", "mystery" или "exploration".`
+      ? `МИРНАЯ ФАЗА (НЕТ ВРАГОВ):
+Не форсируй немедленный бой! Развивай встречу с персонажами, диалог, тайну, дилемму или исследование. Массив "activeEnemies" ОБЯЗАН быть пустым: []!`
       : `ИДЕТ БОЕВОЕ СТОЛКНОВЕНИЕ:
 Сравнивай броски атак с КБ врагов. Если все враги повержены — заверши бой, опиши затишье и переведи отряд в мирную фазу ("mood": "triumph" или "calm").`;
 
@@ -212,10 +231,10 @@ ${context.campaignPlot || 'Генеральная сюжетная линия: �
 ПРЕДЫДУЩИЕ СОБЫТИЯ (Контекст недавних действий отряда — продолжай эту историю непрерывно!):
 ${historySnippet}
 
-ХРОНИКА КЛЮЧЕВЫХ ВЕХ ИСТОРИИ (Долгосрочная память мира):
+ХРОНИКА КЛЮЧЕВЫХ ВЕХ ИСТОРИИ (Долгосрочная память мира — сверяйся с ней):
 ${loreSummary}
 
-СОСТАВ ОТРЯДА И ЛИЧНОЕ СНАРЯЖЕНИЕ:
+СОСТАВ ОТРЯДА, ЛИЧНОЕ СНАРЯЖЕНИЕ, ХРОНИКА ПРЕДМЕТОВ И КВЕНТЫ (СВЕРЯЙСЯ С НИМИ):
 ${partyInfo}
 (Герои могут использовать указанные выше предметы из рюкзака, А ТАКЖЕ любые логичные предметы текущего окружения сцены: укрытия, мебель, подручные вещи, окружение).
 
@@ -227,7 +246,7 @@ ${context.currentSituation || 'Приключение продолжается.'
 ТЕКУЩАЯ СЛОЖНОСТЬ (СЛ): ${context.currentDC || 12} (${context.currentDCReason || 'Стандартная задача'})
 ТРЕБУЕМАЯ ХАРАКТЕРИСТИКА ДЛЯ ЭТОЙ ПРОВЕРКИ: ${context.requiredCheckStat ? context.requiredCheckStat.toUpperCase() : 'ЛЮБАЯ'}
 
-ДЕЙСТВИЯ ИГРОКОВ В ЭТОМ РАУНДЕ (Сравни их броски с СЛ ${context.currentDC || 12}):
+ДЕЙСТВИЯ ИГРОКОВ В ЭТОМ РАУНДЕ (Сравни их броски с СЛ ${context.currentDC || 12} или КБ врагов):
 ${actionsSummary}
 
 НАПРАВЛЯЮЩАЯ ИНСТРУКЦИЯ К РАУНДУ:
@@ -235,11 +254,14 @@ ${encounterGuidance}
 
 ИНСТРУКЦИЯ ПО ГЕНЕРАЦИИ:
 1. Сверь заявки игроков с КОДЕКСОМ ЗАКОНОВ МИРА D&D: пресекай бред, несоответствие жанру.
-2. Принимай креативные словесные задумки (диалоги, уловки, торговлю, осмотр, тактику).
-3. В "narrative" пиши ТОЛЬКО художественный текст! КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать в "narrative" слова "📌 Итог ситуации" или "❓ Выбор перед вами".
-4. Заполни "currentSituation" и "choiceDilemma" как отдельные строковые поля JSON.
-5. Если в сцене нет боя — "activeEnemies" ОБЯЗАН быть пустым []!
-6. Укажи requiredCheckStat ("str", "dex", "con", "int", "wis" или "cha") для следующей проверки. Верни чистый JSON.`;
+2. Обязательно сверяйся с КВЕНТАМИ игроков, ИСТОРИЕЙ ПРЕДМЕТОВ и ЖУРНАЛОМ игры!
+3. Принимай креативные словесные задумки (диалоги, уловки, торговлю, осмотр, тактику).
+4. Если предметы расходуются, ломаются, теряются или приобретаются — отрази их в "inventoryUpdates".
+5. В "narrative" пиши ТОЛЬКО художественный текст! КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать в "narrative" слова "📌 Итог ситуации" или "❓ Выбор перед вами".
+6. Заполни "currentSituation" и "choiceDilemma" как отдельные строковые поля JSON.
+7. В "newMilestones" запиши развернутые отчеты о ключевых событиях и последствиях хода (1-2 предложения).
+8. Если в сцене нет боя — "activeEnemies" ОБЯЗАН быть пустым []!
+9. Укажи requiredCheckStat ("str", "dex", "con", "int", "wis" или "cha") для следующей проверки. Верни чистый JSON.`;
   }
 
   public formatPartyInfo(characters: CharacterEntity[]): string {
@@ -249,6 +271,26 @@ ${encounterGuidance}
       const slotsInfo = c.spellSlots
         ? Object.entries(c.spellSlots).map(([lvl, s]) => `${lvl} ур: ${s.current}/${s.max}`).join(', ')
         : 'Нет';
+
+      const inventoryFormatted = c.inventory && c.inventory.length > 0
+        ? c.inventory.map(i => {
+            const histStr = Array.isArray(i.history) && i.history.length > 0
+              ? `\n      ↳ Хроника предмета: ${i.history.join(' -> ')}`
+              : '';
+            const stats = [
+              `тип: ${i.type}`,
+              `кол-во: ${i.quantity || 1}`,
+              i.damage ? `урон: ${i.damage}` : '',
+              i.ac_bonus ? `КБ +${i.ac_bonus}` : '',
+              i.healAmount ? `лечение: ${i.healAmount}` : '',
+            ].filter(Boolean).join(', ');
+            return `    - "${i.name}" (${stats})${histStr}`;
+          }).join('\n')
+        : '    - Пусто (нет снаряжения)';
+
+      const activeWeapon = c.activeWeaponId
+        ? c.inventory.find(i => i.id === c.activeWeaponId || i.name.toLowerCase() === c.activeWeaponId?.toLowerCase())?.name || 'В руках'
+        : 'Базовое оружие';
 
       return `
 - ID: "${c.id}"
@@ -260,14 +302,15 @@ ${encounterGuidance}
   Состояния (Conditions): ${condList}
   Характеристики: СИЛ ${c.stats.str}, ЛОВ ${c.stats.dex}, ТЕЛ ${c.stats.con}, ИНТ ${c.stats.int}, МУД ${c.stats.wis}, ХАР ${c.stats.cha}
   Способности: ${c.abilities && c.abilities.length > 0 ? c.abilities.map(a => a.name).join(', ') : 'Базовые приёмы'}
-  Активное оружие: ${c.activeWeaponId ? c.inventory.find(i => i.id === c.activeWeaponId)?.name || 'В руках' : 'Базовое оружие'}
-  Личный инвентарь в рюкзаке: ${c.inventory && c.inventory.length > 0 ? c.inventory.map(i => `${i.name} [${i.type}${i.damage ? `, урон ${i.damage}` : ''}${i.healAmount ? `, лечение ${i.healAmount}` : ''}]`).join('; ') : 'Пусто (нет снаряжения)'}
-  Квента / Личная история: ${c.bio || 'Опытный искатель приключений'}
+  Активное оружие: ${activeWeapon}
+  Личный инвентарь в рюкзаке (с историей каждого предмета):
+${inventoryFormatted}
+  Квента / Личная история (ОБЯЗАТЕЛЬНО УЧИТЫВАТЬ МОТИВЫ И ХАРАКТЕР): "${c.bio || 'Опытный искатель приключений'}"
 `;
     }).join('\n');
   }
 
-  public formatActionsSummary(actions: TurnActionEntity[]): string {
+  public formatActionsSummary(actions: TurnActionEntity[], characters?: CharacterEntity[]): string {
     return actions.map(a => {
       const typeLabel = a.actionType === 'attack'
         ? `⚔️ АТАКА ПО ЦЕЛИ: ${a.targetEnemyName || a.targetEnemyId || 'Враг'}`
@@ -284,7 +327,26 @@ ${encounterGuidance}
         ? a.diceRolls.map((r: any) => `[Кость: ${r.diceType}, Характеристика: ${r.statKey ? r.statKey.toUpperCase() : 'Общая'}, Выпало: ${r.rolls.join('+')} (${r.modifier >= 0 ? '+' : ''}${r.modifier}) = Итого: ${r.total}${r.isCriticalSuccess ? ' ★ КРИТИЧЕСКИЙ УСПЕХ (20)!' : ''}${r.isCriticalFail ? ' ☠ КРИТИЧЕСКИЙ ПРОВАЛ (1)!' : ''}, Назначение: ${r.purpose}]`).join('; ')
         : 'Без броска кубика';
 
-      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}`;
+      // Check if player action mentions any item from their inventory
+      const char = characters?.find(c => c.id === a.characterId || c.name.toLowerCase() === (a.characterName || '').toLowerCase());
+      const mentionedItems: string[] = [];
+      if (char && Array.isArray(char.inventory)) {
+        for (const item of char.inventory) {
+          if (item && item.name && a.actionText.toLowerCase().includes(item.name.toLowerCase().trim())) {
+            mentionedItems.push(`«${item.name}»`);
+          }
+        }
+      }
+
+      let itemTrackingDirective = '';
+      if (mentionedItems.length > 0) {
+        itemTrackingDirective = `\n  🔍 [ВНИМАНИЕ — ИГРОК ИСПОЛЬЗУЕТ ПРЕДМЕТ]: В тексте заявки упомянут(ы) предмет(ы) из рюкзака: ${mentionedItems.join(', ')}.
+     Разреши судьбу предмета:
+     - Если предмет выпит, скормлен союзнику/путнику, применён, сломан или утерян/украден — ОБЯЗАТЕЛЬНО добавь его в "inventoryUpdates" с action="remove" и укажи причину "reason" (лаконичное предложение). Если это было активное оружие, его бонусы пропадут!
+     - Если получен новый предмет — добавь его в "inventoryUpdates" с action="add" и стартовой историей "history".`;
+      }
+
+      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}${itemTrackingDirective}`;
     }).join('\n\n');
   }
 

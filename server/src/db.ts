@@ -39,12 +39,13 @@ export interface CharacterEntity {
   inventory: {
     id: string;
     name: string;
-    type: 'weapon' | 'armor' | 'potion' | 'misc';
+    type: 'weapon' | 'armor' | 'potion' | 'scroll' | 'food' | 'misc';
     description: string;
     quantity: number;
     damage?: string;
     ac_bonus?: number;
     healAmount?: number;
+    history?: string[];
   }[];
   bio: string;
   avatarUrl: string;

@@ -396,6 +396,9 @@ export class GameSessionService {
       });
     }
 
+    // Track item activities per character to include in actions summary and feed
+    const itemActivitiesByCharacter: Record<string, string[]> = {};
+
     // Process Dynamic Inventory Updates (items consumed, lost, broken or acquired)
     if (Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.length > 0) {
       dmResult.inventoryUpdates.forEach(invUpdate => {
@@ -407,17 +410,68 @@ export class GameSessionService {
 
         if (target && invUpdate.item && typeof invUpdate.item.name === 'string' && invUpdate.item.name.trim()) {
           const cleanItemName = invUpdate.item.name.trim();
+          if (!itemActivitiesByCharacter[target.id]) {
+            itemActivitiesByCharacter[target.id] = [];
+          }
+
           if (invUpdate.action === 'remove') {
-            this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1);
+            const reason = invUpdate.reason || `Израсходовано или утрачено в раунде ${room.roundNumber}`;
+            this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1, reason);
+            itemActivitiesByCharacter[target.id].push(`Потрачено/утрачено: «${cleanItemName}» (${reason})`);
           } else if (invUpdate.action === 'add') {
+            const reason = invUpdate.reason || (Array.isArray(invUpdate.item.history) && invUpdate.item.history.length > 0 ? invUpdate.item.history[0] : `Получено в раунде ${room.roundNumber}`);
             this.characters.addItemToInventory(target.id, {
               ...invUpdate.item,
               name: cleanItemName,
-            });
+            }, reason);
+            itemActivitiesByCharacter[target.id].push(`Получено: «${cleanItemName}» (${reason})`);
           }
         }
       });
     }
+
+    // Intelligent Fallback Heuristic: If player action or DM narrative mentioned using, breaking or losing an inventory item and AI omitted inventoryUpdates
+    currentRoundActions.forEach(a => {
+      const char = activeCharacters.find(c => c.id === a.characterId || c.name.toLowerCase().trim() === a.characterName.toLowerCase().trim());
+      if (!char || !char.inventory) return;
+
+      const actionLower = a.actionText.toLowerCase();
+      const narrativeLower = (dmResult.narrative || '').toLowerCase();
+
+      // Check for consumable usage (healing potion, scroll, bread/food)
+      const consumeRegex = /(выпи(л|ть|ваю)|исцел(ил|ить|яю)|поит|леч(у|ил|ить)|передал|отдал|поделился|скормил|использ(овал|ую)|бросаю|метнул|зажёг)/i;
+      // Check for broken item or theft
+      const breakRegex = /(сломал(ся|ась)?|разбил(ся|ась)?|расколол(ся|ась)?|уничтожен|похищен|украл(и)?|среза(л|ли)|отобрал(и)?)/i;
+
+      char.inventory.forEach(item => {
+        if (!item || !item.name) return;
+        const itemNameLower = item.name.toLowerCase().trim();
+        if (itemNameLower.length < 3) return;
+
+        const mentionedInAction = actionLower.includes(itemNameLower);
+        const mentionedInNarrative = narrativeLower.includes(itemNameLower);
+
+        // Check if already processed in dmResult.inventoryUpdates
+        const alreadyProcessed = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(u =>
+          (u.characterId === char.id || (u.characterName && u.characterName.toLowerCase() === char.name.toLowerCase())) &&
+          u.item && u.item.name.toLowerCase().includes(itemNameLower)
+        );
+
+        if (!alreadyProcessed) {
+          if (mentionedInAction && consumeRegex.test(actionLower) && (item.type === 'potion' || item.type === 'scroll' || item.type === 'food' || (item.healAmount && item.healAmount > 0))) {
+            const reason = `Израсходовано в ходе заявки: «${item.name}»`;
+            this.characters.removeItemFromInventory(char.id, item.id, 1, reason);
+            if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
+            itemActivitiesByCharacter[char.id].push(`Использовано: «${item.name}» (${reason})`);
+          } else if ((mentionedInAction || mentionedInNarrative) && (breakRegex.test(actionLower) || breakRegex.test(narrativeLower))) {
+            const reason = `Сломано или утрачено в ходе событий раунда ${room.roundNumber}`;
+            this.characters.removeItemFromInventory(char.id, item.id, 1, reason);
+            if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
+            itemActivitiesByCharacter[char.id].push(`Сломано/утрачено: «${item.name}» (${reason})`);
+          }
+        }
+      });
+    });
 
     // Process Dropped Loot (strictly filtering out empty items)
     let droppedLootItems: RoomLootItem[] = [];
@@ -440,15 +494,18 @@ export class GameSessionService {
       }
     }
 
-    // Process Lore Journal Milestones
-    if (Array.isArray(dmResult.newMilestones) && dmResult.newMilestones.length > 0) {
-      const milestones: LoreMilestone[] = dmResult.newMilestones.map((m) => ({
-        id: crypto.randomUUID(),
-        round: room.roundNumber,
-        milestone: m,
-      }));
-      this.rooms.addMilestones(room.id, milestones);
-    }
+    // Process Lore Journal Milestones (ensure rich, expanded chronicles)
+    const rawMilestones = (Array.isArray(dmResult.newMilestones) && dmResult.newMilestones.length > 0)
+      ? dmResult.newMilestones
+      : [
+          `Раунд ${room.roundNumber}: ${dmResult.currentSituation || 'Отряд преодолел очередное испытание.'}`
+        ];
+    const milestones: LoreMilestone[] = rawMilestones.map((m) => ({
+      id: crypto.randomUUID(),
+      round: room.roundNumber,
+      milestone: m,
+    }));
+    this.rooms.addMilestones(room.id, milestones);
 
     // Award XP to active characters
     const xpToAward = dmResult.xpAwarded && dmResult.xpAwarded > 0 ? dmResult.xpAwarded : 25;
@@ -456,7 +513,7 @@ export class GameSessionService {
       this.characters.awardXp(c.id, xpToAward);
     });
 
-    // Format Actions Summary with Player text, Roll math and DC/AC Success/Failure verdicts
+    // Format Actions Summary with Player text, Roll math, DC/AC verdicts, and Item consumption/breakage
     const formattedActionsSummary = currentRoundActions.map(a => {
       const roll = a.diceRolls && a.diceRolls.length > 0 ? a.diceRolls[0] : null;
       let verdict = '';
@@ -494,7 +551,13 @@ export class GameSessionService {
           }
         }
       }
-      return `【${a.characterName}】: «${a.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}`;
+
+      const itemActivities = itemActivitiesByCharacter[a.characterId];
+      const itemsLine = itemActivities && itemActivities.length > 0
+        ? `\n   🎒 [Инвентарь]: ${itemActivities.join('; ')}`
+        : '';
+
+      return `【${a.characterName}】: «${a.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}${itemsLine}`;
     }).join('\n\n');
 
     // Save game log with sanitized narrative
@@ -638,13 +701,13 @@ export class GameSessionService {
 
   public pickupLoot(roomId: string, characterId: string, lootId: string) {
     const { room, item } = this.rooms.removeLoot(roomId, lootId);
-    if (!item || !item.name || !item.name.trim()) return null;
-    const updatedChar = this.characters.addItemToInventory(characterId, item);
+    if (!room || !item || !item.name || !item.name.trim()) return null;
+    const updatedChar = this.characters.addItemToInventory(characterId, item, `Подобран как боевой трофей в раунде ${room.roundNumber}.`);
     return { room: sanitizeRoom(room), character: updatedChar, item };
   }
 
-  public useItem(characterId: string, itemId: string) {
-    return this.characters.useConsumableItem(characterId, itemId);
+  public useItem(characterId: string, itemId: string, targetName?: string) {
+    return this.characters.useConsumableItem(characterId, itemId, targetName);
   }
 
   public equipWeapon(characterId: string, itemId: string) {

@@ -191,6 +191,11 @@ export const PartyMemberModal: React.FC<PartyMemberModalProps> = ({
                       <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
                         {item.description || item.type}
                       </div>
+                      {item.history && item.history.length > 0 && (
+                        <div className="text-[9px] text-amber-300/80 italic mt-0.5 truncate max-w-[200px]" title={item.history[item.history.length - 1]}>
+                          📜 {item.history[item.history.length - 1]}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right">
                       {item.damage && (

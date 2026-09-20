@@ -58,6 +58,7 @@ export interface InventoryUpdate {
   characterId: string;
   characterName?: string;
   action: 'add' | 'remove';
+  reason?: string;
   item: {
     name: string;
     quantity?: number;
@@ -66,6 +67,7 @@ export interface InventoryUpdate {
     damage?: string;
     healAmount?: number;
     ac_bonus?: number;
+    history?: string[];
   };
 }
 

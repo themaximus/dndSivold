@@ -56,7 +56,26 @@ export class DMResponseValidator {
           : [],
         conditionUpdates: Array.isArray(parsed.conditionUpdates) ? parsed.conditionUpdates : [],
         inventoryUpdates: Array.isArray(parsed.inventoryUpdates)
-          ? parsed.inventoryUpdates.filter((u: any) => u && u.item && typeof u.item.name === 'string' && u.item.name.trim().length > 0)
+          ? parsed.inventoryUpdates
+              .filter((u: any) => u && u.item && typeof u.item.name === 'string' && u.item.name.trim().length > 0)
+              .map((u: any) => ({
+                characterId: String(u.characterId || ''),
+                characterName: u.characterName ? String(u.characterName) : undefined,
+                action: u.action === 'remove' ? 'remove' : 'add',
+                reason: typeof u.reason === 'string' && u.reason.trim() ? u.reason.trim() : undefined,
+                item: {
+                  name: String(u.item.name).trim(),
+                  quantity: typeof u.item.quantity === 'number' && u.item.quantity > 0 ? u.item.quantity : 1,
+                  type: u.item.type || 'misc',
+                  description: typeof u.item.description === 'string' ? u.item.description.trim() : '',
+                  damage: u.item.damage,
+                  healAmount: u.item.healAmount,
+                  ac_bonus: u.item.ac_bonus,
+                  history: Array.isArray(u.item.history)
+                    ? u.item.history.map(String)
+                    : (u.reason ? [String(u.reason)] : undefined),
+                },
+              }))
           : [],
         ruleViolations: Array.isArray(parsed.ruleViolations) ? parsed.ruleViolations : [],
         mood: parsed.mood,
