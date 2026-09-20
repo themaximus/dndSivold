@@ -273,6 +273,7 @@ export interface GameLogEntry {
   id: string;
   roomId: string;
   roundNumber: number;
+  turnPlayerName?: string;
   narrativeText: string;
   imageUrl?: string;
   actionsSummary?: string;
@@ -294,7 +295,7 @@ export interface GameLogEntry {
 
 export interface FeedActivity {
   id: string;
-  type: 'item_used' | 'weapon_equipped' | 'rest' | 'loot_pickup' | 'route_selected';
+  type: 'item_used' | 'weapon_equipped' | 'rest' | 'loot_pickup' | 'route_selected' | 'turn_action' | 'player_action' | string;
   text: string;
   timestamp: string;
 }

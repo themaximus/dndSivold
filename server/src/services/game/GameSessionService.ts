@@ -11,7 +11,7 @@ import {
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
-import { AIDMResponse, AIDMPrologueContext } from '../../domain/types';
+import { AIDMResponse, AIDMPrologueContext, AIDMContext } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
@@ -30,6 +30,19 @@ export interface RoundResolutionResult {
   room: RoomEntity;
   players: RoomPlayerEntity[];
   nextRoundNumber: number;
+  rejectedAction?: {
+    characterName: string;
+    reason: string;
+  };
+}
+
+export interface TurnStepResolutionResult {
+  log?: GameLogEntity;
+  room: RoomEntity;
+  players: RoomPlayerEntity[];
+  isRoundComplete: boolean;
+  nextActiveUserId?: string;
+  nextRoundNumber?: number;
   rejectedAction?: {
     characterName: string;
     reason: string;
@@ -283,10 +296,8 @@ export class GameSessionService {
 
       if (nextIndex < order.length) {
         nextActiveUserId = order[nextIndex];
-        this.rooms.update(room.id, { activePlayerUserId: nextActiveUserId });
       } else {
         shouldResolveRound = true;
-        this.rooms.update(room.id, { activePlayerUserId: order[0] });
       }
     } else {
       const readyPlayers = targetPlayers.filter(p => p.hasActedThisRound);
@@ -300,8 +311,336 @@ export class GameSessionService {
       player,
       characterName: charName,
       shouldResolveRound,
+      isTurnByTurn: room.turnMode === 'turn_by_turn',
       nextActiveUserId,
     };
+  }
+
+  public async resolveTurnStep(roomId: string, actingUserId: string): Promise<TurnStepResolutionResult | null> {
+    const room = this.rooms.findById(roomId);
+    if (!room) return null;
+
+    const allPlayers = this.rooms.findPlayersByRoomId(room.id);
+    const playersWithChar = allPlayers.filter(p => p.characterId);
+    const onlineActive = playersWithChar.filter(p => p.isOnline);
+    const targetPlayers = onlineActive.length > 0 ? onlineActive : playersWithChar;
+
+    const currentRoundActions = this.turnActions.findByRoomAndRound(room.id, room.roundNumber);
+    const actingAction = currentRoundActions.find(a => a.playerId === actingUserId) ||
+      currentRoundActions[currentRoundActions.length - 1];
+
+    if (!actingAction) return null;
+
+    const activeCharacters: CharacterEntity[] = allPlayers
+      .map(p => (p.characterId ? this.characters.findById(p.characterId) : undefined))
+      .filter((c): c is CharacterEntity => !!c);
+
+    const actingChar = activeCharacters.find(c => c.id === actingAction.characterId);
+    const previousLogs = this.gameLogs.findByRoomId(room.id).map(l => l.narrativeText);
+
+    const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
+    const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
+
+    let dmResult: AIDMResponse;
+    const aiContext: AIDMContext = {
+      apiKey: decryptedApiKey,
+      model: room.deepseekModel,
+      setting: room.setting,
+      genre: room.genre,
+      campaignDuration: room.campaignDuration,
+      roundNumber: room.roundNumber,
+      currentSituation: room.currentSituation,
+      currentDC: room.targetDC,
+      currentDCReason: room.dcReason,
+      requiredCheckStat: room.requiredCheckStat,
+      campaignPlot: room.campaignPlot,
+      campaignMap: room.campaignMap,
+      loreJournal: room.loreJournal,
+      characters: activeCharacters,
+      activeEnemies: room.activeEnemies || [],
+      actions: [actingAction],
+      previousHistory: previousLogs,
+      turnMode: 'turn_by_turn',
+      turnPlayerName: actingAction.characterName,
+    };
+
+    try {
+      dmResult = await provider.generateRound(aiContext);
+    } catch (err: any) {
+      console.warn('Primary AI provider failed in turn step, resolving with SimulationAIProvider:', err?.message || err);
+      const fallback = new SimulationAIProvider();
+      dmResult = await fallback.generateRound(aiContext);
+    }
+
+    // Handle Rejected Action
+    if (dmResult.rejectedAction) {
+      const playerRec = this.rooms.findPlayer(room.id, actingAction.playerId);
+      if (playerRec) {
+        this.rooms.updatePlayer(playerRec.id, { hasActedThisRound: false });
+      }
+      this.turnActions.delete(actingAction.id);
+      const updatedPlayers = this.rooms.findPlayersByRoomId(room.id);
+      return {
+        room,
+        players: updatedPlayers,
+        isRoundComplete: false,
+        rejectedAction: dmResult.rejectedAction,
+      };
+    }
+
+    // Apply player updates
+    if (Array.isArray(dmResult.playerUpdates)) {
+      dmResult.playerUpdates.forEach(update => {
+        const target = this.characters.findById(update.characterId) ||
+          activeCharacters.find(c =>
+            c.name.toLowerCase().trim() === (update.characterName || update.characterId || '').toLowerCase().trim() ||
+            c.name.toLowerCase().includes((update.characterName || update.characterId || '').toLowerCase().trim())
+          );
+        if (target) {
+          this.characters.updateHp(target.id, update.hpDelta || 0);
+          update.characterId = target.id;
+          update.characterName = target.name;
+        }
+      });
+    }
+
+    // Process Dynamic Inventory Updates
+    const itemActivitiesByCharacter: Record<string, string[]> = {};
+    if (Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.length > 0) {
+      dmResult.inventoryUpdates.forEach(invUpdate => {
+        const target = this.characters.findById(invUpdate.characterId) ||
+          activeCharacters.find(c =>
+            c.name.toLowerCase().trim() === (invUpdate.characterName || invUpdate.characterId || '').toLowerCase().trim() ||
+            c.name.toLowerCase().includes((invUpdate.characterName || invUpdate.characterId || '').toLowerCase().trim())
+          );
+        if (target && invUpdate.item && typeof invUpdate.item.name === 'string' && invUpdate.item.name.trim()) {
+          const cleanItemName = invUpdate.item.name.trim();
+          if (!itemActivitiesByCharacter[target.id]) {
+            itemActivitiesByCharacter[target.id] = [];
+          }
+          if (invUpdate.action === 'remove') {
+            const reason = invUpdate.reason || `Израсходовано или утрачено в раунде ${room.roundNumber}`;
+            this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1, reason);
+            itemActivitiesByCharacter[target.id].push(`Потрачено/утрачено: «${cleanItemName}» (${reason})`);
+          } else if (invUpdate.action === 'add') {
+            const reason = invUpdate.reason || (Array.isArray(invUpdate.item.history) && invUpdate.item.history.length > 0 ? invUpdate.item.history[0] : `Получено в раунде ${room.roundNumber}`);
+            this.characters.addItemToInventory(target.id, {
+              ...invUpdate.item,
+              name: cleanItemName,
+            }, reason);
+            itemActivitiesByCharacter[target.id].push(`Получено: «${cleanItemName}» (${reason})`);
+          }
+        }
+      });
+    }
+
+    // Fallback heuristic for acting player
+    if (actingChar && actingChar.inventory) {
+      const actionLower = actingAction.actionText.toLowerCase();
+      const narrativeLower = (dmResult.narrative || '').toLowerCase();
+      const consumeRegex = /(выпи(л|ть|ваю)|исцел(ил|ить|яю)|поит|леч(у|ил|ить)|передал|отдал|поделился|скормил|использ(овал|ую)|бросаю|метнул|зажёг)/i;
+      const breakRegex = /(сломал(ся|ась)?|разбил(ся|ась)?|расколол(ся|ась)?|уничтожен|похищен|украл(и)?|среза(л|ли)|отобрал(и)?)/i;
+
+      actingChar.inventory.forEach(item => {
+        if (!item || !item.name) return;
+        const itemNameLower = item.name.toLowerCase().trim();
+        if (itemNameLower.length < 3) return;
+
+        const mentionedInAction = actionLower.includes(itemNameLower);
+        const mentionedInNarrative = narrativeLower.includes(itemNameLower);
+
+        const alreadyProcessed = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(u =>
+          (u.characterId === actingChar.id || (u.characterName && u.characterName.toLowerCase() === actingChar.name.toLowerCase())) &&
+          u.item && u.item.name.toLowerCase().includes(itemNameLower)
+        );
+
+        if (!alreadyProcessed) {
+          if (mentionedInAction && consumeRegex.test(actionLower) && (item.type === 'potion' || item.type === 'scroll' || item.type === 'food' || (item.healAmount && item.healAmount > 0))) {
+            const reason = `Израсходовано в ходе заявки: «${item.name}»`;
+            this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
+            if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
+            itemActivitiesByCharacter[actingChar.id].push(`Использовано: «${item.name}» (${reason})`);
+          } else if ((mentionedInAction || mentionedInNarrative) && (breakRegex.test(actionLower) || breakRegex.test(narrativeLower))) {
+            const reason = `Сломано или утрачено в ходе событий раунда ${room.roundNumber}`;
+            this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
+            if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
+            itemActivitiesByCharacter[actingChar.id].push(`Сломано/утрачено: «${item.name}» (${reason})`);
+          }
+        }
+      });
+    }
+
+    // Process Dropped Loot
+    let droppedLootItems: RoomLootItem[] = [];
+    if (Array.isArray(dmResult.droppedLoot) && dmResult.droppedLoot.length > 0) {
+      droppedLootItems = dmResult.droppedLoot
+        .filter(item => item && typeof item.name === 'string' && item.name.trim().length > 0)
+        .map(item => ({
+          id: crypto.randomUUID(),
+          name: item.name.trim(),
+          type: item.type || 'misc',
+          description: item.description?.trim() || 'Предмет, найденный в бою',
+          quantity: 1,
+          damage: item.damage,
+          ac_bonus: item.ac_bonus,
+          healAmount: item.healAmount,
+          roundDropped: room.roundNumber,
+        }));
+      if (droppedLootItems.length > 0) {
+        this.rooms.addLoot(room.id, droppedLootItems);
+      }
+    }
+
+    // Process Lore Journal Milestones
+    if (Array.isArray(dmResult.newMilestones) && dmResult.newMilestones.length > 0) {
+      const milestones: LoreMilestone[] = dmResult.newMilestones.map(m => ({
+        id: crypto.randomUUID(),
+        round: room.roundNumber,
+        milestone: m,
+      }));
+      this.rooms.addMilestones(room.id, milestones);
+    }
+
+    // Award XP for turn step
+    const xpToAward = dmResult.xpAwarded && dmResult.xpAwarded > 0 ? dmResult.xpAwarded : 15;
+    if (actingChar) {
+      this.characters.awardXp(actingChar.id, xpToAward);
+    }
+
+    // Format Actions Summary for this single action
+    const roll = actingAction.diceRolls && actingAction.diceRolls.length > 0 ? actingAction.diceRolls[0] : null;
+    let verdict = '';
+    if (roll) {
+      const sign = roll.modifier >= 0 ? '+' : '';
+      const statLabel = roll.statName ? ` (${roll.statName.toUpperCase()})` : '';
+      const rollExpr = `d20 [${roll.baseRoll ?? roll.total}]${sign}${roll.modifier ?? 0}${statLabel} = ${roll.total}`;
+
+      const targetEnemy = room.activeEnemies?.find(e =>
+        e.id === actingAction.targetEnemyId || (actingAction.targetEnemyName && e.name.toLowerCase().includes(actingAction.targetEnemyName.toLowerCase()))
+      );
+
+      if (actingAction.actionType === 'attack' || targetEnemy) {
+        const ac = targetEnemy?.ac || 12;
+        const enemyName = targetEnemy?.name || actingAction.targetEnemyName || 'Враг';
+        if (roll.isCriticalSuccess) {
+          verdict = `★ КРИТИЧЕСКИЙ УСПЕХ! (${rollExpr} vs КБ ${ac} ${enemyName})`;
+        } else if (roll.isCriticalFail) {
+          verdict = `☠ КРИТИЧЕСКИЙ ПРОВАЛ! (${rollExpr} vs КБ ${ac} ${enemyName})`;
+        } else if (roll.total >= ac) {
+          verdict = `★ УСПЕХ (Попадание: ${rollExpr} vs КБ ${ac} ${enemyName})`;
+        } else {
+          verdict = `✗ ПРОВАЛ (Промах: ${rollExpr} vs КБ ${ac} ${enemyName})`;
+        }
+      } else {
+        const dc = room.targetDC || 12;
+        if (roll.isCriticalSuccess) {
+          verdict = `★ КРИТИЧЕСКИЙ УСПЕХ! (${rollExpr} vs СЛ ${dc})`;
+        } else if (roll.isCriticalFail) {
+          verdict = `☠ КРИТИЧЕСКИЙ ПРОВАЛ! (${rollExpr} vs СЛ ${dc})`;
+        } else if (roll.total >= dc) {
+          verdict = `★ УСПЕХ (${rollExpr} vs СЛ ${dc})`;
+        } else {
+          verdict = `✗ ПРОВАЛ (${rollExpr} vs СЛ ${dc})`;
+        }
+      }
+    }
+
+    const itemActivities = itemActivitiesByCharacter[actingAction.characterId];
+    const itemsLine = itemActivities && itemActivities.length > 0
+      ? `\n   🎒 [Инвентарь]: ${itemActivities.join('; ')}`
+      : '';
+
+    const formattedActionsSummary = `【${actingAction.characterName}】: «${actingAction.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}${itemsLine}`;
+
+    // Update active enemies from dmResult
+    const updatedEnemies: RoomEnemy[] = Array.isArray(dmResult.activeEnemies)
+      ? [...dmResult.activeEnemies]
+      : [...(room.activeEnemies || [])];
+
+    // Save Game Log
+    const cleanRoundNarrative = sanitizeNarrativeText(dmResult.narrative);
+    const newLog = this.gameLogs.create({
+      id: crypto.randomUUID(),
+      roomId: room.id,
+      roundNumber: room.roundNumber,
+      turnPlayerName: actingAction.characterName,
+      narrativeText: cleanRoundNarrative,
+      actionsSummary: formattedActionsSummary,
+      currentSituation: dmResult.currentSituation,
+      choiceDilemma: dmResult.choiceDilemma,
+      targetDC: dmResult.nextRoundDC || room.targetDC,
+      dcReason: dmResult.nextRoundDCReason || room.dcReason,
+      requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
+      droppedLoot: droppedLootItems.length > 0 ? droppedLootItems : undefined,
+      playerUpdates: dmResult.playerUpdates?.map(u => {
+        const c = this.characters.findById(u.characterId) ||
+          activeCharacters.find(ch => ch.name.toLowerCase().trim() === (u.characterName || u.characterId || '').toLowerCase().trim());
+        return {
+          characterId: c?.id || u.characterId,
+          characterName: c?.name || u.characterName || 'Герой',
+          hpDelta: u.hpDelta,
+          hpCurrent: c?.hpCurrent || 10,
+          note: u.note,
+        };
+      }),
+      createdAt: new Date().toISOString(),
+    });
+
+    // Determine turn order progression
+    const order = (room.turnOrder && room.turnOrder.length > 0)
+      ? room.turnOrder.filter(uid => targetPlayers.some(p => p.userId === uid))
+      : targetPlayers.map(p => p.userId);
+
+    const currentIndex = order.indexOf(actingUserId);
+    const isLastInOrder = (currentIndex >= order.length - 1) || (currentIndex === -1);
+
+    // Pre-warm neural TTS audio
+    this.tts.synthesize(newLog.narrativeText, dmResult.mood || 'mystery').catch(err => {
+      console.warn('Background turn TTS pre-warm failed:', err.message);
+    });
+
+    if (!isLastInOrder) {
+      const nextActiveUserId = order[currentIndex + 1];
+      this.rooms.update(room.id, {
+        currentSituation: dmResult.currentSituation,
+        targetDC: dmResult.nextRoundDC || room.targetDC,
+        dcReason: dmResult.nextRoundDCReason || room.dcReason,
+        requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
+        activeEnemies: updatedEnemies,
+        activePlayerUserId: nextActiveUserId,
+      });
+
+      const updated = this.getRoomAndPlayers(room.code);
+      return {
+        log: newLog,
+        room: updated!.room,
+        players: updated!.players,
+        isRoundComplete: false,
+        nextActiveUserId,
+      };
+    } else {
+      // Last player in order: complete the round and advance to next round!
+      const nextRound = room.roundNumber + 1;
+      this.rooms.resetPlayersTurn(room.id);
+      this.rooms.update(room.id, {
+        roundNumber: nextRound,
+        currentSituation: dmResult.currentSituation,
+        targetDC: dmResult.nextRoundDC || room.targetDC,
+        dcReason: dmResult.nextRoundDCReason || room.dcReason,
+        requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
+        activeEnemies: updatedEnemies,
+        activePlayerUserId: order[0] || undefined,
+      });
+
+      const updated = this.getRoomAndPlayers(room.code);
+      return {
+        log: newLog,
+        room: updated!.room,
+        players: updated!.players,
+        isRoundComplete: true,
+        nextRoundNumber: nextRound,
+      };
+    }
   }
 
   public async resolveRound(roomId: string): Promise<RoundResolutionResult | null> {

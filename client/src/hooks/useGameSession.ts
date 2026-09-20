@@ -92,6 +92,23 @@ export function useGameSession(roomCode: string) {
       setIsDMThinking(true);
     });
 
+    socket.on('turn_step_resolved', (data: { log: GameLogEntry; room: Room; players: RoomPlayer[]; nextActiveUserId?: string }) => {
+      setIsDMThinking(false);
+
+      setLogs(prev => [...prev, data.log]);
+      setRoom(data.room);
+      setPlayers(data.players);
+
+      const me = data.players.find(p => p.userId === user?.id);
+      if (me) {
+        setMyPlayer(me);
+        setHasSubmittedThisRound(me.hasActedThisRound);
+        if (me.character) setMyCharacter(me.character);
+      }
+
+      soundFx.playTurnStart();
+    });
+
     socket.on('round_resolved', (data: { log: GameLogEntry; room: Room; players: RoomPlayer[]; nextRoundNumber: number }) => {
       setIsDMThinking(false);
       setHasSubmittedThisRound(false);
@@ -180,6 +197,7 @@ export function useGameSession(roomCode: string) {
       socket.off('player_action_submitted');
       socket.off('dm_thinking');
       socket.off('dm_thinking_failed');
+      socket.off('turn_step_resolved');
       socket.off('round_resolved');
       socket.off('dice_rolled');
       socket.off('loot_picked_up');

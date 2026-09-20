@@ -187,8 +187,8 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           <Clock className="w-4 h-4 text-amber-400 animate-spin" />
           <span>
             {isDMThinking
-              ? 'Мастер Подземелий обдумывает исход раунда...'
-              : 'Действие принято! Ожидание остальных искателей приключений...'}
+              ? (turnMode === 'turn_by_turn' ? 'Мастер Подземелий описывает последствия вашего хода...' : 'Мастер Подземелий обдумывает исход раунда...')
+              : (turnMode === 'turn_by_turn' ? 'Ваш ход совершен! Ожидание других героев...' : 'Действие принято! Ожидание остальных искателей приключений...')}
           </span>
         </div>
       </div>
@@ -201,7 +201,9 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       <div className="p-3 bg-fantasy-card/95 border-t border-fantasy-border flex items-center gap-2 text-xs text-amber-300">
         <Clock className="w-4 h-4 text-amber-400 animate-spin" />
         <span>
-          Ходит: <strong className="text-amber-400">{activePlayerName || 'Соратник'}</strong>... Ожидайте своей очереди.
+          {isDMThinking
+            ? `Мастер Подземелий описывает исход хода игрока (${activePlayerName || 'Соратник'})...`
+            : <>Ходит: <strong className="text-amber-400">{activePlayerName || 'Соратник'}</strong>... Ожидайте своей очереди.</>}
         </span>
       </div>
     );

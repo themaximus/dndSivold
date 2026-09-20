@@ -16,7 +16,11 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
   isLoading,
   onToggleVoice,
 }) => {
-  const title = log.roundNumber === 0 ? 'Преамбула' : `Хроника Раунда ${log.roundNumber}`;
+  const title = log.roundNumber === 0 
+    ? 'Преамбула' 
+    : log.turnPlayerName 
+      ? `Раунд ${log.roundNumber} • Ход: ${log.turnPlayerName}` 
+      : `Хроника Раунда ${log.roundNumber}`;
 
   const { displayNarrative, effectiveSituation, effectiveDilemma } = React.useMemo(() => {
     const raw = log.narrativeText || '';

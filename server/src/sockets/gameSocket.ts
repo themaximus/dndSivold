@@ -194,7 +194,72 @@ export function setupGameSockets(io: Server) {
         room,
       });
 
-      // If all active players have submitted, resolve round with AI DM
+      // IN TURN-BY-TURN MODE: Resolve THIS player's turn step immediately!
+      if (submission.isTurnByTurn) {
+        io.to(room.id).emit('dm_thinking');
+
+        try {
+          const turnResolved = await gameSessionService.resolveTurnStep(room.id, userId);
+          if (turnResolved) {
+            if (turnResolved.rejectedAction) {
+              io.to(room.id).emit('action_rejected', turnResolved.rejectedAction);
+              io.to(room.id).emit('room_players_updated', turnResolved.players);
+              return;
+            }
+
+            if (turnResolved.log) {
+              const roll = data.diceRolls?.[0];
+              const shortVerdict = roll?.isCriticalSuccess
+                ? '★ Критический успех!'
+                : roll?.isCriticalFail
+                ? '☠ Критический провал!'
+                : (roll?.total >= (room.targetDC || 12) ? '★ Успех' : '✗ Провал');
+
+              io.to(room.id).emit('feed_activity', {
+                id: crypto.randomUUID(),
+                type: 'player_action',
+                text: `🎲 ${characterName}: «${data.actionText}» (${shortVerdict})`,
+                timestamp: new Date().toISOString(),
+              });
+
+              if (!turnResolved.isRoundComplete) {
+                io.to(room.id).emit('turn_step_resolved', {
+                  log: turnResolved.log,
+                  room: sanitizeRoom(turnResolved.room),
+                  players: turnResolved.players,
+                  nextActiveUserId: turnResolved.nextActiveUserId,
+                });
+                io.to(room.id).emit('room_players_updated', turnResolved.players);
+                io.to(room.id).emit('narrator_playing', {
+                  logId: turnResolved.log.id,
+                  narrativeText: turnResolved.log.narrativeText,
+                  startedBy: 'DM',
+                });
+              } else {
+                io.to(room.id).emit('round_resolved', {
+                  log: turnResolved.log,
+                  room: sanitizeRoom(turnResolved.room),
+                  players: turnResolved.players,
+                  nextRoundNumber: turnResolved.nextRoundNumber,
+                });
+                io.to(room.id).emit('room_players_updated', turnResolved.players);
+                io.to(room.id).emit('narrator_playing', {
+                  logId: turnResolved.log.id,
+                  narrativeText: turnResolved.log.narrativeText,
+                  startedBy: 'DM',
+                });
+              }
+            }
+          }
+        } catch (error: any) {
+          console.error('Error resolving turn step via GameSessionService:', error);
+          io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки хода' });
+          io.to(room.id).emit('error_message', 'Ошибка при обработке хода мастером. Попробуйте еще раз.');
+        }
+        return;
+      }
+
+      // IN SIMULTANEOUS MODE: If all active players have submitted, resolve round with AI DM
       if (shouldResolveRound) {
         io.to(room.id).emit('dm_thinking');
 
@@ -515,6 +580,34 @@ export function setupGameSockets(io: Server) {
 
       io.to(room.id).emit('dm_thinking');
       try {
+        if (room.turnMode === 'turn_by_turn' && room.activePlayerUserId) {
+          const turnResolved = await gameSessionService.resolveTurnStep(room.id, room.activePlayerUserId);
+          if (turnResolved && turnResolved.log) {
+            if (!turnResolved.isRoundComplete) {
+              io.to(room.id).emit('turn_step_resolved', {
+                log: turnResolved.log,
+                room: sanitizeRoom(turnResolved.room),
+                players: turnResolved.players,
+                nextActiveUserId: turnResolved.nextActiveUserId,
+              });
+            } else {
+              io.to(room.id).emit('round_resolved', {
+                log: turnResolved.log,
+                room: sanitizeRoom(turnResolved.room),
+                players: turnResolved.players,
+                nextRoundNumber: turnResolved.nextRoundNumber,
+              });
+            }
+            io.to(room.id).emit('room_players_updated', turnResolved.players);
+            io.to(room.id).emit('narrator_playing', {
+              logId: turnResolved.log.id,
+              narrativeText: turnResolved.log.narrativeText,
+              startedBy: 'DM',
+            });
+            return;
+          }
+        }
+
         const resolved = await gameSessionService.resolveRound(room.id);
         if (resolved) {
           if (resolved.rejectedAction) {

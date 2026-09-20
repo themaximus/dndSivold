@@ -163,6 +163,7 @@ export interface GameLogEntity {
   id: string;
   roomId: string;
   roundNumber: number;
+  turnPlayerName?: string;
   narrativeText: string;
   imageUrl?: string;
   actionsSummary?: string;

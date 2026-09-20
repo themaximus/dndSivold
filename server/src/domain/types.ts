@@ -89,6 +89,8 @@ export interface AIDMContext {
   activeEnemies?: RoomEnemy[];
   actions: TurnActionEntity[];
   previousHistory: string[];
+  turnMode?: 'simultaneous' | 'turn_by_turn';
+  turnPlayerName?: string;
 }
 
 export interface PlayerHpUpdate {
