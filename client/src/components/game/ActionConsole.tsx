@@ -282,7 +282,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
               <Package className="w-3 h-3 text-amber-400/80" />
               Доступно в инвентаре: {character.inventory.map(i => i.name).slice(0, 4).join(', ')}{character.inventory.length > 4 ? '...' : ''}
             </span>
-            <span className="text-slate-500">Предметы из пустоты не появляются</span>
+            <span className="text-slate-500">Инвентарь + любые логичные предметы окружения (столы, факелы и т.д.)</span>
           </div>
         )}
 
