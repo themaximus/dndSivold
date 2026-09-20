@@ -10,6 +10,8 @@ import {
   gameLogRepository,
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
+import { SimulationAIProvider } from '../ai/SimulationAIProvider';
+import { AIDMResponse } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
@@ -195,7 +197,9 @@ export class GameSessionService {
     // AI Provider resolution with DC, quenta, and milestones context
     const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
     const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
-    const dmResult = await provider.generateRound({
+    
+    let dmResult: AIDMResponse;
+    const aiContext = {
       apiKey: decryptedApiKey,
       model: room.deepseekModel,
       setting: room.setting,
@@ -207,7 +211,15 @@ export class GameSessionService {
       characters: activeCharacters,
       actions: currentRoundActions,
       previousHistory: previousLogs,
-    });
+    };
+
+    try {
+      dmResult = await provider.generateRound(aiContext);
+    } catch (err: any) {
+      console.warn('Primary AI provider failed, seamlessly resolving with Procedural Narrative Engine:', err?.message || err);
+      const fallback = new SimulationAIProvider();
+      dmResult = await fallback.generateRound(aiContext);
+    }
 
     // Apply player updates (HP changes)
     if (Array.isArray(dmResult.playerUpdates)) {
