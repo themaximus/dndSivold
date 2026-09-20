@@ -1,6 +1,6 @@
 import React from 'react';
 import { Room } from '../../types';
-import { ArrowLeft, Clock, Package, Award, BookMarked } from 'lucide-react';
+import { ArrowLeft, Clock, Package, Award, BookMarked, Zap } from 'lucide-react';
 
 interface GameTableHeaderProps {
   room: Room;
@@ -9,6 +9,9 @@ interface GameTableHeaderProps {
   inventoryCount?: number;
   skillPoints?: number;
   milestonesCount?: number;
+  isHost?: boolean;
+  isDMThinking?: boolean;
+  onForceResolve?: () => void;
   onOpenInventory?: () => void;
   onOpenTalents?: () => void;
   onOpenJournal?: () => void;
@@ -22,6 +25,9 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
   inventoryCount = 0,
   skillPoints = 0,
   milestonesCount = 0,
+  isHost = false,
+  isDMThinking = false,
+  onForceResolve,
   onOpenInventory,
   onOpenTalents,
   onOpenJournal,
@@ -118,6 +124,19 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
             Ход: <strong className="text-amber-400">{readyCount}</strong> из <strong>{totalActivePlayers}</strong>
           </span>
         </div>
+
+        {/* Host Force Turn Button */}
+        {isHost && onForceResolve && (
+          <button
+            onClick={onForceResolve}
+            disabled={isDMThinking}
+            className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black border border-amber-500/50 rounded-xl text-xs font-bold font-rpg transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            title="Завершить раунд и запустить ход Мастера (даже если кто-то из игроков не успел)"
+          >
+            <Zap className="w-3.5 h-3.5 fill-current" />
+            <span>Ход Мастера</span>
+          </button>
+        )}
 
         <button
           onClick={handleCopyInvite}

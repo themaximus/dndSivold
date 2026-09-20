@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db, RoomEntity } from '../db';
 import { authMiddleware } from './auth';
 import { cryptoService, sanitizeRoom } from '../services/security/CryptoService';
+import { gameSessionService } from '../services/game/GameSessionService';
 import { config } from '../config';
 
 const router = Router();
@@ -48,9 +49,85 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
     };
 
     const saved = db.rooms.create(newRoom);
+
+    // Automatically add Host as first player in room
+    const hostUser = db.users.findById(userId);
+    if (hostUser) {
+      db.roomPlayers.create({
+        id: crypto.randomUUID(),
+        roomId: saved.id,
+        userId: hostUser.id,
+        username: hostUser.username,
+        isReady: false,
+        hasActedThisRound: false,
+        isOnline: true,
+        joinedAt: new Date().toISOString(),
+      });
+    }
+
     res.status(201).json(sanitizeRoom(saved));
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Ошибка при создании комнаты' });
+  }
+});
+
+// GET /api/rooms/my - Get all rooms where user is host or player
+router.get('/my', authMiddleware, (req: Request, res: Response): void => {
+  try {
+    const userId = (req as any).userId;
+    const allRooms = db.rooms.getAll();
+    const userPlayerRecords = db.roomPlayers.findByUserId(userId);
+    const joinedRoomIds = new Set(userPlayerRecords.map(rp => rp.roomId));
+
+    // Rooms where user is host OR has a player record
+    const userRooms = allRooms.filter(r => r.hostUserId === userId || joinedRoomIds.has(r.id));
+
+    const summaries = userRooms.map(room => {
+      const roomPlayers = db.roomPlayers.findByRoomId(room.id);
+      const myPlayerRecord = roomPlayers.find(p => p.userId === userId);
+      const myCharacter = myPlayerRecord?.characterId
+        ? db.characters.findById(myPlayerRecord.characterId)
+        : undefined;
+
+      const isHost = room.hostUserId === userId;
+
+      return {
+        id: room.id,
+        code: room.code,
+        title: room.title,
+        setting: room.setting,
+        status: room.status,
+        roundNumber: room.roundNumber,
+        currentSituation: room.currentSituation,
+        isHost,
+        playerCount: roomPlayers.length,
+        maxPlayers: 6,
+        myPlayer: myPlayerRecord ? {
+          id: myPlayerRecord.id,
+          username: myPlayerRecord.username,
+          isReady: myPlayerRecord.isReady,
+          hasActedThisRound: myPlayerRecord.hasActedThisRound,
+        } : undefined,
+        myCharacter: myCharacter ? {
+          id: myCharacter.id,
+          name: myCharacter.name,
+          characterClass: myCharacter.characterClass,
+          race: myCharacter.race,
+          level: myCharacter.level,
+          hpCurrent: myCharacter.hpCurrent,
+          hpMax: myCharacter.hpMax,
+          avatarUrl: myCharacter.avatarUrl,
+        } : undefined,
+        createdAt: room.createdAt,
+      };
+    });
+
+    // Sort by createdAt descending (newest first)
+    summaries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json(summaries);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка получения списка комнат' });
   }
 });
 
@@ -75,6 +152,32 @@ router.get('/:code', authMiddleware, (req: Request, res: Response): void => {
     players: hydratedPlayers,
     logs,
   });
+});
+
+// POST /api/rooms/:code/join - Join a room
+router.post('/:code/join', authMiddleware, (req: Request, res: Response): void => {
+  try {
+    const userId = (req as any).userId;
+    const user = db.users.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: 'Пользователь не найден' });
+      return;
+    }
+
+    const result = gameSessionService.joinRoom(req.params.code, userId, user.username);
+    if (!result) {
+      res.status(404).json({ error: 'Комната не найдена' });
+      return;
+    }
+    if ('error' in result) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка присоединения к комнате' });
+  }
 });
 
 // POST /api/rooms/:code/settings - Update room settings (host only)

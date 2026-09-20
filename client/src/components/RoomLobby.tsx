@@ -206,7 +206,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
             </div>
 
             <div className="mt-4 pt-4 border-t border-fantasy-border text-xs text-slate-400 flex items-center justify-between">
-              <span>Ведущий (DM): <strong className="text-amber-400">ИИ DeepSeek</strong></span>
+              <span>Ведущий (DM): <strong className="text-amber-400">ИИ-Мастер Подземелий</strong></span>
               <span>Код: <strong className="font-mono text-slate-200">{room.code}</strong></span>
             </div>
           </div>

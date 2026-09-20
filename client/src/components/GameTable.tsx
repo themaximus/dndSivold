@@ -40,6 +40,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     talentTree,
     lastDeathSaveMessage,
     submitAction,
+    forceResolveRound,
     pickupLoot,
     useItem,
     equipWeapon,
@@ -81,6 +82,9 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         inventoryCount={myCharacter?.inventory?.length || 0}
         skillPoints={myCharacter?.skillPoints || 0}
         milestonesCount={room.loreJournal?.length || 0}
+        isHost={room.hostUserId === user?.id}
+        isDMThinking={isDMThinking}
+        onForceResolve={forceResolveRound}
         onOpenInventory={() => setIsInventoryOpen(true)}
         onOpenTalents={() => setIsTalentsOpen(true)}
         onOpenJournal={() => setIsJournalOpen(true)}

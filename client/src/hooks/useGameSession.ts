@@ -210,6 +210,11 @@ export function useGameSession(roomCode: string) {
     });
   }, [roomCode, myCharacter]);
 
+  const forceResolveRound = useCallback(() => {
+    const socket = getSocket();
+    socket.emit('force_resolve_round', { roomCode });
+  }, [roomCode]);
+
   const activePlayers = players.filter(p => p.characterId);
   const readyCount = activePlayers.filter(p => p.hasActedThisRound).length;
 
@@ -226,6 +231,7 @@ export function useGameSession(roomCode: string) {
     talentTree,
     lastDeathSaveMessage,
     submitAction,
+    forceResolveRound,
     pickupLoot,
     useItem,
     equipWeapon,

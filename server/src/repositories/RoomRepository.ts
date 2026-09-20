@@ -2,6 +2,8 @@ import { db, RoomEntity, RoomPlayerEntity, RoomLootItem, LoreMilestone } from '.
 import { IRepository } from './IRepository';
 
 export interface IRoomRepository extends IRepository<RoomEntity> {
+  getAll(): RoomEntity[];
+  findRoomsByUserId(userId: string): RoomEntity[];
   findByCode(code: string): RoomEntity | undefined;
   update(id: string, updates: Partial<RoomEntity>): RoomEntity | null;
   findPlayersByRoomId(roomId: string): RoomPlayerEntity[];
@@ -16,6 +18,18 @@ export interface IRoomRepository extends IRepository<RoomEntity> {
 }
 
 export class RoomRepository implements IRoomRepository {
+  public getAll(): RoomEntity[] {
+    return db.rooms.getAll();
+  }
+
+  public findRoomsByUserId(userId: string): RoomEntity[] {
+    const allRooms = db.rooms.getAll();
+    const userPlayerRecords = db.roomPlayers.findByUserId(userId);
+    const joinedRoomIds = new Set(userPlayerRecords.map(rp => rp.roomId));
+
+    return allRooms.filter(r => r.hostUserId === userId || joinedRoomIds.has(r.id));
+  }
+
   public findById(id: string): RoomEntity | undefined {
     return db.rooms.findById(id);
   }

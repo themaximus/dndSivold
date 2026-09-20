@@ -33,6 +33,7 @@ app.use('/api/tts', ttsRoutes);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
+    aiConfigured: !!config.deepseekApiKey,
     deepseekConfigured: !!config.deepseekApiKey,
     timestamp: new Date().toISOString(),
   });
@@ -63,7 +64,7 @@ app.get('*', (req, res, next) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(200).send('D&D Sivold AI Dungeon Master API Server Running');
+    res.status(200).send('СиволДнДаево AI Dungeon Master API Server Running');
   }
 });
 
@@ -71,10 +72,10 @@ app.get('*', (req, res, next) => {
 server.listen(config.port, () => {
   console.log(`
 =====================================================
-🛡️  MAUPORIA D&D - AI DUNGEON MASTER SERVER RUNNING
+🛡️  СИВОЛДНДАЕВО - AI DUNGEON MASTER SERVER RUNNING
 =====================================================
 ⚡ Server Port:        http://localhost:${config.port}
-🎲 DeepSeek AI Status: ${config.deepseekApiKey ? 'Configured (Global Key Active)' : 'Waiting for Room Key or Simulation Mode'}
+🎲 AI Master Engine:   ${config.deepseekApiKey ? 'Configured (Global Key Active)' : 'Waiting for Room Key or Simulation Mode'}
 🗡️  D&D 5e Anti-Cheat:  Enabled (Server-Side Dice Engine)
 =====================================================
 `);

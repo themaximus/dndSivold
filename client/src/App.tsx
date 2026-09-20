@@ -5,6 +5,7 @@ import { AuthModal } from './components/AuthModal';
 import { CharacterList } from './components/CharacterList';
 import { CharacterCreator } from './components/CharacterCreator';
 import { CreateRoomModal } from './components/CreateRoomModal';
+import { MyCampaignsList } from './components/MyCampaignsList';
 import { RoomLobby } from './components/RoomLobby';
 import { GameTable } from './components/GameTable';
 import { api } from './services/api';
@@ -97,7 +98,18 @@ export function App() {
               window.history.pushState({}, '', `/?room=${code}`);
               setCurrentView('lobby');
             }}
-            onCancel={() => setCurrentView('characters')}
+            onCancel={() => setCurrentView('campaigns')}
+          />
+        )}
+
+        {currentView === 'campaigns' && (
+          <MyCampaignsList
+            onEnterRoom={(code) => {
+              setActiveRoomCode(code);
+              window.history.pushState({}, '', `/?room=${code}`);
+              setCurrentView('lobby');
+            }}
+            onCreateRoom={() => setCurrentView('create-room')}
           />
         )}
 
@@ -108,7 +120,7 @@ export function App() {
             onLeave={() => {
               window.history.pushState({}, '', '/');
               setActiveRoomCode('');
-              setCurrentView('characters');
+              setCurrentView('campaigns');
             }}
           />
         )}

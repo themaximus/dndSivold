@@ -42,7 +42,7 @@ export const AuthModal: React.FC = () => {
             <Shield className="w-8 h-8" />
           </div>
           <h2 className="text-2xl font-bold font-rpg text-amber-400">
-            {isRegister ? 'Создание учетной записи' : 'Вход в Mauporia D&D'}
+            {isRegister ? 'Создание учетной записи' : 'Вход в СиволДнДаево'}
           </h2>
           <p className="text-sm text-slate-400 mt-1">
             {isRegister

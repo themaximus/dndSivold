@@ -1,4 +1,4 @@
-import { User, Character, Room, RoomPlayer, GameLogEntry } from '../types';
+import { User, Character, Room, RoomPlayer, GameLogEntry, UserRoomSummary } from '../types';
 
 const API_BASE = '/api';
 
@@ -98,6 +98,16 @@ export const api = {
 
   async getRoomByCode(code: string): Promise<{ room: Room; players: RoomPlayer[]; logs: GameLogEntry[] }> {
     return request<{ room: Room; players: RoomPlayer[]; logs: GameLogEntry[] }>(`/rooms/${code}`);
+  },
+
+  async getMyRooms(): Promise<UserRoomSummary[]> {
+    return request<UserRoomSummary[]>('/rooms/my');
+  },
+
+  async joinRoom(code: string): Promise<{ room: Room; players: RoomPlayer[] }> {
+    return request<{ room: Room; players: RoomPlayer[] }>(`/rooms/${code}/join`, {
+      method: 'POST',
+    });
   },
 
   async updateRoomSettings(code: string, settings: { deepseekApiKey?: string; deepseekModel?: string }): Promise<Room> {

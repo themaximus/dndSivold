@@ -139,6 +139,36 @@ export interface Room {
   createdAt: string;
 }
 
+export interface UserRoomSummary {
+  id: string;
+  code: string;
+  title: string;
+  setting: string;
+  status: 'waiting' | 'active' | 'finished';
+  roundNumber: number;
+  currentSituation: string;
+  isHost: boolean;
+  playerCount: number;
+  maxPlayers: number;
+  myPlayer?: {
+    id: string;
+    username: string;
+    isReady: boolean;
+    hasActedThisRound: boolean;
+  };
+  myCharacter?: {
+    id: string;
+    name: string;
+    characterClass: string;
+    race: string;
+    level: number;
+    hpCurrent: number;
+    hpMax: number;
+    avatarUrl: string;
+  };
+  createdAt: string;
+}
+
 export interface DiceRollResult {
   diceType: string; // 'd20', 'd6', etc.
   rolls: number[];

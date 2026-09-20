@@ -1,4 +1,4 @@
-// Web Audio API Sound Effects, Procedural Ambience & Edge Neural TTS for Mauporia D&D
+// Web Audio API Sound Effects, Procedural Ambience & Edge Neural TTS for СиволДнДаево
 // Modular Object-Oriented Architecture (SOLID / Facade Pattern)
 
 export type AmbienceMood = 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';

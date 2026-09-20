@@ -246,6 +246,7 @@ class Database {
 
   // Rooms
   public rooms = {
+    getAll: () => [...this.data.rooms],
     findById: (id: string) => this.data.rooms.find(r => r.id === id),
     findByCode: (code: string) => this.data.rooms.find(r => r.code.toUpperCase() === code.toUpperCase()),
     create: (room: RoomEntity) => {
@@ -266,6 +267,7 @@ class Database {
 
   // Room Players
   public roomPlayers = {
+    findByUserId: (userId: string) => this.data.roomPlayers.filter(rp => rp.userId === userId),
     findByRoomId: (roomId: string) => this.data.roomPlayers.filter(rp => rp.roomId === roomId),
     findPlayer: (roomId: string, userId: string) =>
       this.data.roomPlayers.find(rp => rp.roomId === roomId && rp.userId === userId),

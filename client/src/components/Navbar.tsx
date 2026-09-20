@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { soundFx } from '../utils/audio';
-import { Shield, Volume2, VolumeX, User, LogOut, PlusCircle, Dices } from 'lucide-react';
+import { Shield, Volume2, VolumeX, User, LogOut, PlusCircle, Dices, Compass } from 'lucide-react';
 
 interface NavbarProps {
   currentView: string;
@@ -30,11 +30,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
           </div>
           <div>
             <h1 className="text-xl font-bold font-rpg tracking-wider text-amber-400 group-hover:text-amber-300 transition-colors">
-              MAUPORIA D&D
+              СиволДнДаево
             </h1>
             <p className="text-xs text-slate-400 -mt-1 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              AI Dungeon Master (DeepSeek)
+              AI Dungeon Master
             </p>
           </div>
         </div>
@@ -65,7 +65,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
                     : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                Мои персонажи
+                Герои
+              </button>
+
+              <button
+                onClick={() => setCurrentView('campaigns')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  currentView === 'campaigns'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Compass className="w-4 h-4" />
+                Мои кампании
               </button>
 
               <button

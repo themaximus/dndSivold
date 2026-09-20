@@ -49,6 +49,13 @@ export function setupGameSockets(io: Server) {
         socket.emit('error_message', 'Комната не найдена');
         return;
       }
+      if ('error' in roomData) {
+        socket.emit('error_message', roomData.error);
+        return;
+      }
+
+      (socket as any).currentRoomId = roomData.room.id;
+      (socket as any).currentRoomCode = roomCode;
 
       socket.join(roomData.room.id);
 
@@ -283,8 +290,36 @@ export function setupGameSockets(io: Server) {
       }
     });
 
+    // Force DM turn resolution by room host
+    socket.on('force_resolve_round', async ({ roomCode }: { roomCode: string }) => {
+      const room = roomRepository.findByCode(roomCode);
+      if (!room || room.hostUserId !== userId || room.status !== 'active') return;
+
+      io.to(room.id).emit('dm_thinking');
+      try {
+        const resolved = await gameSessionService.resolveRound(room.id);
+        if (resolved) {
+          io.to(room.id).emit('round_resolved', {
+            ...resolved,
+            room: sanitizeRoom(resolved.room),
+          });
+        }
+      } catch (error: any) {
+        console.error('Error in force_resolve_round:', error);
+        io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером');
+      }
+    });
+
     socket.on('disconnect', () => {
-      // Clean disconnect
+      const roomId = (socket as any).currentRoomId;
+      const roomCode = (socket as any).currentRoomCode;
+      if (roomId && roomCode) {
+        gameSessionService.setPlayerOnline(roomId, userId, false);
+        const updated = gameSessionService.getRoomAndPlayers(roomCode);
+        if (updated) {
+          io.to(roomId).emit('room_players_updated', updated.players);
+        }
+      }
     });
   });
 }

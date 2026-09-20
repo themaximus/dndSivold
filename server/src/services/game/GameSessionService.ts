@@ -59,12 +59,16 @@ export class GameSessionService {
     return { room: sanitizeRoom(room), players: populatedPlayers };
   }
 
-  public joinRoom(roomCode: string, userId: string, username: string) {
+  public joinRoom(roomCode: string, userId: string, username: string): { room: RoomEntity; players: any[] } | { error: string } | null {
     const room = this.rooms.findByCode(roomCode);
     if (!room) return null;
 
-    let player = this.rooms.findPlayer(room.id, userId);
+    const existingPlayers = this.rooms.findPlayersByRoomId(room.id);
+    let player = existingPlayers.find(p => p.userId === userId);
     if (!player) {
+      if (existingPlayers.length >= 6) {
+        return { error: 'В комнате уже максимальное количество участников (6 из 6)' };
+      }
       player = this.rooms.addPlayer({
         id: crypto.randomUUID(),
         roomId: room.id,
@@ -80,6 +84,19 @@ export class GameSessionService {
     }
 
     return this.getRoomAndPlayers(roomCode);
+  }
+
+  public setPlayerOnline(roomId: string, userId: string, isOnline: boolean) {
+    const player = this.rooms.findPlayer(roomId, userId);
+    if (player) {
+      this.rooms.updatePlayer(player.id, { isOnline });
+    }
+  }
+
+  public canForceResolve(roomId: string, hostUserId: string): boolean {
+    const room = this.rooms.findById(roomId);
+    if (!room || room.status !== 'active') return false;
+    return room.hostUserId === hostUserId;
   }
 
   public selectCharacter(roomId: string, userId: string, characterId: string) {
@@ -149,9 +166,11 @@ export class GameSessionService {
     this.rooms.updatePlayer(player.id, { hasActedThisRound: true });
 
     const allPlayers = this.rooms.findPlayersByRoomId(room.id);
-    const activePlayers = allPlayers.filter(p => p.characterId);
-    const readyPlayers = activePlayers.filter(p => p.hasActedThisRound);
-    const shouldResolveRound = activePlayers.length > 0 && readyPlayers.length === activePlayers.length;
+    const playersWithChar = allPlayers.filter(p => p.characterId);
+    const onlineActive = playersWithChar.filter(p => p.isOnline);
+    const targetPlayers = onlineActive.length > 0 ? onlineActive : playersWithChar;
+    const readyPlayers = targetPlayers.filter(p => p.hasActedThisRound);
+    const shouldResolveRound = targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
 
     return {
       room: sanitizeRoom(room),
