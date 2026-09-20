@@ -1,6 +1,6 @@
 import React from 'react';
 import { Room } from '../../types';
-import { ArrowLeft, Clock, Package, Award, BookMarked, Zap, ListOrdered, Users, Map } from 'lucide-react';
+import { ArrowLeft, Clock, Package, Award, BookMarked, Zap, ListOrdered, Users, Map, Flame } from 'lucide-react';
 
 interface GameTableHeaderProps {
   room: Room;
@@ -17,6 +17,7 @@ interface GameTableHeaderProps {
   onOpenTalents?: () => void;
   onOpenJournal?: () => void;
   onOpenMap?: () => void;
+  onOpenRest?: () => void;
   onLeave: () => void;
 }
 
@@ -50,6 +51,7 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
   onOpenTalents,
   onOpenJournal,
   onOpenMap,
+  onOpenRest,
   onLeave,
 }) => {
   const handleCopyInvite = () => {
@@ -157,6 +159,18 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
                 {milestonesCount}
               </span>
             )}
+          </button>
+        )}
+
+        {/* Quick launcher: Rest */}
+        {onOpenRest && (
+          <button
+            onClick={onOpenRest}
+            className="px-3 py-1.5 bg-fantasy-card hover:bg-slate-800 border border-fantasy-border hover:border-amber-500/50 rounded-xl text-slate-200 hover:text-amber-300 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+            title="Привал: короткий или продолжительный отдых"
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-500" />
+            <span>Отдых</span>
           </button>
         )}
 

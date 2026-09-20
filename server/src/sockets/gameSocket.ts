@@ -156,12 +156,30 @@ export function setupGameSockets(io: Server) {
     });
 
     // Submit player action for round
-    socket.on('submit_action', async (data: { roomCode: string; actionText: string; diceRolls: any[] }) => {
+    socket.on('submit_action', async (data: {
+      roomCode: string;
+      actionText: string;
+      diceRolls: any[];
+      actionType?: 'attack' | 'check' | 'save' | 'improvise';
+      targetEnemyId?: string;
+      targetEnemyName?: string;
+      advantage?: boolean;
+      disadvantage?: boolean;
+      spellLevelUsed?: number;
+    }) => {
       const submission = gameSessionService.submitAction(
         data.roomCode,
         userId,
         data.actionText,
-        data.diceRolls
+        data.diceRolls,
+        {
+          actionType: data.actionType,
+          targetEnemyId: data.targetEnemyId,
+          targetEnemyName: data.targetEnemyName,
+          advantage: data.advantage,
+          disadvantage: data.disadvantage,
+          spellLevelUsed: data.spellLevelUsed,
+        }
       );
 
       if (!submission) return;
@@ -250,6 +268,52 @@ export function setupGameSockets(io: Server) {
           character: result.character,
           itemName: result.itemName,
           healAmount: result.healAmount,
+        });
+
+        const updated = gameSessionService.getRoomAndPlayers(roomCode);
+        if (updated) {
+          io.to(room.id).emit('room_players_updated', updated.players);
+        }
+      }
+    });
+
+    // Perform Short Rest
+    socket.on('player_short_rest', ({ roomCode, characterId, diceCount }: { roomCode: string; characterId: string; diceCount?: number }) => {
+      const room = roomRepository.findByCode(roomCode);
+      if (!room) return;
+
+      const result = gameSessionService.performShortRest(characterId, diceCount);
+      if (result.character) {
+        io.to(room.id).emit('character_updated', result.character);
+        io.to(room.id).emit('rest_completed', {
+          type: 'short',
+          characterId,
+          characterName: result.character.name,
+          healedHp: result.healedHp,
+          diceSpent: result.diceSpent,
+          rolls: result.rolls,
+        });
+
+        const updated = gameSessionService.getRoomAndPlayers(roomCode);
+        if (updated) {
+          io.to(room.id).emit('room_players_updated', updated.players);
+        }
+      }
+    });
+
+    // Perform Long Rest
+    socket.on('player_long_rest', ({ roomCode, characterId }: { roomCode: string; characterId: string }) => {
+      const room = roomRepository.findByCode(roomCode);
+      if (!room) return;
+
+      const result = gameSessionService.performLongRest(characterId);
+      if (result.character) {
+        io.to(room.id).emit('character_updated', result.character);
+        io.to(room.id).emit('rest_completed', {
+          type: 'long',
+          characterId,
+          characterName: result.character.name,
+          healedHp: result.healedHp,
         });
 
         const updated = gameSessionService.getRoomAndPlayers(roomCode);

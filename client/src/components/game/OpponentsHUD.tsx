@@ -7,6 +7,16 @@ interface OpponentsHUDProps {
   enemiesStatus?: string;
 }
 
+const CONDITION_BADGES: Record<string, { label: string; color: string; desc: string }> = {
+  prone: { label: 'Ничком', color: 'bg-amber-900/60 text-amber-300 border-amber-600/50', desc: 'Сбит с ног: атаки ближнего боя по цели с преимуществом' },
+  poisoned: { label: 'Отравлен', color: 'bg-emerald-950/70 text-emerald-300 border-emerald-600/50', desc: 'Отравлен: помеха на броски атаки и проверки' },
+  restrained: { label: 'Обездвижен', color: 'bg-blue-950/70 text-blue-300 border-blue-600/50', desc: 'Обездвижен: скорость 0, атаки противника с преимуществом' },
+  frightened: { label: 'Испуган', color: 'bg-purple-950/70 text-purple-300 border-purple-600/50', desc: 'Испуган: помеха на проверки пока источник страха в поле зрения' },
+  stunned: { label: 'Оглушён', color: 'bg-red-950/70 text-red-300 border-red-600/50', desc: 'Оглушён: не может действовать, проваливает спасброски СИЛ/ЛОВ' },
+  cover_half: { label: 'Укрытие 1/2', color: 'bg-indigo-950/70 text-indigo-300 border-indigo-600/50', desc: 'Половинное укрытие (+2 к КБ и спасброскам ЛОВ)' },
+  cover_three_quarters: { label: 'Укрытие 3/4', color: 'bg-indigo-950/80 text-cyan-300 border-cyan-600/50', desc: 'Укрытие на три четверти (+5 к КБ и спасброскам ЛОВ)' },
+};
+
 export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   enemies = [],
   enemiesStatus,
@@ -128,6 +138,28 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                       />
                     </div>
                   </div>
+
+                  {/* Conditions List */}
+                  {enemy.conditions && enemy.conditions.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {enemy.conditions.map(cond => {
+                        const badge = CONDITION_BADGES[cond] || {
+                          label: cond,
+                          color: 'bg-slate-800 text-slate-300 border-slate-700',
+                          desc: cond,
+                        };
+                        return (
+                          <span
+                            key={cond}
+                            className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${badge.color}`}
+                            title={badge.desc}
+                          >
+                            {badge.label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Status / Tactical Behavior */}
                   {enemy.status && (

@@ -154,12 +154,29 @@ export function useGameSession(roomCode: string) {
     socket.emit('set_turn_mode', { roomCode, mode });
   }, [roomCode]);
 
-  const submitAction = useCallback((actionText: string, attachedRolls: DiceRollResult[]) => {
+  const submitAction = useCallback((
+    actionText: string,
+    attachedRolls: DiceRollResult[],
+    meta?: {
+      actionType?: 'attack' | 'check' | 'save' | 'improvise';
+      targetEnemyId?: string;
+      targetEnemyName?: string;
+      advantage?: boolean;
+      disadvantage?: boolean;
+      spellLevelUsed?: number;
+    }
+  ) => {
     const socket = getSocket();
     socket.emit('submit_action', {
       roomCode,
       actionText: actionText.trim() || 'Совершает бросок кубика',
       diceRolls: attachedRolls,
+      actionType: meta?.actionType,
+      targetEnemyId: meta?.targetEnemyId,
+      targetEnemyName: meta?.targetEnemyName,
+      advantage: meta?.advantage,
+      disadvantage: meta?.disadvantage,
+      spellLevelUsed: meta?.spellLevelUsed,
     });
     setHasSubmittedThisRound(true);
   }, [roomCode]);
@@ -227,6 +244,27 @@ export function useGameSession(roomCode: string) {
     socket.emit('force_resolve_round', { roomCode });
   }, [roomCode]);
 
+  const shortRest = useCallback(async (diceCount: number = 1) => {
+    if (!myCharacter) return;
+    const socket = getSocket();
+    socket.emit('player_short_rest', {
+      roomCode,
+      characterId: myCharacter.id,
+      diceCount,
+    });
+    return api.shortRest(myCharacter.id, diceCount);
+  }, [roomCode, myCharacter]);
+
+  const longRest = useCallback(async () => {
+    if (!myCharacter) return;
+    const socket = getSocket();
+    socket.emit('player_long_rest', {
+      roomCode,
+      characterId: myCharacter.id,
+    });
+    return api.longRest(myCharacter.id);
+  }, [roomCode, myCharacter]);
+
   const activePlayers = players.filter(p => p.characterId);
   const readyCount = activePlayers.filter(p => p.hasActedThisRound).length;
 
@@ -251,5 +289,7 @@ export function useGameSession(roomCode: string) {
     rollDeathSave,
     fetchTalents,
     learnTalent,
+    shortRest,
+    longRest,
   };
 }

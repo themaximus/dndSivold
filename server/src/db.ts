@@ -58,6 +58,11 @@ export interface CharacterEntity {
   skillPoints?: number;
   learnedTalents?: string[];
   activeWeaponId?: string;
+  conditions?: string[];
+  hitDiceMax?: number;
+  hitDiceCurrent?: number;
+  hitDiceType?: string;
+  spellSlots?: Record<string, { current: number; max: number }>;
   createdAt: string;
 }
 
@@ -89,6 +94,7 @@ export interface RoomEnemy {
   hpMax: number;
   ac?: number;
   status: string;
+  conditions?: string[];
   isDead: boolean;
 }
 
@@ -140,6 +146,12 @@ export interface TurnActionEntity {
   characterId: string;
   characterName: string;
   actionText: string;
+  actionType?: 'attack' | 'check' | 'save' | 'improvise';
+  targetEnemyId?: string;
+  targetEnemyName?: string;
+  advantage?: boolean;
+  disadvantage?: boolean;
+  spellLevelUsed?: number;
   diceRolls: any[];
   submittedAt: string;
 }

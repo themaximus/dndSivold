@@ -31,10 +31,14 @@ export class DMResponseValidator {
               hpCurrent: typeof e.hpCurrent === 'number' ? Math.max(0, e.hpCurrent) : 10,
               hpMax: typeof e.hpMax === 'number' ? Math.max(1, e.hpMax) : 10,
               ac: typeof e.ac === 'number' ? e.ac : 12,
+              conditions: Array.isArray(e.conditions) ? e.conditions.map(String) : [],
               status: typeof e.status === 'string' ? e.status : 'В боевой стойке',
               isDead: Boolean(e.isDead || (typeof e.hpCurrent === 'number' && e.hpCurrent <= 0)),
             }))
           : undefined,
+        conditionUpdates: Array.isArray(parsed.conditionUpdates)
+          ? parsed.conditionUpdates.filter((u: any) => u && (u.targetId || u.targetName) && u.condition && (u.action === 'add' || u.action === 'remove'))
+          : [],
         inventoryUpdates: Array.isArray(parsed.inventoryUpdates)
           ? parsed.inventoryUpdates.filter((u: any) => u && (u.characterId || u.characterName) && u.item && u.item.name)
           : [],

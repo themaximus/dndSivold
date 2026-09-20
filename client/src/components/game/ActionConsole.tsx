@@ -1,8 +1,17 @@
-import React, { useState } from 'react';
-import { Character, DiceRollResult } from '../../types';
-import { Sparkles, Dices, Send, Clock, ShieldAlert, Skull, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Character, DiceRollResult, RoomEnemy } from '../../types';
+import { Sparkles, Dices, Send, Clock, ShieldAlert, Skull, Package, Crosshair, Shield, Zap } from 'lucide-react';
 import { AttachedRollsBar } from './AttachedRollsBar';
 import { QuickActionButtons } from './QuickActionButtons';
+
+export interface ActionMeta {
+  actionType?: 'attack' | 'check' | 'save' | 'improvise';
+  targetEnemyId?: string;
+  targetEnemyName?: string;
+  advantage?: boolean;
+  disadvantage?: boolean;
+  spellLevelUsed?: number;
+}
 
 interface ActionConsoleProps {
   hasCharacter: boolean;
@@ -18,9 +27,10 @@ interface ActionConsoleProps {
   character: Character | null;
   attachedRolls: DiceRollResult[];
   lastDeathSaveMessage?: string | null;
+  activeEnemies?: RoomEnemy[];
   onRemoveRoll: (index: number) => void;
-  onOpenDiceModal: () => void;
-  onSubmit: (actionText: string) => void;
+  onOpenDiceModal: (opts?: { defaultPurpose?: string; defaultAdvantage?: boolean; defaultDisadvantage?: boolean; defaultStatKey?: string }) => void;
+  onSubmit: (actionText: string, meta?: ActionMeta) => void;
   onRollDeathSave?: (rollResult: { rollTotal: number; isNat20: boolean; isNat1: boolean }) => void;
 }
 
@@ -47,20 +57,47 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   character,
   attachedRolls,
   lastDeathSaveMessage,
+  activeEnemies = [],
   onRemoveRoll,
   onOpenDiceModal,
   onSubmit,
   onRollDeathSave,
 }) => {
   const [actionText, setActionText] = useState('');
+  const [actionType, setActionType] = useState<'attack' | 'check' | 'save' | 'improvise'>('check');
+  const [targetEnemyId, setTargetEnemyId] = useState<string>('');
+  const [advantage, setAdvantage] = useState<boolean>(false);
+  const [disadvantage, setDisadvantage] = useState<boolean>(false);
+  const [selectedSpellLevel, setSelectedSpellLevel] = useState<number>(0);
 
+  const livingEnemies = activeEnemies.filter(e => !e.isDead && e.hpCurrent > 0);
+
+  // Sync target enemy when living enemies change
+  useEffect(() => {
+    if (livingEnemies.length > 0) {
+      const stillAlive = livingEnemies.some(e => e.id === targetEnemyId);
+      if (!targetEnemyId || !stillAlive) {
+        setTargetEnemyId(livingEnemies[0].id);
+      }
+    } else {
+      setTargetEnemyId('');
+      if (actionType === 'attack') {
+        setActionType('check');
+      }
+    }
+  }, [livingEnemies.length, targetEnemyId, actionType]);
+
+  const targetEnemy = livingEnemies.find(e => e.id === targetEnemyId);
   const hasD20Roll = attachedRolls.some(r => r.diceType.toLowerCase() === 'd20');
+
+  // If in attack mode, compare vs enemy AC; otherwise vs room targetDC
+  const effectiveTargetDC = actionType === 'attack' && targetEnemy ? (targetEnemy.ac || 12) : targetDC;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasD20Roll) {
-      alert('Перед завершением хода необходимо бросить d20 для проверки успеха против СЛ мастера!');
-      onOpenDiceModal();
+      alert('Перед завершением хода необходимо бросить d20 для проверки успеха против СЛ мастера или КБ цели!');
+      handleOpenDiceModal();
       return;
     }
 
@@ -68,8 +105,39 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       alert('Опишите ваше действие или совершите бросок кубика!');
       return;
     }
-    onSubmit(actionText);
+
+    const meta: ActionMeta = {
+      actionType,
+      targetEnemyId: actionType === 'attack' ? targetEnemy?.id : undefined,
+      targetEnemyName: actionType === 'attack' ? targetEnemy?.name : undefined,
+      advantage,
+      disadvantage,
+      spellLevelUsed: selectedSpellLevel > 0 ? selectedSpellLevel : undefined,
+    };
+
+    onSubmit(actionText, meta);
     setActionText('');
+    setAdvantage(false);
+    setDisadvantage(false);
+    setSelectedSpellLevel(0);
+  };
+
+  const handleOpenDiceModal = () => {
+    let defaultPurpose = 'Проверка навыка';
+    if (actionType === 'attack' && targetEnemy) {
+      defaultPurpose = `Атака по ${targetEnemy.name} (КБ ${targetEnemy.ac || 12})`;
+    } else if (actionType === 'save') {
+      defaultPurpose = `Спасбросок (${requiredCheckStat ? requiredCheckStat.toUpperCase() : 'общий'})`;
+    } else if (actionType === 'improvise') {
+      defaultPurpose = 'Импровизация / Тактический трюк';
+    }
+
+    onOpenDiceModal({
+      defaultPurpose,
+      defaultAdvantage: advantage,
+      defaultDisadvantage: disadvantage,
+      defaultStatKey: requiredCheckStat || (actionType === 'attack' ? 'str' : 'dex'),
+    });
   };
 
   const handleSelectQuickAction = (text: string) => {
@@ -188,14 +256,170 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
 
   return (
     <div className="p-4 bg-fantasy-card border-t border-fantasy-border space-y-3">
+      {/* Action Type Tabs (Attack vs Check vs Save vs Improvise) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1 p-1 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+          <button
+            type="button"
+            onClick={() => setActionType('attack')}
+            disabled={livingEnemies.length === 0}
+            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+              actionType === 'attack'
+                ? 'bg-red-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed'
+            }`}
+            title={livingEnemies.length === 0 ? 'Нет активных врагов на поле боя' : 'Атаковать выбранного противника (бросок против КБ)'}
+          >
+            <Crosshair className="w-3.5 h-3.5" />
+            <span>Атака</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActionType('check')}
+            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+              actionType === 'check'
+                ? 'bg-amber-500 text-black shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Проверка характеристики или навыка против СЛ мастера"
+          >
+            <Dices className="w-3.5 h-3.5" />
+            <span>Проверка</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActionType('save')}
+            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+              actionType === 'save'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Спасбросок от опасности или эффекта"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Спасбросок</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActionType('improvise')}
+            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+              actionType === 'improvise'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Импровизация, трюк или использование окружения"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Импровизация</span>
+          </button>
+        </div>
+
+        {/* Advantage & Disadvantage Toggles */}
+        <div className="flex items-center gap-1 p-1 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+          <button
+            type="button"
+            onClick={() => { setAdvantage(false); setDisadvantage(false); }}
+            className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold transition-all ${
+              !advantage && !disadvantage
+                ? 'bg-slate-700 text-slate-100 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Обычный бросок 1d20"
+          >
+            1d20
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setAdvantage(prev => !prev); setDisadvantage(false); }}
+            className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold transition-all ${
+              advantage
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-emerald-400 hover:bg-emerald-950/40'
+            }`}
+            title="Преимущество: бросок 2d20, берётся максимальный результат"
+          >
+            ▲ Преимущество
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setDisadvantage(prev => !prev); setAdvantage(false); }}
+            className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold transition-all ${
+              disadvantage
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'text-rose-400 hover:bg-rose-950/40'
+            }`}
+            title="Помеха: бросок 2d20, берётся минимальный результат"
+          >
+            ▼ Помеха
+          </button>
+        </div>
+      </div>
+
+      {/* Target Enemy Selector if Attack Mode */}
+      {actionType === 'attack' && livingEnemies.length > 0 && (
+        <div className="flex items-center gap-2 p-2.5 bg-red-950/20 border border-red-500/30 rounded-xl text-xs">
+          <Crosshair className="w-4 h-4 text-red-400 shrink-0" />
+          <span className="text-red-300 font-bold shrink-0">Цель атаки:</span>
+          <select
+            value={targetEnemyId}
+            onChange={(e) => setTargetEnemyId(e.target.value)}
+            className="flex-1 bg-slate-900 border border-red-500/40 rounded-lg px-3 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-red-400"
+          >
+            {livingEnemies.map(enemy => (
+              <option key={enemy.id} value={enemy.id}>
+                {enemy.name} (КБ {enemy.ac || 12} | HP {enemy.hpCurrent}/{enemy.hpMax}) {enemy.status ? `— ${enemy.status}` : ''}
+              </option>
+            ))}
+          </select>
+          {targetEnemy && (
+            <span className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-blue-300 font-mono font-bold text-xs" title="Класс брони цели">
+              КБ: {targetEnemy.ac || 12}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Spell Slot Selector if character is a caster */}
+      {character?.spellSlots && Object.values(character.spellSlots).some(s => s.max > 0) && (
+        <div className="flex items-center gap-2 p-2 bg-purple-950/20 border border-purple-800/30 rounded-xl text-xs">
+          <Zap className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+          <span className="text-purple-300 font-semibold shrink-0">Ячейка заклинания:</span>
+          <select
+            value={selectedSpellLevel}
+            onChange={(e) => setSelectedSpellLevel(Number(e.target.value))}
+            className="bg-slate-900 border border-purple-700/50 rounded-lg px-2.5 py-1 text-xs text-purple-200 font-mono focus:outline-none"
+          >
+            <option value={0}>Без траты ячейки (заговор / обычное действие)</option>
+            {Object.entries(character.spellSlots).map(([lvl, slot]) => (
+              <option key={lvl} value={Number(lvl)} disabled={slot.current <= 0}>
+                {lvl} круг ({slot.current}/{slot.max} доступно) {slot.current <= 0 ? '— исчерпано' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Target DC & Situation Banner */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/25 rounded-xl">
         <div className="flex items-center gap-2 text-xs">
           <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0" />
           <span className="text-amber-200 font-semibold font-rpg tracking-wide">
-            СЛОЖНОСТЬ (СЛ): <strong className="text-amber-400 text-sm font-mono">{targetDC}</strong>
+            {actionType === 'attack' && targetEnemy ? (
+              <>
+                КЛАСС БРОНИ ЦЕЛИ (КБ): <strong className="text-red-400 text-sm font-mono">{targetEnemy.ac || 12}</strong>
+              </>
+            ) : (
+              <>
+                СЛОЖНОСТЬ (СЛ): <strong className="text-amber-400 text-sm font-mono">{targetDC}</strong>
+              </>
+            )}
           </span>
-          {statLabel && (
+          {statLabel && actionType !== 'attack' && (
             <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
               Проверка: {statLabel}
             </span>
@@ -227,8 +451,8 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           <span>{currentSituation || 'Что предпринимает ваш герой?'}</span>
         </div>
 
-        {/* Attached Dice Badges with DC comparison */}
-        <AttachedRollsBar rolls={attachedRolls} targetDC={targetDC} onRemoveRoll={onRemoveRoll} />
+        {/* Attached Dice Badges with Target DC comparison */}
+        <AttachedRollsBar rolls={attachedRolls} targetDC={effectiveTargetDC} onRemoveRoll={onRemoveRoll} />
 
         {/* Action Input & Action Buttons */}
         <div className="flex gap-2">
@@ -236,7 +460,11 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
             rows={2}
             value={actionText}
             onChange={e => setActionText(e.target.value)}
-            placeholder="Опишите ваши действия (персонаж может использовать только то, что есть в его инвентаре или в руках)..."
+            placeholder={
+              actionType === 'attack' && targetEnemy
+                ? `Опишите атаку по ${targetEnemy.name} (оружие, выстрел или заклинание)...`
+                : "Опишите ваши действия (персонаж может использовать предметы инвентаря или окружения)..."
+            }
             className="flex-1 px-4 py-2.5 bg-fantasy-panel border border-fantasy-border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 resize-none"
           />
 
@@ -253,7 +481,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={onOpenDiceModal}
+                onClick={handleOpenDiceModal}
                 disabled={isDMThinking}
                 className="px-4 py-2 border font-bold text-xs font-rpg rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50 text-amber-300 animate-pulse"
                 title="Обязательный бросок d20 перед ходом"
@@ -282,7 +510,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
               <Package className="w-3 h-3 text-amber-400/80" />
               Доступно в инвентаре: {character.inventory.map(i => i.name).slice(0, 4).join(', ')}{character.inventory.length > 4 ? '...' : ''}
             </span>
-            <span className="text-slate-500">Инвентарь + любые логичные предметы окружения (столы, факелы и т.д.)</span>
+            <span className="text-slate-500">Инвентарь + любые логичные предметы сцены (столы, факелы и т.д.)</span>
           </div>
         )}
 

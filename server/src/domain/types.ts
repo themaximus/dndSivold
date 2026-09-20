@@ -33,6 +33,15 @@ export interface AIDMPrologueContext {
   campaignPlot?: string;
 }
 
+export interface ConditionUpdate {
+  targetId: string;
+  targetName?: string;
+  targetType: 'character' | 'player' | 'enemy';
+  action: 'add' | 'remove';
+  condition: 'prone' | 'poisoned' | 'restrained' | 'frightened' | 'stunned' | 'cover_half' | 'cover_three_quarters' | string;
+  reason?: string;
+}
+
 export interface RoomEnemy {
   id: string;
   name: string;
@@ -41,6 +50,7 @@ export interface RoomEnemy {
   hpMax: number;
   ac?: number;
   status: string;
+  conditions?: string[];
   isDead: boolean;
 }
 
@@ -94,6 +104,7 @@ export interface AIDMResponse {
   enemiesStatus?: string;
   activeEnemies?: RoomEnemy[];
   inventoryUpdates?: InventoryUpdate[];
+  conditionUpdates?: ConditionUpdate[];
   ruleViolations?: string[];
   mood?: 'combat' | 'tension' | 'mystery' | 'triumph' | 'calm' | 'neutral';
   nextRoundDC?: number;

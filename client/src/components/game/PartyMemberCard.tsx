@@ -9,6 +9,16 @@ interface PartyMemberCardProps {
   onInspect?: () => void;
 }
 
+const CONDITION_BADGES: Record<string, { label: string; color: string; desc: string }> = {
+  prone: { label: 'Ничком', color: 'bg-amber-900/60 text-amber-300 border-amber-600/50', desc: 'Сбит с ног: атаки ближнего боя по цели с преимуществом' },
+  poisoned: { label: 'Отравлен', color: 'bg-emerald-950/70 text-emerald-300 border-emerald-600/50', desc: 'Отравлен: помеха на броски атаки и проверки' },
+  restrained: { label: 'Обездвижен', color: 'bg-blue-950/70 text-blue-300 border-blue-600/50', desc: 'Обездвижен: скорость 0, атаки противника с преимуществом' },
+  frightened: { label: 'Испуган', color: 'bg-purple-950/70 text-purple-300 border-purple-600/50', desc: 'Испуган: помеха на проверки пока источник страха в поле зрения' },
+  stunned: { label: 'Оглушён', color: 'bg-red-950/70 text-red-300 border-red-600/50', desc: 'Оглушён: не может действовать, проваливает спасброски СИЛ/ЛОВ' },
+  cover_half: { label: 'Укрытие 1/2', color: 'bg-indigo-950/70 text-indigo-300 border-indigo-600/50', desc: 'Половинное укрытие (+2 к КБ и спасброскам ЛОВ)' },
+  cover_three_quarters: { label: 'Укрытие 3/4', color: 'bg-indigo-950/80 text-cyan-300 border-cyan-600/50', desc: 'Укрытие на три четверти (+5 к КБ и спасброскам ЛОВ)' },
+};
+
 export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
   player,
   isCurrentUser,
@@ -137,7 +147,29 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
         )}
       </div>
 
-      {/* Stats snippet */}
+      {/* Conditions list */}
+      {char.conditions && char.conditions.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {char.conditions.map(cond => {
+            const badge = CONDITION_BADGES[cond] || {
+              label: cond,
+              color: 'bg-slate-800 text-slate-300 border-slate-700',
+              desc: cond,
+            };
+            return (
+              <span
+                key={cond}
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${badge.color}`}
+                title={badge.desc}
+              >
+                {badge.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Stats, Hit Dice & Spell Slots snippet */}
       <div
         onClick={onInspect}
         className="grid grid-cols-4 gap-1 text-center bg-fantasy-card p-1 rounded-lg text-[10px] text-slate-400 cursor-pointer hover:bg-slate-800/80 transition-colors"
@@ -152,10 +184,30 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
         <div>
           ЛОВ: <strong className="text-amber-400">{char.stats.dex}</strong>
         </div>
-        <div>
-          ИНТ: <strong className="text-amber-400">{char.stats.int}</strong>
+        <div title="Кости хитов для короткого отдыха">
+          КХ: <strong className="text-emerald-400">{char.hitDiceCurrent ?? (char.level || 1)}/{char.hitDiceMax ?? (char.level || 1)}</strong>
         </div>
       </div>
+
+      {/* Spell slots counter if character is a spellcaster */}
+      {char.spellSlots && Object.keys(char.spellSlots).length > 0 && (
+        <div className="mt-1.5 flex items-center gap-1 text-[9px] font-mono text-purple-300/90 px-1 overflow-x-auto">
+          <span className="text-purple-400 font-bold shrink-0">Ячейки:</span>
+          {Object.entries(char.spellSlots).map(([lvl, s]) => (
+            <span
+              key={lvl}
+              className={`px-1 py-0.2 rounded border ${
+                s.current > 0
+                  ? 'bg-purple-950/60 border-purple-700/50 text-purple-300'
+                  : 'bg-slate-900 border-slate-800 text-slate-500'
+              }`}
+              title={`Ячейки ${lvl} круга: ${s.current} из ${s.max}`}
+            >
+              {lvl}к: {s.current}/{s.max}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

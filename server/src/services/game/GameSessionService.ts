@@ -214,7 +214,15 @@ export class GameSessionService {
     roomCode: string,
     userId: string,
     actionText: string,
-    diceRolls: any[]
+    diceRolls: any[],
+    meta?: {
+      actionType?: 'attack' | 'check' | 'save' | 'improvise';
+      targetEnemyId?: string;
+      targetEnemyName?: string;
+      advantage?: boolean;
+      disadvantage?: boolean;
+      spellLevelUsed?: number;
+    }
   ) {
     const room = this.rooms.findByCode(roomCode);
     if (!room || room.status !== 'active') return null;
@@ -234,8 +242,18 @@ export class GameSessionService {
       characterName: charName,
       actionText: actionText.trim(),
       diceRolls: diceRolls || [],
+      actionType: meta?.actionType,
+      targetEnemyId: meta?.targetEnemyId,
+      targetEnemyName: meta?.targetEnemyName,
+      advantage: meta?.advantage,
+      disadvantage: meta?.disadvantage,
+      spellLevelUsed: meta?.spellLevelUsed,
       submittedAt: new Date().toISOString(),
     });
+
+    if (character && meta?.spellLevelUsed && meta.spellLevelUsed > 0) {
+      this.characters.useSpellSlot(character.id, meta.spellLevelUsed);
+    }
 
     this.rooms.updatePlayer(player.id, {
       hasActedThisRound: true,
@@ -462,6 +480,43 @@ export class GameSessionService {
       updatedEnemies.push(fallbackEnemy);
     }
 
+    // Process Condition Updates for Players and Enemies
+    if (Array.isArray(dmResult.conditionUpdates) && dmResult.conditionUpdates.length > 0) {
+      dmResult.conditionUpdates.forEach(update => {
+        if (update.targetType === 'player' || update.targetType === 'character') {
+          const target = this.characters.findById(update.targetId) ||
+            activeCharacters.find(c =>
+              c.name.toLowerCase().trim() === (update.targetName || update.targetId || '').toLowerCase().trim() ||
+              c.name.toLowerCase().includes((update.targetName || update.targetId || '').toLowerCase().trim())
+            );
+          if (target) {
+            const currentConditions = target.conditions || [];
+            let nextConditions: string[];
+            if (update.action === 'add') {
+              nextConditions = Array.from(new Set([...currentConditions, update.condition]));
+            } else {
+              nextConditions = currentConditions.filter(c => c !== update.condition);
+            }
+            this.characters.updateConditions(target.id, nextConditions);
+          }
+        } else if (update.targetType === 'enemy') {
+          const enemy = updatedEnemies.find(e =>
+            e.id === update.targetId ||
+            e.name.toLowerCase().trim() === (update.targetName || update.targetId || '').toLowerCase().trim() ||
+            e.name.toLowerCase().includes((update.targetName || update.targetId || '').toLowerCase().trim())
+          );
+          if (enemy) {
+            const currentConditions = enemy.conditions || [];
+            if (update.action === 'add') {
+              enemy.conditions = Array.from(new Set([...currentConditions, update.condition]));
+            } else {
+              enemy.conditions = currentConditions.filter(c => c !== update.condition);
+            }
+          }
+        }
+      });
+    }
+
     // Advance campaign map if initialized
     let updatedCampaignMap = dmResult.campaignMap || room.campaignMap;
     if (updatedCampaignMap) {
@@ -561,6 +616,14 @@ export class GameSessionService {
       activePlayerUserId,
     });
     return updated ? sanitizeRoom(updated) : null;
+  }
+
+  public performShortRest(characterId: string, diceCount?: number) {
+    return this.characters.performShortRest(characterId, diceCount);
+  }
+
+  public performLongRest(characterId: string) {
+    return this.characters.performLongRest(characterId);
   }
 }
 

@@ -59,6 +59,11 @@ export interface Character {
   skillPoints?: number;
   learnedTalents?: string[];
   activeWeaponId?: string;
+  conditions?: string[];
+  hitDiceMax?: number;
+  hitDiceCurrent?: number;
+  hitDiceType?: string;
+  spellSlots?: Record<string, { current: number; max: number }>;
   createdAt?: string;
 }
 
@@ -153,6 +158,7 @@ export interface RoomEnemy {
   hpCurrent: number;
   hpMax: number;
   ac?: number;
+  conditions?: string[];
   status: string;
   isDead: boolean;
 }
@@ -227,12 +233,36 @@ export interface DiceRollResult {
   purpose: string; // e.g., 'Атака мечом', 'Проверка внимательности'
 }
 
+export interface ConditionUpdate {
+  targetId: string;
+  targetName?: string;
+  targetType: 'character' | 'player' | 'enemy';
+  action: 'add' | 'remove';
+  condition: string;
+  reason?: string;
+}
+
+export interface RestResult {
+  type: 'short' | 'long';
+  characterId: string;
+  characterName: string;
+  healedHp: number;
+  diceSpent?: number;
+  rolls?: number[];
+}
+
 export interface TurnAction {
   id: string;
   playerId: string;
   characterName: string;
   actionText: string;
   diceRolls: DiceRollResult[];
+  actionType?: 'attack' | 'check' | 'save' | 'improvise';
+  targetEnemyId?: string;
+  targetEnemyName?: string;
+  advantage?: boolean;
+  disadvantage?: boolean;
+  spellLevelUsed?: number;
   submittedAt: string;
 }
 

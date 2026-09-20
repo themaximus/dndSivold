@@ -110,4 +110,35 @@ router.delete('/:id', authMiddleware, (req: Request, res: Response): void => {
   res.json({ success: true });
 });
 
+import { characterRepository } from '../repositories/CharacterRepository';
+
+// POST /api/characters/:id/rest/short - Perform Short Rest with Hit Dice
+router.post('/:id/rest/short', authMiddleware, (req: Request, res: Response): void => {
+  try {
+    const diceCount = typeof req.body.diceCount === 'number' ? req.body.diceCount : 1;
+    const result = characterRepository.performShortRest(req.params.id, diceCount);
+    if (!result.character) {
+      res.status(404).json({ error: 'Персонаж не найден' });
+      return;
+    }
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка короткого отдыха' });
+  }
+});
+
+// POST /api/characters/:id/rest/long - Perform Long Rest (full recovery)
+router.post('/:id/rest/long', authMiddleware, (req: Request, res: Response): void => {
+  try {
+    const result = characterRepository.performLongRest(req.params.id);
+    if (!result.character) {
+      res.status(404).json({ error: 'Персонаж не найден' });
+      return;
+    }
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка длинного отдыха' });
+  }
+});
+
 export default router;

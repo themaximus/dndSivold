@@ -18,12 +18,71 @@ export interface ICharacterRepository extends IRepository<CharacterEntity> {
   useConsumableItem(id: string, itemId: string): { character: CharacterEntity | null; healAmount: number; itemName: string };
   equipWeapon(id: string, itemId: string): CharacterEntity | null;
   awardXp(id: string, xpAmount: number): CharacterEntity | null;
+  performShortRest(id: string, diceCount?: number): {
+    character: CharacterEntity | null;
+    healedHp: number;
+    diceSpent: number;
+    rolls: number[];
+  };
+  performLongRest(id: string): { character: CharacterEntity | null; healedHp: number };
+  useSpellSlot(id: string, level: number): CharacterEntity | null;
+  updateConditions(id: string, conditions: string[]): CharacterEntity | null;
   learnTalent(id: string, talentId: string, effects: any): CharacterEntity | null;
 }
 
 export class CharacterRepository implements ICharacterRepository {
   public findById(id: string): CharacterEntity | undefined {
-    return db.characters.findById(id);
+    const raw = db.characters.findById(id);
+    if (!raw) return undefined;
+    return this.hydrateDnd5eDefaults(raw);
+  }
+
+  public hydrateDnd5eDefaults(char: CharacterEntity): CharacterEntity {
+    let needsUpdate = false;
+    const updates: Partial<CharacterEntity> = {};
+
+    if (!char.hitDiceType || char.hitDiceMax === undefined) {
+      const cClass = (char.characterClass || '').toLowerCase();
+      let hdType = 'd8';
+      if (/варвар/i.test(cClass)) hdType = 'd12';
+      else if (/воин|паладин|следопыт/i.test(cClass)) hdType = 'd10';
+      else if (/волшебник|чародей/i.test(cClass)) hdType = 'd6';
+
+      updates.hitDiceType = hdType;
+      updates.hitDiceMax = char.level || 1;
+      updates.hitDiceCurrent = char.level || 1;
+      needsUpdate = true;
+    }
+
+    if (!char.conditions) {
+      updates.conditions = [];
+      needsUpdate = true;
+    }
+
+    if (char.spellSlots === undefined) {
+      const cClass = (char.characterClass || '').toLowerCase();
+      const isCaster = /волшебник|маг|жрец|чародей|друид|колдун|бард|паладин/i.test(cClass);
+      if (isCaster) {
+        const lvl = char.level || 1;
+        const slots: Record<string, { current: number; max: number }> = {};
+        if (lvl === 1) {
+          slots['1'] = { current: 2, max: 2 };
+        } else if (lvl === 2) {
+          slots['1'] = { current: 3, max: 3 };
+        } else {
+          slots['1'] = { current: 4, max: 4 };
+          slots['2'] = { current: 2, max: 2 };
+        }
+        updates.spellSlots = slots;
+        needsUpdate = true;
+      }
+    }
+
+    if (needsUpdate) {
+      const updated = db.characters.update(char.id, updates);
+      return updated || { ...char, ...updates };
+    }
+    return char;
   }
 
   public findByUserId(userId: string): CharacterEntity[] {
@@ -293,6 +352,101 @@ export class CharacterRepository implements ICharacterRepository {
     }
 
     return this.update(id, updates);
+  }
+
+  public performShortRest(id: string, diceCount: number = 1): {
+    character: CharacterEntity | null;
+    healedHp: number;
+    diceSpent: number;
+    rolls: number[];
+  } {
+    const char = this.findById(id);
+    if (!char) return { character: null, healedHp: 0, diceSpent: 0, rolls: [] };
+
+    const currentDice = char.hitDiceCurrent ?? (char.level || 1);
+    const actualSpend = Math.min(Math.max(1, diceCount), currentDice);
+    if (actualSpend <= 0) {
+      return { character: char, healedHp: 0, diceSpent: 0, rolls: [] };
+    }
+
+    const sides = char.hitDiceType === 'd12' ? 12 : char.hitDiceType === 'd10' ? 10 : char.hitDiceType === 'd6' ? 6 : 8;
+    const conMod = Math.floor(((char.stats?.con || 10) - 10) / 2);
+
+    const rolls: number[] = [];
+    let totalHeal = 0;
+    for (let i = 0; i < actualSpend; i++) {
+      const roll = crypto.randomInt(1, sides + 1);
+      const dieHeal = Math.max(1, roll + conMod);
+      rolls.push(dieHeal);
+      totalHeal += dieHeal;
+    }
+
+    const newHp = Math.min(char.hpMax, char.hpCurrent + totalHeal);
+    const newDice = currentDice - actualSpend;
+
+    // Clear temporary conditions on rest
+    const updatedConditions = (char.conditions || []).filter(c => c !== 'prone');
+
+    const updated = this.update(char.id, {
+      hpCurrent: newHp,
+      hitDiceCurrent: newDice,
+      conditions: updatedConditions,
+      lifeState: char.lifeState === 'downed' && newHp > 0 ? 'alive' : char.lifeState,
+    });
+
+    return {
+      character: updated,
+      healedHp: totalHeal,
+      diceSpent: actualSpend,
+      rolls,
+    };
+  }
+
+  public performLongRest(id: string): { character: CharacterEntity | null; healedHp: number } {
+    const char = this.findById(id);
+    if (!char) return { character: null, healedHp: 0 };
+
+    const maxHd = char.hitDiceMax ?? (char.level || 1);
+    const curHd = char.hitDiceCurrent ?? 0;
+    const restoredHd = Math.min(maxHd, curHd + Math.max(1, Math.floor(maxHd / 2)));
+
+    // Reset spell slots to max
+    const resetSlots = char.spellSlots ? { ...char.spellSlots } : undefined;
+    if (resetSlots) {
+      for (const lvl of Object.keys(resetSlots)) {
+        resetSlots[lvl] = { current: resetSlots[lvl].max, max: resetSlots[lvl].max };
+      }
+    }
+
+    const healed = char.hpMax - char.hpCurrent;
+    const updated = this.update(char.id, {
+      hpCurrent: char.hpMax,
+      hitDiceCurrent: restoredHd,
+      spellSlots: resetSlots,
+      conditions: [],
+      lifeState: char.lifeState === 'downed' ? 'alive' : char.lifeState,
+    });
+
+    return { character: updated, healedHp: Math.max(0, healed) };
+  }
+
+  public useSpellSlot(id: string, level: number): CharacterEntity | null {
+    const char = this.findById(id);
+    if (!char || !char.spellSlots) return null;
+    const lvlKey = String(level);
+    const slot = char.spellSlots[lvlKey];
+    if (slot && slot.current > 0) {
+      const updatedSlots = {
+        ...char.spellSlots,
+        [lvlKey]: { ...slot, current: slot.current - 1 },
+      };
+      return this.update(id, { spellSlots: updatedSlots });
+    }
+    return char;
+  }
+
+  public updateConditions(id: string, conditions: string[]): CharacterEntity | null {
+    return this.update(id, { conditions: Array.from(new Set(conditions)) });
   }
 }
 

@@ -83,6 +83,35 @@ export const api = {
     });
   },
 
+  async shortRest(characterId: string, diceCount?: number): Promise<{
+    character: Character;
+    healedHp: number;
+    diceSpent: number;
+    rolls: number[];
+  }> {
+    return request<{
+      character: Character;
+      healedHp: number;
+      diceSpent: number;
+      rolls: number[];
+    }>(`/characters/${characterId}/rest/short`, {
+      method: 'POST',
+      body: JSON.stringify({ diceCount }),
+    });
+  },
+
+  async longRest(characterId: string): Promise<{
+    character: Character;
+    healedHp: number;
+  }> {
+    return request<{
+      character: Character;
+      healedHp: number;
+    }>(`/characters/${characterId}/rest/long`, {
+      method: 'POST',
+    });
+  },
+
   // Rooms
   async createRoom(data: {
     title: string;

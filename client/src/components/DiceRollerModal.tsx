@@ -8,6 +8,9 @@ interface DiceRollerModalProps {
   roomCode: string;
   character?: Character;
   defaultStatKey?: string;
+  initialPurpose?: string;
+  initialAdvantage?: boolean;
+  initialDisadvantage?: boolean;
   onClose: () => void;
   onRollComplete: (roll: DiceRollResult) => void;
 }
@@ -16,14 +19,17 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   roomCode,
   character,
   defaultStatKey,
+  initialPurpose,
+  initialAdvantage = false,
+  initialDisadvantage = false,
   onClose,
   onRollComplete,
 }) => {
   const [diceType, setDiceType] = useState('d20');
   const [statKey, setStatKey] = useState<string>(defaultStatKey ? defaultStatKey.toLowerCase() : 'str');
-  const [purpose, setPurpose] = useState('');
-  const [advantage, setAdvantage] = useState(false);
-  const [disadvantage, setDisadvantage] = useState(false);
+  const [purpose, setPurpose] = useState(initialPurpose || '');
+  const [advantage, setAdvantage] = useState(initialAdvantage);
+  const [disadvantage, setDisadvantage] = useState(initialDisadvantage);
   const [isRolling, setIsRolling] = useState(false);
   const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null);
 

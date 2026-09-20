@@ -45,10 +45,35 @@ export class DMPromptBuilder {
 - Если персонаж нашёл, подобрал или получил предмет прямо в сцене:
   добавь в "inventoryUpdates" объект с "action": "add", описав предмет (name, type, description, damage, healAmount).
 
-7. ТОЧНЫЕ ИМЕНА ПЕРСОНАЖЕЙ В ИЗМЕНЕНИЯХ ЗДОРОВЬЯ ("playerUpdates"):
+ЗАКОН 7: БОЕВАЯ СИСТЕМА D&D 5E — АТАКИ ПО КБ ВРАГА И СОСТОЯНИЯ (CONDITIONS)
+- АТАКА ПО ЦЕЛИ: Если игрок заявил атаку (actionType: "attack") и указал цель из списка врагов с её КБ (Классом Брони):
+  * Сравнивай результат броска атаки игрока с КБ цели (enemy.ac)! Не с общей СЛ сцены!
+  * Если бросок >= КБ (или Натуральная 20): Атака ПОПАЛА! Опиши кинематографичный удар/выстрел и ОБЯЗАТЕЛЬНО снизь "hpCurrent" этого врага в "activeEnemies" на величину урона оружия/заклинания. Если "hpCurrent" упал до 0, установи "isDead": true и опиши эффектную гибель врага!
+  * Если бросок < КБ: Атака промахнулась или отражена броней/укрытием цели.
+- ПРОВЕРКИ И СПАСБРОСКИ: Проверки навыков (check) и спасброски (save) сравнивай с общей СЛ сцены (room DC).
+- СОСТОЯНИЯ (CONDITIONS) И УКРЫТИЯ D&D 5E:
+  Поддерживай 6 классических состояний и укрытия:
+  * "prone" (сбит с ног / лежит ничком)
+  * "poisoned" (отравлен ядом)
+  * "restrained" (обездвижен / связан)
+  * "frightened" (испуган)
+  * "stunned" (оглушён)
+  * "cover_half" (половинное укрытие: +2 к КБ)
+  * "cover_three_quarters" (укрытие на 3/4: +5 к КБ)
+  Если персонаж или враг сбит с ног, укрылся за опрокинутым столом/колонной, отравлен или оглушён, добавь объект в массив "conditionUpdates":
+  {
+    "targetType": "player" | "enemy",
+    "targetId": "uuid-персонажа-или-id-врага",
+    "targetName": "Имя",
+    "condition": "prone" | "poisoned" | "restrained" | "frightened" | "stunned" | "cover_half" | "cover_three_quarters",
+    "action": "add" | "remove"
+  }
+  Также указывай массив "conditions" у каждого врага в "activeEnemies": ["cover_half"].
+
+8. ТОЧНЫЕ ИМЕНА ПЕРСОНАЖЕЙ В ИЗМЕНЕНИЯХ ЗДОРОВЬЯ ("playerUpdates"):
    - СЛОВО «Герой» СТРОГО ЗАПРЕЩЕНО! Указывай реальные "characterId" (UUID) и "characterName".
 
-8. ЧИСТЫЙ ЛИТЕРАТУРНЫЙ ТЕКСТ ДЛЯ НЕЙРОСЕТЕВОГО ДИКТОРА:
+9. ЧИСТЫЙ ЛИТЕРАТУРНЫЙ ТЕКСТ ДЛЯ НЕЙРОСЕТЕВОГО ДИКТОРА:
    - Текст поля "narrative" зачитывается голосовым диктором вслух!
    - Запрещено включать формулы, скобки («СЛ 14», «-4 HP», «d20»), маркеры списков.
    - Обязательно используй букву «ё» везде, где она требуется.
@@ -72,8 +97,18 @@ export class DMPromptBuilder {
       "hpCurrent": 18,
       "hpMax": 26,
       "ac": 14,
-      "status": "Опрокинул дубовый стол, отбивается палашом",
+      "conditions": ["cover_half"],
+      "status": "Опрокинул дубовый стол, отбивается палашом из укрытия",
       "isDead": false
+    }
+  ],
+  "conditionUpdates": [
+    {
+      "targetType": "enemy",
+      "targetId": "enemy_1",
+      "targetName": "Вожак разбойников",
+      "condition": "cover_half",
+      "action": "add"
     }
   ],
   "inventoryUpdates": [
@@ -168,26 +203,48 @@ ${actionsSummary}
   }
 
   public formatPartyInfo(characters: CharacterEntity[]): string {
-    return characters.map(c => `
+    return characters.map(c => {
+      const condList = c.conditions && c.conditions.length > 0 ? c.conditions.join(', ') : 'В норме';
+      const hdInfo = `${c.hitDiceCurrent ?? 1}/${c.hitDiceMax ?? 1} (${c.hitDiceType || 'd8'})`;
+      const slotsInfo = c.spellSlots
+        ? Object.entries(c.spellSlots).map(([lvl, s]) => `${lvl} ур: ${s.current}/${s.max}`).join(', ')
+        : 'Нет';
+
+      return `
 - ID: "${c.id}"
   Имя: ${c.name} (${c.race} ${c.characterClass}, уровень ${c.level})
   Статус: ${c.lifeState === 'dead' ? '☠ ПОГИБ' : c.lifeState === 'downed' ? '⚠️ ПРИ СМЕРТИ (0 HP)' : 'В строю'}
   HP: ${c.hpCurrent}/${c.hpMax}, КБ: ${c.ac}
+  Кости хитов: ${hdInfo}
+  Ячейки заклинаний: ${slotsInfo}
+  Состояния (Conditions): ${condList}
   Характеристики: СИЛ ${c.stats.str}, ЛОВ ${c.stats.dex}, ТЕЛ ${c.stats.con}, ИНТ ${c.stats.int}, МУД ${c.stats.wis}, ХАР ${c.stats.cha}
   Способности: ${c.abilities && c.abilities.length > 0 ? c.abilities.map(a => a.name).join(', ') : 'Базовые приёмы'}
   Активное оружие: ${c.activeWeaponId ? c.inventory.find(i => i.id === c.activeWeaponId)?.name || 'В руках' : 'Базовое оружие'}
   Личный инвентарь в рюкзаке: ${c.inventory && c.inventory.length > 0 ? c.inventory.map(i => `${i.name} [${i.type}${i.damage ? `, урон ${i.damage}` : ''}${i.healAmount ? `, лечение ${i.healAmount}` : ''}]`).join('; ') : 'Пусто (нет снаряжения)'}
   Квента / Личная история: ${c.bio || 'Опытный искатель приключений'}
-`).join('\n');
+`;
+    }).join('\n');
   }
 
   public formatActionsSummary(actions: TurnActionEntity[]): string {
     return actions.map(a => {
+      const typeLabel = a.actionType === 'attack'
+        ? `⚔️ АТАКА ПО ЦЕЛИ: ${a.targetEnemyName || a.targetEnemyId || 'Враг'}`
+        : a.actionType === 'save'
+        ? '🛡️ СПАСБРОСОК'
+        : a.actionType === 'check'
+        ? '🎲 ПРОВЕРКА НАВЫКА'
+        : '💡 ДЕЙСТВИЕ / ИМПРОВИЗАЦИЯ';
+
+      const advLabel = a.advantage ? ' [С ПРЕИМУЩЕСТВОМ 2d20]' : a.disadvantage ? ' [С ПОМЕХОЙ 2d20]' : '';
+      const spellLabel = a.spellLevelUsed ? ` [Потрачена ячейка ${a.spellLevelUsed}-го круга]` : '';
+
       const diceInfo = a.diceRolls && a.diceRolls.length > 0
-        ? a.diceRolls.map((r: any) => `[Кость: ${r.diceType}, Характеристика: ${r.statKey ? r.statKey.toUpperCase() : 'Общая'}, Выпало: ${r.rolls.join('+')} (${r.modifier >= 0 ? '+' : ''}${r.modifier}) = Итого: ${r.total}${r.isCriticalSuccess ? ' ★ КРИТИЧЕСКИЙ УСПЕХ (20)!' : ''}${r.isCriticalFail ? ' ☠ КРИТИЧЕСКИЙ ПРОВАЛ (1)!' : ''}, Цель: ${r.purpose}]`).join('; ')
+        ? a.diceRolls.map((r: any) => `[Кость: ${r.diceType}, Характеристика: ${r.statKey ? r.statKey.toUpperCase() : 'Общая'}, Выпало: ${r.rolls.join('+')} (${r.modifier >= 0 ? '+' : ''}${r.modifier}) = Итого: ${r.total}${r.isCriticalSuccess ? ' ★ КРИТИЧЕСКИЙ УСПЕХ (20)!' : ''}${r.isCriticalFail ? ' ☠ КРИТИЧЕСКИЙ ПРОВАЛ (1)!' : ''}, Назначение: ${r.purpose}]`).join('; ')
         : 'Без броска кубика';
 
-      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}"): "${a.actionText}"\n  Бросок кости: ${diceInfo}`;
+      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}`;
     }).join('\n\n');
   }
 

@@ -12,6 +12,7 @@ import { InventoryModal } from './game/InventoryModal';
 import { TalentTreeModal } from './game/TalentTreeModal';
 import { CampaignJournalModal } from './game/CampaignJournalModal';
 import { CampaignMapModal } from './game/CampaignMapModal';
+import { RestModal } from './game/RestModal';
 import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
 
@@ -24,10 +25,17 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
   const { user } = useAuth();
   const [attachedRolls, setAttachedRolls] = useState<DiceRollResult[]>([]);
   const [isDiceModalOpen, setIsDiceModalOpen] = useState(false);
+  const [diceModalOpts, setDiceModalOpts] = useState<{
+    defaultPurpose?: string;
+    defaultAdvantage?: boolean;
+    defaultDisadvantage?: boolean;
+    defaultStatKey?: string;
+  }>({});
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const [isRestOpen, setIsRestOpen] = useState(false);
 
   // Custom Domain Hooks
   const {
@@ -51,6 +59,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     rollDeathSave,
     fetchTalents,
     learnTalent,
+    shortRest,
+    longRest,
   } = useGameSession(roomCode);
 
   const { loadingLogId, isSpeakingText, toggleVoice } = useNarrativeVoice(roomCode);
@@ -81,8 +91,13 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     // Rolls cannot be discarded mid-turn
   };
 
-  const handleSubmitAction = (actionText: string) => {
-    submitAction(actionText, attachedRolls);
+  const handleOpenDiceModal = (opts?: { defaultPurpose?: string; defaultAdvantage?: boolean; defaultDisadvantage?: boolean; defaultStatKey?: string }) => {
+    setDiceModalOpts(opts || {});
+    setIsDiceModalOpen(true);
+  };
+
+  const handleSubmitAction = (actionText: string, meta?: any) => {
+    submitAction(actionText, attachedRolls, meta);
     setAttachedRolls([]);
   };
 
@@ -104,6 +119,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         onOpenTalents={() => setIsTalentsOpen(true)}
         onOpenJournal={() => setIsJournalOpen(true)}
         onOpenMap={() => setIsMapOpen(true)}
+        onOpenRest={() => setIsRestOpen(true)}
         onLeave={onLeave}
       />
 
@@ -149,8 +165,9 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             character={myCharacter}
             attachedRolls={attachedRolls}
             lastDeathSaveMessage={lastDeathSaveMessage}
+            activeEnemies={room.activeEnemies || []}
             onRemoveRoll={handleRemoveRoll}
-            onOpenDiceModal={() => setIsDiceModalOpen(true)}
+            onOpenDiceModal={handleOpenDiceModal}
             onSubmit={handleSubmitAction}
             onRollDeathSave={rollDeathSave}
           />
@@ -169,11 +186,23 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         <DiceRollerModal
           roomCode={roomCode}
           character={myCharacter || undefined}
-          defaultStatKey={room.requiredCheckStat}
+          defaultStatKey={diceModalOpts.defaultStatKey || room.requiredCheckStat}
+          initialPurpose={diceModalOpts.defaultPurpose}
+          initialAdvantage={diceModalOpts.defaultAdvantage}
+          initialDisadvantage={diceModalOpts.defaultDisadvantage}
           onClose={() => setIsDiceModalOpen(false)}
           onRollComplete={handleAttachRoll}
         />
       )}
+
+      {/* Rest Modal (Short & Long Rest D&D 5e) */}
+      <RestModal
+        isOpen={isRestOpen}
+        character={myCharacter}
+        onClose={() => setIsRestOpen(false)}
+        onShortRest={shortRest}
+        onLongRest={longRest}
+      />
 
       {/* Inventory Modal */}
       <InventoryModal
