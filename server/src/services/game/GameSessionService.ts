@@ -11,7 +11,7 @@ import {
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
-import { AIDMResponse } from '../../domain/types';
+import { AIDMResponse, AIDMPrologueContext } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
@@ -115,24 +115,71 @@ export class GameSessionService {
     return this.getRoomAndPlayers(room.code);
   }
 
-  public startGame(roomId: string, hostUserId: string) {
+  public async startGame(roomId: string, hostUserId: string) {
     const room = this.rooms.findById(roomId);
     if (!room || room.hostUserId !== hostUserId) return null;
+
+    const allPlayers = this.rooms.findPlayersByRoomId(room.id);
+    const activeCharacters: CharacterEntity[] = allPlayers
+      .map(p => (p.characterId ? this.characters.findById(p.characterId) : undefined))
+      .filter((c): c is CharacterEntity => !!c);
+
+    // AI Provider neural prologue generation with world, lore, and characters
+    const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
+    const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
+    
+    let prologueResult: AIDMResponse;
+    const prologueContext: AIDMPrologueContext = {
+      apiKey: decryptedApiKey,
+      model: room.deepseekModel,
+      title: room.title,
+      setting: room.setting,
+      characters: activeCharacters,
+    };
+
+    try {
+      prologueResult = await provider.generatePrologue(prologueContext);
+    } catch (err: any) {
+      console.warn('AI Provider prologue generation failed, falling back to procedural prologue:', err?.message || err);
+      const fallback = new SimulationAIProvider();
+      prologueResult = await fallback.generatePrologue(prologueContext);
+    }
+
+    const startDC = prologueResult.nextRoundDC || 12;
+    const startDCReason = prologueResult.nextRoundDCReason || 'Оценка обстановки и первый решительный шаг';
 
     this.rooms.update(room.id, {
       status: 'active',
       roundNumber: 1,
-      targetDC: room.targetDC || 12,
-      dcReason: room.dcReason || 'Оценка обстановки и первый шаг в неизвестность',
+      currentSituation: prologueResult.currentSituation || 'Что предпринимает отряд?',
+      targetDC: startDC,
+      dcReason: startDCReason,
     });
 
+    // Process prologue milestones
+    if (Array.isArray(prologueResult.newMilestones) && prologueResult.newMilestones.length > 0) {
+      const milestones: LoreMilestone[] = prologueResult.newMilestones.map(m => ({
+        id: crypto.randomUUID(),
+        round: 0,
+        milestone: m,
+      }));
+      this.rooms.addMilestones(room.id, milestones);
+    }
+
     // Create prologue log
-    this.gameLogs.create({
+    const prologueLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: 0,
-      narrativeText: room.currentSituation || 'Приключение начинается!',
+      narrativeText: prologueResult.narrative,
+      targetDC: startDC,
+      dcReason: startDCReason,
       createdAt: new Date().toISOString(),
+    });
+
+    // Pre-warm neural TTS audio in background for instant voice playback
+    this.tts.synthesize(prologueLog.narrativeText, prologueResult.mood || 'mystery').catch(err => {
+      console.warn('Background prologue TTS pre-warm failed:', err.message);
     });
 
     return this.getRoomAndPlayers(room.code);

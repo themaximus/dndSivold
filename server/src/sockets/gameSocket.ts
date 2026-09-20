@@ -101,11 +101,13 @@ export function setupGameSockets(io: Server) {
     });
 
     // Start game
-    socket.on('start_game', ({ roomCode }: { roomCode: string }) => {
+    socket.on('start_game', async ({ roomCode }: { roomCode: string }) => {
       const room = roomRepository.findByCode(roomCode);
       if (!room || room.hostUserId !== userId) return;
 
-      const updated = gameSessionService.startGame(room.id, userId);
+      io.to(room.id).emit('dm_thinking');
+
+      const updated = await gameSessionService.startGame(room.id, userId);
       if (updated) {
         io.to(room.id).emit('game_started', {
           room: sanitizeRoom(updated.room),

@@ -1,5 +1,5 @@
 import { IAIProvider } from './IAIProvider';
-import { AIDMContext, AIDMResponse, PlayerHpUpdate } from '../../domain/types';
+import { AIDMContext, AIDMPrologueContext, AIDMResponse, PlayerHpUpdate } from '../../domain/types';
 
 interface ActionAnalysis {
   characterId: string;
@@ -339,6 +339,43 @@ export class SimulationAIProvider implements IAIProvider {
       droppedLoot: droppedLoot.length > 0 ? droppedLoot : undefined,
       newMilestones: newMilestones.length > 0 ? newMilestones : undefined,
       xpAwarded: 35 + (critSuccesses.length * 15),
+    };
+  }
+
+  public async generatePrologue(context: AIDMPrologueContext): Promise<AIDMResponse> {
+    const { title, setting, characters } = context;
+
+    const heroDescriptions = characters.map(c => {
+      const bioSnippet = c.bio ? ` (${c.bio})` : '';
+      return `${c.name} — ${c.race} ${c.characterClass}${bioSnippet}`;
+    });
+
+    const partyIntro = heroDescriptions.length > 0
+      ? `Судьба и древние знамения свели воедино этот разношёрстный отряд приключенцев: ${heroDescriptions.join(', ')}. Каждый из них принёс в поход своё мастерство, свои тайны и своё оружие.`
+      : 'Группа отважных искателей приключений ступает на порог неизведанного мира.';
+
+    const narrative = `Древние хроники гласят, что земля эта помнит падение забытых империй и шепот тёмных владык. Кампания «${title}» берёт своё начало там, где надежда уступает место холодной стали.
+
+${setting}
+
+${partyIntro}
+
+Тяжёлые кованые врата со скрежетом захлопываются позади героев, отрезая путь к отступлению. В воздухе витает горьковатый запах серы, вековой сырости и застарелой магии. Пляшущий огонь факелов выхватывает из клубящегося полумрака полуразрушенные колонны и осыпающиеся своды, а из глубины коридора уже доносится зловещее эхо приближающейся опасности.`;
+
+    const currentSituation = `Отряд оказался перед расходящимися в темноту тоннелями. Впереди мерцают багровые руны, а по полу стелется холодный туман. Что предпринимает отряд?`;
+
+    return {
+      narrative,
+      playerUpdates: [],
+      currentSituation,
+      enemiesStatus: 'Окрестности погружены в тревожное безмолвие, враги затаились в тенях',
+      mood: 'mystery',
+      nextRoundDC: 12,
+      nextRoundDCReason: 'Оценка обстановки в полумраке и первый шаг в неизвестность',
+      newMilestones: [
+        `Начало кампании «${title}»: отряд переступил порог неизвестности.`,
+      ],
+      xpAwarded: 25,
     };
   }
 }

@@ -1,5 +1,13 @@
 import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem } from '../db';
 
+export interface AIDMPrologueContext {
+  apiKey?: string;
+  model?: string;
+  title: string;
+  setting: string;
+  characters: CharacterEntity[];
+}
+
 export interface AIDMContext {
   apiKey?: string;
   model?: string;

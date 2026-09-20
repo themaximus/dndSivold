@@ -25,6 +25,8 @@ const SETTING_TEMPLATES = [
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onRoomCreated, onCancel }) => {
   const [title, setTitle] = useState(SETTING_TEMPLATES[0].title);
   const [setting, setSetting] = useState(SETTING_TEMPLATES[0].setting);
+  const [customApiKey, setCustomApiKey] = useState('');
+  const [showKeyField, setShowKeyField] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -47,6 +49,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onRoomCreated,
       const room = await api.createRoom({
         title,
         setting,
+        deepseekApiKey: customApiKey.trim() || undefined,
       });
       onRoomCreated(room.code);
     } catch (err: any) {
@@ -140,22 +143,51 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onRoomCreated,
             />
           </div>
 
+          {/* Custom API Key toggle */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowKeyField(!showKeyField)}
+              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-medium transition-colors"
+            >
+              <Key className="w-3.5 h-3.5" />
+              {showKeyField ? 'Скрыть настройки API-ключа' : 'Указать свой API-ключ нейросети (необязательно)'}
+            </button>
+            {showKeyField && (
+              <div className="mt-2 p-3 bg-fantasy-card border border-fantasy-border/80 rounded-xl space-y-2">
+                <label className="block text-[11px] text-slate-300 font-medium">
+                  Свой ключ Google Gemini или DeepSeek:
+                </label>
+                <input
+                  type="password"
+                  value={customApiKey}
+                  onChange={(e) => setCustomApiKey(e.target.value)}
+                  placeholder="Вставьте API-ключ (AQ... или sk-...)"
+                  className="w-full px-3 py-2 bg-slate-900/80 border border-fantasy-border rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono"
+                />
+                <p className="text-[10px] text-slate-400">
+                  Если поле оставить пустым, игра автоматически использует встроенную быструю нейросеть платформы (Google Gemini).
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* AI Master Engine Status */}
           <div className="p-4 bg-fantasy-card/70 border border-fantasy-border rounded-xl flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
               <div>
                 <h4 className="text-sm font-bold font-rpg text-amber-300">
-                  ИИ-Мастер Подземелий активен
+                  Нейросеть Google Gemini активна
                 </h4>
                 <p className="text-[11px] text-slate-400">
-                  Нейросеть ведет кампанию и описывает ходы игроков автоматически по правилам D&D 5e
+                  ИИ-Мастер вводит в сюжет, создает пролог и генерирует литературную хронику ходов по правилам D&D 5e
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-fantasy-panel border border-fantasy-border rounded-lg text-xs text-emerald-400 font-semibold flex-shrink-0">
               <Shield className="w-3.5 h-3.5" />
-              Античит включен
+              Нейросеть подключена
             </div>
           </div>
 
