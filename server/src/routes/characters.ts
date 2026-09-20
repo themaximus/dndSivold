@@ -123,7 +123,7 @@ router.post('/:id/rest/short', authMiddleware, (req: Request, res: Response): vo
     }
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Ошибка короткого отдыха' });
+    res.status(400).json({ error: err.message || 'Ошибка короткого отдыха' });
   }
 });
 
@@ -137,7 +137,7 @@ router.post('/:id/rest/long', authMiddleware, (req: Request, res: Response): voi
     }
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Ошибка длинного отдыха' });
+    res.status(400).json({ error: err.message || 'Ошибка длинного отдыха' });
   }
 });
 

@@ -101,6 +101,7 @@ export interface AIDMResponse {
   narrative: string;
   playerUpdates: PlayerHpUpdate[];
   currentSituation: string;
+  choiceDilemma?: string;
   enemiesStatus?: string;
   activeEnemies?: RoomEnemy[];
   inventoryUpdates?: InventoryUpdate[];

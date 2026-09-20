@@ -29,6 +29,9 @@ app.use('/api/characters', characterRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/tts', ttsRoutes);
 
+// Favicon handler to avoid browser 404 logs
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({

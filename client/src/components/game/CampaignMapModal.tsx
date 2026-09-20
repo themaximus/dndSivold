@@ -58,9 +58,28 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
   if (!isOpen) return null;
 
   const durationInfo = DURATION_LABELS[duration] || DURATION_LABELS.medium;
-  const nodes = mapData?.nodes || [];
+  const rawNodes = mapData?.nodes || [];
   const edges = mapData?.edges || [];
-  const currentNodeId = mapData?.currentNodeId || nodes[0]?.id || '';
+  const currentNodeId = mapData?.currentNodeId || rawNodes[0]?.id || '';
+
+  // Collision avoidance & progressive layout along X and Y
+  const nodes = React.useMemo(() => {
+    if (!rawNodes || rawNodes.length === 0) return [];
+    const copy = rawNodes.map(n => ({ ...n }));
+
+    // Ensure progressive X and separate colliding coordinates
+    for (let i = 1; i < copy.length; i++) {
+      const prev = copy[i - 1];
+      const curr = copy[i];
+      if (curr.x <= prev.x + 13) {
+        curr.x = Math.min(95, prev.x + 14);
+      }
+      if (Math.abs(curr.y - prev.y) < 18) {
+        curr.y = prev.y > 50 ? Math.max(22, prev.y - 32) : Math.min(78, prev.y + 32);
+      }
+    }
+    return copy;
+  }, [rawNodes]);
 
   const activeSelectedId = selectedNodeId || currentNodeId;
   const selectedNode = nodes.find(n => n.id === activeSelectedId) || nodes[0];
@@ -295,13 +314,18 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
             })}
 
             {/* Nodes */}
-            {nodes.map((node) => {
+            {nodes.map((node, idx) => {
               const coords = getSvgCoords(node.x, node.y);
               const isCurrent = node.id === currentNodeId;
               const isSelected = node.id === activeSelectedId;
               const isVisited = node.status === 'visited';
               const isDiscovered = node.status === 'discovered';
               const isLocked = node.status === 'locked' && !isCurrent;
+
+              // Alternating / smart label placement to prevent label collisions
+              const isLabelAbove = node.y > 52 || (idx % 2 === 1);
+              const labelY = isLabelAbove ? (isCurrent ? -34 : -30) : (isCurrent ? 34 : 30);
+              const squadBadgeY = isLabelAbove ? (isCurrent ? 34 : 30) : (isCurrent ? -34 : -30);
 
               // Node color scheme
               let circleFill = '#0f172a';
@@ -326,28 +350,26 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                 <g
                   key={node.id}
                   transform={`translate(${coords.x}, ${coords.y})`}
-                  className="cursor-pointer transition-transform hover:scale-110"
+                  className="group cursor-pointer select-none"
                   onClick={() => setSelectedNodeId(node.id)}
                 >
-                  {/* Pulse ring for current party location */}
+                  {/* Stable pulse ring for current party location without SVG scale/spin jitter */}
                   {isCurrent && (
                     <>
                       <circle
-                        r="34"
+                        r="32"
                         fill="none"
-                        stroke="#f59e0b"
-                        strokeWidth="2"
-                        className="animate-ping opacity-60"
-                      />
-                      <circle
-                        r="28"
-                        fill="#f59e0b"
-                        fillOpacity="0.15"
                         stroke="#f59e0b"
                         strokeWidth="1.5"
                         strokeDasharray="4 3"
-                        className="animate-spin"
-                        style={{ animationDuration: '10s' }}
+                        opacity="0.7"
+                      />
+                      <circle
+                        r="38"
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="1"
+                        opacity="0.3"
                       />
                     </>
                   )}
@@ -360,8 +382,7 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                       stroke="#e2e8f0"
                       strokeWidth="2"
                       strokeDasharray="3 3"
-                      className="animate-spin"
-                      style={{ animationDuration: '8s' }}
+                      opacity="0.9"
                     />
                   )}
 
@@ -372,6 +393,7 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                     stroke={circleStroke}
                     strokeWidth={isCurrent ? 3 : isSelected ? 2.5 : 2}
                     filter={isCurrent ? 'url(#glow-gold)' : isVisited ? 'url(#glow-emerald)' : undefined}
+                    className="transition-all duration-200 group-hover:stroke-amber-300 group-hover:stroke-[3px]"
                   />
 
                   {/* Node icon placeholder (foreignObject with lucide icon) */}
@@ -395,7 +417,7 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                   </foreignObject>
 
                   {/* Node Title Badge */}
-                  <g transform={`translate(0, ${isCurrent ? 32 : 28})`}>
+                  <g transform={`translate(0, ${labelY})`}>
                     <rect
                       x={-(node.title.length * 4.2)}
                       y="-10"
@@ -403,9 +425,10 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                       height="20"
                       rx="6"
                       fill="#020617"
-                      fillOpacity="0.85"
+                      fillOpacity="0.88"
                       stroke={isSelected ? '#f59e0b' : '#334155'}
                       strokeWidth={isSelected ? 1.5 : 0.8}
+                      className="transition-colors group-hover:stroke-amber-400"
                     />
                     <text
                       textAnchor="middle"
@@ -413,7 +436,7 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                       fontSize="10"
                       fontWeight="700"
                       fill={isCurrent ? '#fef08a' : isVisited ? '#a7f3d0' : isSelected ? '#ffffff' : '#cbd5e1'}
-                      className="font-sans"
+                      className="font-sans pointer-events-none"
                     >
                       {node.title}
                     </text>
@@ -421,7 +444,7 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
 
                   {/* "Отряд здесь" pointer token */}
                   {isCurrent && (
-                    <g transform="translate(0, -32)">
+                    <g transform={`translate(0, ${squadBadgeY})`}>
                       <rect
                         x="-44"
                         y="-12"
@@ -438,7 +461,7 @@ export const CampaignMapModal: React.FC<CampaignMapModalProps> = ({
                         fontSize="9"
                         fontWeight="800"
                         fill="#ffffff"
-                        className="font-rpg uppercase tracking-wider"
+                        className="font-rpg uppercase tracking-wider pointer-events-none"
                       >
                         ⚡ Отряд здесь
                       </text>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameLogEntry } from '../../types';
-import { Heart, ShieldAlert, Package } from 'lucide-react';
+import { Heart, ShieldAlert, Package, Compass, Sparkles } from 'lucide-react';
 import { NarrativeVoiceButton } from './NarrativeVoiceButton';
 
 interface ChronicleLogEntryProps {
@@ -46,6 +46,34 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
       <div className="text-sm text-slate-200 leading-relaxed whitespace-pre-line font-serif">
         {log.narrativeText}
       </div>
+
+      {/* Current Situation & Choice Dilemma Callout */}
+      {(log.currentSituation || log.choiceDilemma) && (
+        <div className="mt-4 p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-amber-950/40 border border-amber-500/40 space-y-2 shadow-md">
+          {log.currentSituation && (
+            <div className="flex items-start gap-2 text-xs">
+              <Compass className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <span className="font-bold text-amber-300 font-rpg uppercase tracking-wider text-[11px] mr-1.5">
+                  Итог ситуации:
+                </span>
+                <span className="text-slate-200 font-sans">{log.currentSituation}</span>
+              </div>
+            </div>
+          )}
+          {log.choiceDilemma && (
+            <div className="flex items-start gap-2 text-xs pt-1.5 border-t border-amber-500/20">
+              <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <span className="font-bold text-purple-300 font-rpg uppercase tracking-wider text-[11px] mr-1.5">
+                  Выбор перед отрядом:
+                </span>
+                <span className="text-amber-100 font-medium font-sans">{log.choiceDilemma}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Player Actions & Dice Check Verdicts */}
       {log.actionsSummary && (

@@ -286,6 +286,8 @@ export interface GameLogEntry {
     hpCurrent: number;
     note: string;
   }[];
+  currentSituation?: string;
+  choiceDilemma?: string;
   createdAt: string;
 }
 

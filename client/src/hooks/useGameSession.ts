@@ -105,9 +105,9 @@ export function useGameSession(roomCode: string) {
       soundFx.playDiceRoll();
     });
 
-    socket.on('loot_picked_up', (data: { lootId: string; characterId: string; item: RoomLootItem; character: Character; room: Room }) => {
+    socket.on('loot_picked_up', (data: { lootId: string; characterId?: string; item: RoomLootItem; character: Character; room: Room }) => {
       if (data.room) setRoom(data.room);
-      if (data.character && myPlayer?.characterId === data.characterId) {
+      if (data.character && (myPlayer?.characterId === data.character.id || myPlayer?.characterId === data.characterId)) {
         setMyCharacter(data.character);
       }
     });
@@ -265,25 +265,47 @@ export function useGameSession(roomCode: string) {
     socket.emit('force_resolve_round', { roomCode });
   }, [roomCode]);
 
-  const shortRest = useCallback(async (diceCount: number = 1) => {
-    if (!myCharacter) return;
+  const shortRest = useCallback(async (diceCount: number = 1): Promise<{ healedHp: number; diceSpent: number; rolls: number[] }> => {
+    if (!myCharacter) throw new Error('Персонаж не выбран');
     const socket = getSocket();
-    socket.emit('player_short_rest', {
-      roomCode,
-      characterId: myCharacter.id,
-      diceCount,
+    return new Promise((resolve, reject) => {
+      socket.emit(
+        'player_short_rest',
+        {
+          roomCode,
+          characterId: myCharacter.id,
+          diceCount,
+        },
+        (res: any) => {
+          if (res?.error) {
+            reject(new Error(res.error));
+          } else {
+            resolve(res);
+          }
+        }
+      );
     });
-    return api.shortRest(myCharacter.id, diceCount);
   }, [roomCode, myCharacter]);
 
-  const longRest = useCallback(async () => {
-    if (!myCharacter) return;
+  const longRest = useCallback(async (): Promise<{ healedHp: number }> => {
+    if (!myCharacter) throw new Error('Персонаж не выбран');
     const socket = getSocket();
-    socket.emit('player_long_rest', {
-      roomCode,
-      characterId: myCharacter.id,
+    return new Promise((resolve, reject) => {
+      socket.emit(
+        'player_long_rest',
+        {
+          roomCode,
+          characterId: myCharacter.id,
+        },
+        (res: any) => {
+          if (res?.error) {
+            reject(new Error(res.error));
+          } else {
+            resolve(res);
+          }
+        }
+      );
     });
-    return api.longRest(myCharacter.id);
   }, [roomCode, myCharacter]);
 
   const activePlayers = players.filter(p => p.characterId);

@@ -242,15 +242,19 @@ export function setupGameSockets(io: Server) {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      const result = gameSessionService.pickupLoot(room.id, lootId, characterId);
-      if (result) {
+      const result = gameSessionService.pickupLoot(room.id, characterId, lootId);
+      if (result && result.character) {
         io.to(room.id).emit('loot_picked_up', {
+          lootId,
+          characterId: result.character.id,
           item: result.item,
           character: result.character,
           room: sanitizeRoom(result.room),
         });
 
-        const charName = result.character?.name || 'Герой';
+        io.to(room.id).emit('character_updated', result.character);
+
+        const charName = result.character.name || 'Герой';
         io.to(room.id).emit('feed_activity', {
           id: crypto.randomUUID(),
           type: 'loot_pickup',
@@ -294,9 +298,12 @@ export function setupGameSockets(io: Server) {
     });
 
     // Perform Short Rest
-    socket.on('player_short_rest', ({ roomCode, characterId, diceCount }: { roomCode: string; characterId: string; diceCount?: number }) => {
+    socket.on('player_short_rest', ({ roomCode, characterId, diceCount }: { roomCode: string; characterId: string; diceCount?: number }, callback?: (res: any) => void) => {
       const room = roomRepository.findByCode(roomCode);
-      if (!room) return;
+      if (!room) {
+        if (callback) callback({ error: 'Комната не найдена' });
+        return;
+      }
 
       try {
         const result = gameSessionService.performShortRest(room.id, characterId, diceCount);
@@ -322,16 +329,28 @@ export function setupGameSockets(io: Server) {
           if (updated) {
             io.to(room.id).emit('room_players_updated', updated.players);
           }
+
+          if (callback) {
+            callback({
+              healedHp: result.healedHp,
+              diceSpent: result.diceSpent,
+              rolls: result.rolls,
+            });
+          }
         }
       } catch (err: any) {
         socket.emit('error_message', err.message || 'Ошибка короткого отдыха');
+        if (callback) callback({ error: err.message || 'Ошибка короткого отдыха' });
       }
     });
 
     // Perform Long Rest
-    socket.on('player_long_rest', ({ roomCode, characterId }: { roomCode: string; characterId: string }) => {
+    socket.on('player_long_rest', ({ roomCode, characterId }: { roomCode: string; characterId: string }, callback?: (res: any) => void) => {
       const room = roomRepository.findByCode(roomCode);
-      if (!room) return;
+      if (!room) {
+        if (callback) callback({ error: 'Комната не найдена' });
+        return;
+      }
 
       try {
         const result = gameSessionService.performLongRest(room.id, characterId);
@@ -355,9 +374,16 @@ export function setupGameSockets(io: Server) {
           if (updated) {
             io.to(room.id).emit('room_players_updated', updated.players);
           }
+
+          if (callback) {
+            callback({
+              healedHp: result.healedHp,
+            });
+          }
         }
       } catch (err: any) {
         socket.emit('error_message', err.message || 'Ошибка длительного отдыха');
+        if (callback) callback({ error: err.message || 'Ошибка длительного отдыха' });
       }
     });
 
