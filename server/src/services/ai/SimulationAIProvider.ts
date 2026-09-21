@@ -101,12 +101,16 @@ export class SimulationAIProvider implements IAIProvider {
         atmosphereIntro = 'Сталь звенит о сталь, и пространство вокруг сотрясается от первых яростных столкновений. Время для раздумий вышло — начинается решительная схватка.';
       }
     } else {
+      const livingEnemies = (context.activeEnemies || []).filter(e => !e.isDead && e.hpCurrent > 0);
+      const enemyNames = livingEnemies.map(e => e.name);
+      const enemyLabel = enemyNames.length > 0 ? enemyNames.join(', ') : 'противники';
+
       if (isDarkDungeon) {
-        atmosphereIntro = 'Эхо битвы гулко разносится под сводами каменного зала. В воздухе витает едкий дым и запах горячего железа, а вражеский натиск обретает новую ярость.';
+        atmosphereIntro = `Эхо битвы гулко разносится под сводами каменного зала. В воздухе витает едкий дым, а ${enemyLabel} перегруппировываются для нового удара.`;
       } else if (isForest) {
-        atmosphereIntro = 'Туман вокруг поляны густеет, окрашиваясь тревожными багровыми отблесками. Чудовища перегруппировываются, оскалив клыки в жажде расправы.';
+        atmosphereIntro = `Сквозь лесные кроны пробиваются лучи света, освещая место схватки. ${enemyLabel} оценивают манёвры отряда и держат оружие наготове.`;
       } else {
-        atmosphereIntro = 'Схватка переходит в критическую фазу. Напряжение в рядах отряда достигает предела, каждый шаг и каждое движение решают исход противостояния.';
+        atmosphereIntro = `Схватка переходит в критическую фазу: ${enemyLabel} маневрируют, стремясь занять выгодную позицию.`;
       }
     }
 
@@ -337,8 +341,13 @@ export class SimulationAIProvider implements IAIProvider {
     } else {
       nextRoundDC = 13;
       nextRoundDCReason = 'Тактическое маневрирование в изменившейся обстановке';
-      currentSituation = 'Линия соприкосновения разорвана. Враги оценивают силы героев, укрываясь за выступами камня. Что предпринимает ваш герой?';
-      choiceDilemma = 'Навязать противнику ближний бой, обстрелять из укрытия или применить хитрость с окружением. Как действует каждый?';
+      const livingEnemies = (context.activeEnemies || []).filter(e => !e.isDead && e.hpCurrent > 0);
+      const enemyNames = livingEnemies.map(e => e.name);
+      const enemyLabel = enemyNames.length > 0 ? enemyNames.join(', ') : 'противники';
+      const turnActor = context.turnPlayerName || (analyzedActions[0]?.characterName) || 'герой';
+
+      currentSituation = `Инициатива переходит к следующему бойцу. ${enemyLabel} перегруппировываются после действий ${turnActor}.`;
+      choiceDilemma = `Навязать противнику ближний бой, обстрелять из укрытия или зайти во фланг. Как действует ${turnActor}?`;
     }
 
     // 8. Lore Milestones
@@ -349,51 +358,105 @@ export class SimulationAIProvider implements IAIProvider {
       newMilestones.push(`Раунд ${roundNumber}: Герои добились выдающегося успеха.`);
     }
 
-    // 9. Update scene NPCs
+    // 9. Update scene NPCs with health changes and healing support
+    let healedNPCName: string | null = null;
     const updatedSceneNPCs = (context.sceneNPCs || []).map(npc => {
       if (npc.isDead) return npc;
+      let hp = npc.hpCurrent;
+      let disp = npc.disposition;
+      let role = npc.combatRole;
+      let status = npc.status;
+
+      const npcNameLower = npc.name.toLowerCase();
+      const npcRoleLower = (npc.role || '').toLowerCase();
+      const targetedAction = actions.find(a => {
+        const text = a.actionText.toLowerCase();
+        return (
+          text.includes(npcNameLower) ||
+          (npcRoleLower.length > 3 && text.includes(npcRoleLower)) ||
+          text.includes('курьер') ||
+          text.includes('гонец') ||
+          text.includes('путниц') ||
+          text.includes('ранен') ||
+          ((context.sceneNPCs || []).length === 1 && (text.includes('npc') || text.includes('нпс') || text.includes('союзник')))
+        );
+      });
+
+      if (targetedAction) {
+        const actText = targetedAction.actionText.toLowerCase();
+        const isHealing = /зелье|исцел|леч|попо(ил|ить)|перевяз|помощ|спаст|отдал.*зелье/i.test(actText);
+        const isAttacking = /атак|удар|выстрел|рассек|убить|метнул.*в/i.test(actText) && !isHealing;
+
+        if (isHealing) {
+          const healAmount = 8;
+          hp = Math.min(npc.hpMax, hp + healAmount);
+          disp = 'friendly';
+          healedNPCName = npc.name;
+          status = `Раны затянулись благодаря помощи ${targetedAction.characterName} (+${healAmount} HP). Готов содействовать.`;
+        } else if (isAttacking) {
+          hp = Math.max(0, hp - 6);
+          disp = 'hostile';
+          status = `Атакован героем ${targetedAction.characterName}!`;
+        }
+      }
+
+      if (hp <= 0) {
+        return {
+          ...npc,
+          hpCurrent: 0,
+          isDead: true,
+          combatRole: 'neutral_observer' as const,
+          status: 'Пал в бою / Мёртв',
+        };
+      }
+
       if (isCombat) {
-        if (npc.disposition === 'friendly' && (npc.combatRole === 'ally_combatant' || npc.role.includes('Страж') || npc.role.includes('Следопыт') || npc.role.includes('Воин') || npc.role.includes('Наёмник'))) {
+        if (disp === 'friendly' && (role === 'ally_combatant' || npc.role.includes('Страж') || npc.role.includes('Следопыт') || npc.role.includes('Воин') || npc.role.includes('Наёмник') || targetedAction?.actionText.toLowerCase().includes('бой') || targetedAction?.actionText.toLowerCase().includes('помощ'))) {
           return {
             ...npc,
+            hpCurrent: hp,
+            disposition: disp,
             combatRole: 'ally_combatant' as const,
-            status: 'Сражается плечом к плечу с отрядом, прикрывая фланг',
+            status: status || 'Сражается плечом к плечу с отрядом, прикрывая фланг',
           };
-        } else if (npc.disposition === 'friendly' && npc.combatRole !== 'ally_combatant') {
-          // If players asked or if brave
-          const helpCalled = actions.some(a => a.actionText.toLowerCase().includes(npc.name.toLowerCase()) || a.actionText.toLowerCase().includes('помощ'));
-          if (helpCalled) {
-            return {
-              ...npc,
-              combatRole: 'ally_combatant' as const,
-              status: 'Вступает в бой на стороне героев по их призыву!',
-            };
-          }
+        } else if (disp === 'friendly') {
           return {
             ...npc,
+            hpCurrent: hp,
+            disposition: disp,
             combatRole: 'hiding' as const,
-            status: 'Прячется в укрытии, опасаясь шальной стрелы',
+            status: status || 'Прячется в укрытии, восстанавливая силы',
           };
-        } else if (npc.disposition === 'offended' || npc.disposition === 'hostile') {
+        } else if (disp === 'offended' || disp === 'hostile') {
           return {
             ...npc,
+            hpCurrent: hp,
+            disposition: disp,
             combatRole: 'neutral_observer' as const,
-            status: 'Настороженно наблюдает за схваткой со стороны, не вмешиваясь',
+            status: status || 'Настороженно наблюдает за схваткой со стороны, не вмешиваясь',
           };
         } else {
           return {
             ...npc,
+            hpCurrent: hp,
+            disposition: disp,
             combatRole: 'hiding' as const,
-            status: 'Прячется в безопасном месте',
+            status: status || 'Прячется в безопасном месте',
           };
         }
       }
       return {
         ...npc,
+        hpCurrent: hp,
+        disposition: disp,
         combatRole: 'neutral_observer' as const,
-        status: npc.status || 'Присутствует в сцене',
+        status: status || npc.status || 'Присутствует в сцене',
       };
     });
+
+    if (healedNPCName) {
+      narrativeParagraphs.push(`Раненый союзник (${healedNPCName}) с глубокой благодарностью принимает целебную помощь — раны затягиваются, и дыхание выравнивается.`);
+    }
 
     const allyNPC = updatedSceneNPCs.find(n => n.combatRole === 'ally_combatant' && !n.isDead);
     if (isCombat && allyNPC) {

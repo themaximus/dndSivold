@@ -13,7 +13,7 @@ import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { AIDMResponse, AIDMPrologueContext, AIDMContext, InventoryNotification } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
-import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest } from '../../db';
+import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest, TurnActionEntity } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 
@@ -824,10 +824,13 @@ export class GameSessionService {
       ? [...dmResult.activeEnemies]
       : [...(room.activeEnemies || [])];
 
-    // Update scene NPCs from dmResult
-    const updatedNPCs: RoomNPC[] = Array.isArray(dmResult.sceneNPCs)
-      ? [...dmResult.sceneNPCs]
-      : [...(room.sceneNPCs || [])];
+    // Update scene NPCs from dmResult with synchronization guard
+    const updatedNPCs: RoomNPC[] = this.syncSceneNPCs(
+      room.sceneNPCs || [],
+      dmResult.sceneNPCs,
+      [actingAction],
+      dmResult.narrative
+    );
 
     // Save Game Log
     const cleanRoundNarrative = sanitizeNarrativeText(dmResult.narrative);
@@ -1306,9 +1309,12 @@ export class GameSessionService {
       ? [...dmResult.activeEnemies]
       : [...(room.activeEnemies || [])];
 
-    const updatedNPCs: RoomNPC[] = Array.isArray(dmResult.sceneNPCs)
-      ? [...dmResult.sceneNPCs]
-      : [...(room.sceneNPCs || [])];
+    const updatedNPCs: RoomNPC[] = this.syncSceneNPCs(
+      room.sceneNPCs || [],
+      dmResult.sceneNPCs,
+      currentRoundActions,
+      dmResult.narrative
+    );
 
     // Safety Guard: Check for narrative-enemy desynchronization (STRICTLY for active combat only)
     const livingEnemies = updatedEnemies.filter(e => !e.isDead && e.hpCurrent > 0);
@@ -1541,6 +1547,73 @@ export class GameSessionService {
       room: updatedRoom,
       log: epilogueLog,
     };
+  }
+
+  private syncSceneNPCs(
+    currentNPCs: RoomNPC[],
+    aiNPCs: RoomNPC[] | undefined,
+    actions: TurnActionEntity[],
+    narrative?: string
+  ): RoomNPC[] {
+    let list: RoomNPC[] = Array.isArray(aiNPCs) && aiNPCs.length > 0
+      ? aiNPCs.map(n => ({ ...n }))
+      : (currentNPCs || []).map(n => ({ ...n }));
+
+    if (list.length === 0) return list;
+
+    for (const action of actions) {
+      if (!action || !action.actionText) continue;
+      const actLower = action.actionText.toLowerCase();
+      const isHealing = /зелье|исцел|леч|попо(ил|ить)|перевяз|помощ|спаст|отдал.*зелье/i.test(actLower);
+      const isAttacking = /атак|удар|выстрел|рассек|убить|метнул.*в/i.test(actLower) && !isHealing;
+
+      for (let i = 0; i < list.length; i++) {
+        const npc = list[i];
+        const npcNameLower = (npc.name || '').toLowerCase();
+        const npcRoleLower = (npc.role || '').toLowerCase();
+
+        const isTargeted =
+          (npcNameLower && actLower.includes(npcNameLower)) ||
+          (npcRoleLower.length > 3 && actLower.includes(npcRoleLower)) ||
+          actLower.includes('курьер') ||
+          actLower.includes('гонец') ||
+          actLower.includes('путниц') ||
+          actLower.includes('ранен') ||
+          (list.length === 1 && (actLower.includes('npc') || actLower.includes('нпс') || actLower.includes('союзник')));
+
+        if (isTargeted) {
+          const oldNpc = (currentNPCs || []).find(n => n.id === npc.id || n.name === npc.name);
+          const oldHp = oldNpc ? oldNpc.hpCurrent : npc.hpCurrent;
+
+          if (isHealing) {
+            const healedHp = npc.hpCurrent > oldHp ? npc.hpCurrent : Math.min(npc.hpMax, oldHp + 8);
+            list[i] = {
+              ...npc,
+              hpCurrent: healedHp,
+              disposition: 'friendly',
+              isDead: false,
+              status: npc.status?.includes('лечен') || npc.status?.includes('помощ') || npc.status?.includes('затяну')
+                ? npc.status
+                : `Восстановил здоровье (+${healedHp - oldHp > 0 ? healedHp - oldHp : 8} HP) благодаря ${action.characterName}.`,
+              combatRole: npc.combatRole === 'ally_combatant' || npc.role.includes('Страж') || npc.role.includes('Воин')
+                ? 'ally_combatant'
+                : 'hiding',
+            };
+          } else if (isAttacking) {
+            const damagedHp = npc.hpCurrent < oldHp ? npc.hpCurrent : Math.max(0, oldHp - 6);
+            list[i] = {
+              ...npc,
+              hpCurrent: damagedHp,
+              disposition: 'hostile',
+              isDead: damagedHp <= 0,
+              status: damagedHp <= 0 ? 'Пал в бою / Мёртв' : `Получил урон в бою (${damagedHp}/${npc.hpMax} HP).`,
+            };
+          }
+        }
+      }
+    }
+
+    return list;
   }
 }
 

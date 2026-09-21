@@ -125,16 +125,33 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     }
   }, [room?.status, onLeave]);
 
+  // If room is missing / 404, automatically redirect to campaigns
+  useEffect(() => {
+    if (roomError) {
+      const timer = setTimeout(() => {
+        if (onExitToCampaigns) {
+          onExitToCampaigns();
+        } else {
+          onLeave();
+        }
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [roomError, onExitToCampaigns, onLeave]);
+
   if (roomError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
         <div className="bg-red-950/40 border border-red-800/60 p-8 rounded-2xl max-w-md text-center shadow-2xl backdrop-blur-sm">
           <div className="text-4xl mb-4">🚪</div>
           <h2 className="text-xl font-cinzel font-bold text-red-200 mb-2">Комната не найдена</h2>
-          <p className="text-sm text-slate-300 mb-6 leading-relaxed">
+          <p className="text-sm text-slate-300 mb-4 leading-relaxed">
             {roomError === 'Комната не найдена'
               ? 'Эта комната больше не существует или игровая сессия была завершена.'
               : roomError}
+          </p>
+          <p className="text-xs text-slate-400 mb-6 font-mono">
+            Автоматическое возвращение к списку кампаний...
           </p>
           <button
             onClick={onExitToCampaigns || onLeave}

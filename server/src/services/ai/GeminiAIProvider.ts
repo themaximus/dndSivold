@@ -9,17 +9,16 @@ export class GeminiAIProvider implements IAIProvider {
   private apiKey: string;
   private primaryModel: string;
   private candidateModels = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-pro',
-    'gemini-2.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-flash-lite-latest',
+    'gemini-flash-latest',
   ];
 
-  constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
+  constructor(apiKey: string, model: string = 'gemini-3.1-flash-lite') {
     this.apiKey = apiKey;
-    this.primaryModel = model;
+    this.primaryModel = model || 'gemini-3.1-flash-lite';
   }
 
   public async generatePrologue(context: AIDMPrologueContext): Promise<AIDMResponse> {
@@ -44,7 +43,7 @@ export class GeminiAIProvider implements IAIProvider {
 
     for (const model of modelsToTry) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 20000);
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
         const response = await fetch(endpoint, {
@@ -86,6 +85,9 @@ export class GeminiAIProvider implements IAIProvider {
     let lastError: Error | null = null;
 
     for (const model of modelsToTry) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 35000);
+
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
         const response = await fetch(endpoint, {
@@ -104,6 +106,7 @@ export class GeminiAIProvider implements IAIProvider {
               temperature: 0.75,
             },
           }),
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -117,7 +120,10 @@ export class GeminiAIProvider implements IAIProvider {
         const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         return dmResponseValidator.validateAndParse(rawContent);
       } catch (err: any) {
+        console.warn(`Gemini model ${model} failed:`, err?.message || err);
         lastError = err;
+      } finally {
+        clearTimeout(timeout);
       }
     }
 

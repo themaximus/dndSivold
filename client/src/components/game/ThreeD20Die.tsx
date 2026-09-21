@@ -85,7 +85,8 @@ export const ThreeD20Die: React.FC<ThreeD20DieProps> = ({
     scene.add(rimLight);
 
     // 3. Icosahedron D20 Geometry (20 non-indexed faces)
-    const baseGeo = new THREE.IcosahedronGeometry(1.2, 0).toNonIndexed();
+    const rawGeo = new THREE.IcosahedronGeometry(1.2, 0);
+    const baseGeo = rawGeo.index ? rawGeo.toNonIndexed() : rawGeo;
     baseGeo.computeVertexNormals();
 
     const diceGroup = new THREE.Group();
