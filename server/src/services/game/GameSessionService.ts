@@ -665,6 +665,40 @@ export class GameSessionService {
       });
     }
 
+    // Apply procedural failure consequences from Mechanical Arbiter
+    if (mechanicalRes.failureConsequence && actingChar) {
+      const fc = mechanicalRes.failureConsequence;
+      if (fc.hpDelta < 0) {
+        const alreadyAppliedInDm = dmResult.playerUpdates?.some(u =>
+          (u.characterId === actingChar.id || (u.characterName && u.characterName.toLowerCase() === actingChar.name.toLowerCase())) &&
+          u.hpDelta === fc.hpDelta
+        );
+        if (!alreadyAppliedInDm) {
+          this.characters.updateHp(actingChar.id, fc.hpDelta);
+          dmResult.playerUpdates = dmResult.playerUpdates || [];
+          dmResult.playerUpdates.push({
+            characterId: actingChar.id,
+            characterName: actingChar.name,
+            hpDelta: fc.hpDelta,
+            note: fc.description,
+          });
+        }
+      }
+      if (fc.conditionAdded) {
+        const currentConds = actingChar.conditions || [];
+        if (!currentConds.includes(fc.conditionAdded)) {
+          const updatedConds = [...currentConds, fc.conditionAdded];
+          this.characters.updateConditions(actingChar.id, updatedConds);
+          actingChar.conditions = updatedConds;
+        }
+      }
+    }
+
+    // Filter out zero-delta playerUpdates so UI never renders confusing "0 HP"
+    if (Array.isArray(dmResult.playerUpdates)) {
+      dmResult.playerUpdates = dmResult.playerUpdates.filter(u => u.hpDelta && u.hpDelta !== 0);
+    }
+
     // Process Dynamic Inventory Updates
     const itemActivitiesByCharacter: Record<string, string[]> = {};
     const inventoryNotifications: InventoryNotification[] = [];
@@ -917,7 +951,7 @@ export class GameSessionService {
       dmResult.narrative
     );
 
-    // Procedural HP Clamping & Verification from Mechanical Arbiter
+    // Procedural HP & Willpower Clamping & Verification from Mechanical Arbiter
     if (mechanicalRes.targetUpdate) {
       const tu = mechanicalRes.targetUpdate;
       if (tu.targetType === 'enemy') {
@@ -928,6 +962,7 @@ export class GameSessionService {
             hpCurrent: tu.hpAfter,
             isDead: tu.isDead,
             status: tu.newStatus,
+            willpower: tu.willpowerAfter !== undefined ? tu.willpowerAfter : updatedEnemies[eIdx].willpower,
           };
         } else {
           updatedEnemies.push({
@@ -939,6 +974,7 @@ export class GameSessionService {
             ac: 13,
             status: tu.newStatus,
             isDead: tu.isDead,
+            willpower: tu.willpowerAfter !== undefined ? tu.willpowerAfter : 75,
           });
         }
       } else if (tu.targetType === 'npc') {
@@ -950,8 +986,19 @@ export class GameSessionService {
             isDead: tu.isDead,
             status: tu.newStatus,
             disposition: mechanicalRes.actionType === 'heal' ? 'friendly' : 'hostile',
+            willpower: tu.willpowerAfter !== undefined ? tu.willpowerAfter : updatedNPCs[nIdx].willpower,
           };
         }
+      }
+    }
+
+    // Process pacification outcome for enemies
+    if (mechanicalRes.pacificationOutcome) {
+      const po = mechanicalRes.pacificationOutcome;
+      const eIdx = updatedEnemies.findIndex(e => e.id === po.targetId || e.name.toLowerCase() === po.targetName.toLowerCase());
+      if (eIdx !== -1) {
+        updatedEnemies[eIdx].willpower = po.willpowerAfter;
+        updatedEnemies[eIdx].status = po.newStatus;
       }
     }
 
@@ -1183,6 +1230,9 @@ export class GameSessionService {
             simEnemies[idx].hpCurrent = res.targetUpdate.hpAfter;
             simEnemies[idx].isDead = res.targetUpdate.isDead;
             simEnemies[idx].status = res.targetUpdate.newStatus;
+            if (res.targetUpdate.willpowerAfter !== undefined) {
+              simEnemies[idx].willpower = res.targetUpdate.willpowerAfter;
+            }
           } else {
             simEnemies.push({
               id: res.targetUpdate.targetId,
@@ -1193,6 +1243,7 @@ export class GameSessionService {
               ac: 13,
               status: res.targetUpdate.newStatus,
               isDead: res.targetUpdate.isDead,
+              willpower: res.targetUpdate.willpowerAfter !== undefined ? res.targetUpdate.willpowerAfter : 75,
             });
           }
         } else if (res.targetUpdate.targetType === 'npc') {
@@ -1201,7 +1252,18 @@ export class GameSessionService {
             simNPCs[idx].hpCurrent = res.targetUpdate.hpAfter;
             simNPCs[idx].isDead = res.targetUpdate.isDead;
             simNPCs[idx].status = res.targetUpdate.newStatus;
+            if (res.targetUpdate.willpowerAfter !== undefined) {
+              simNPCs[idx].willpower = res.targetUpdate.willpowerAfter;
+            }
           }
+        }
+      }
+
+      if (res.pacificationOutcome) {
+        const idx = simEnemies.findIndex(e => e.id === res.pacificationOutcome!.targetId);
+        if (idx !== -1) {
+          simEnemies[idx].willpower = res.pacificationOutcome.willpowerAfter;
+          simEnemies[idx].status = res.pacificationOutcome.newStatus;
         }
       }
     }
@@ -1350,6 +1412,45 @@ export class GameSessionService {
           update.characterName = target.name;
         }
       });
+    }
+
+    // Apply procedural failure consequences across all mechanical resolutions in the round
+    for (const res of mechanicalResolutions) {
+      if (res.failureConsequence) {
+        const fc = res.failureConsequence;
+        const char = activeCharacters.find(c => c.id === res.characterId);
+        if (char) {
+          if (fc.hpDelta < 0) {
+            const alreadyApplied = dmResult.playerUpdates?.some(u =>
+              (u.characterId === char.id || (u.characterName && u.characterName.toLowerCase() === char.name.toLowerCase())) &&
+              u.hpDelta === fc.hpDelta
+            );
+            if (!alreadyApplied) {
+              this.characters.updateHp(char.id, fc.hpDelta);
+              dmResult.playerUpdates = dmResult.playerUpdates || [];
+              dmResult.playerUpdates.push({
+                characterId: char.id,
+                characterName: char.name,
+                hpDelta: fc.hpDelta,
+                note: fc.description,
+              });
+            }
+          }
+          if (fc.conditionAdded) {
+            const currentConds = char.conditions || [];
+            if (!currentConds.includes(fc.conditionAdded)) {
+              const updatedConds = [...currentConds, fc.conditionAdded];
+              this.characters.updateConditions(char.id, updatedConds);
+              char.conditions = updatedConds;
+            }
+          }
+        }
+      }
+    }
+
+    // Filter out zero-delta playerUpdates so UI never renders confusing "0 HP"
+    if (Array.isArray(dmResult.playerUpdates)) {
+      dmResult.playerUpdates = dmResult.playerUpdates.filter(u => u.hpDelta && u.hpDelta !== 0);
     }
 
     // Track item activities per character to include in actions summary and feed
@@ -1683,7 +1784,7 @@ export class GameSessionService {
       }
     }
 
-    // Authoritative HP Clamping & Verification across all mechanical resolutions in the round
+    // Authoritative HP & Willpower Clamping & Verification across all mechanical resolutions in the round
     for (const res of mechanicalResolutions) {
       if (res.targetUpdate) {
         const tu = res.targetUpdate;
@@ -1695,6 +1796,7 @@ export class GameSessionService {
               hpCurrent: tu.hpAfter,
               isDead: tu.isDead,
               status: tu.newStatus,
+              willpower: tu.willpowerAfter !== undefined ? tu.willpowerAfter : updatedEnemies[eIdx].willpower,
             };
           } else {
             updatedEnemies.push({
@@ -1706,6 +1808,7 @@ export class GameSessionService {
               ac: 13,
               status: tu.newStatus,
               isDead: tu.isDead,
+              willpower: tu.willpowerAfter !== undefined ? tu.willpowerAfter : 75,
             });
           }
         } else if (tu.targetType === 'npc') {
@@ -1717,8 +1820,18 @@ export class GameSessionService {
               isDead: tu.isDead,
               status: tu.newStatus,
               disposition: res.actionType === 'heal' ? 'friendly' : 'hostile',
+              willpower: tu.willpowerAfter !== undefined ? tu.willpowerAfter : updatedNPCs[nIdx].willpower,
             };
           }
+        }
+      }
+
+      if (res.pacificationOutcome) {
+        const po = res.pacificationOutcome;
+        const eIdx = updatedEnemies.findIndex(e => e.id === po.targetId || e.name.toLowerCase() === po.targetName.toLowerCase());
+        if (eIdx !== -1) {
+          updatedEnemies[eIdx].willpower = po.willpowerAfter;
+          updatedEnemies[eIdx].status = po.newStatus;
         }
       }
 

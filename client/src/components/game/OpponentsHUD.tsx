@@ -354,6 +354,27 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                         </div>
                       </div>
 
+                      {/* NPC Willpower Bar */}
+                      {npc.willpower !== undefined && (
+                        <div className="mb-2">
+                          <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-indigo-400" />
+                              <span>Решимость / Воля</span>
+                            </span>
+                            <span className="font-bold text-indigo-300">
+                              {npc.willpower}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-800/80 rounded-full overflow-hidden border border-slate-700/50">
+                            <div
+                              className="h-full transition-all duration-500 rounded-full bg-gradient-to-r from-indigo-600 to-purple-400"
+                              style={{ width: `${Math.max(0, Math.min(100, npc.willpower))}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
                       {/* Badges Bar: Disposition & Combat Role */}
                       <div className="flex flex-wrap gap-1 mb-2">
                         {/* Disposition Badge */}
@@ -487,6 +508,32 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                           />
                         </div>
                       </div>
+
+                      {/* Enemy Willpower / Resolve Bar */}
+                      {enemy.willpower !== undefined && (
+                        <div className="mb-2">
+                          <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-indigo-400" />
+                              <span>Воля к бою</span>
+                            </span>
+                            <span className={`font-bold ${enemy.willpower <= 25 ? 'text-indigo-400' : 'text-slate-300'}`}>
+                              {enemy.willpower}%
+                            </span>
+                          </div>
+
+                          <div className="w-full h-1.5 bg-slate-800/80 rounded-full overflow-hidden border border-slate-700/50">
+                            <div
+                              className={`h-full transition-all duration-500 rounded-full ${
+                                enemy.willpower <= 25
+                                  ? 'bg-gradient-to-r from-purple-600 to-indigo-400 animate-pulse'
+                                  : 'bg-gradient-to-r from-indigo-600 to-purple-400'
+                              }`}
+                              style={{ width: `${Math.max(0, Math.min(100, enemy.willpower))}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {/* Conditions List */}
                       {enemy.conditions && enemy.conditions.length > 0 && (

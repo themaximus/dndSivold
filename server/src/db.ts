@@ -100,6 +100,8 @@ export interface RoomEnemy {
   status: string;
   conditions?: string[];
   isDead: boolean;
+  willpower?: number;     // 0 - 100%
+  willpowerMax?: number;  // 100%
 }
 
 export type NPCDisposition = 'friendly' | 'neutral' | 'cautious' | 'offended' | 'frightened' | 'hostile';
@@ -120,6 +122,8 @@ export interface RoomNPC {
   affinity?: number;
   trustNotes?: string[];
   lastActionVerdict?: string;
+  willpower?: number;     // 0 - 100%
+  willpowerMax?: number;  // 100%
 }
 
 export interface CharacterReactionRequest {

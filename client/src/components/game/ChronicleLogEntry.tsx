@@ -230,17 +230,15 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
       )}
 
       {/* Damage / HP Updates Badge */}
-      {log.playerUpdates && log.playerUpdates.length > 0 && (
+      {log.playerUpdates && log.playerUpdates.filter(u => u.hpDelta !== 0).length > 0 && (
         <div className="mt-3 pt-2 border-t border-fantasy-border/30 flex flex-wrap gap-2">
-          {log.playerUpdates.map((u, i) => (
+          {log.playerUpdates.filter(u => u.hpDelta !== 0).map((u, i) => (
             <span
               key={i}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                 u.hpDelta < 0
                   ? 'bg-red-500/10 text-red-400 border-red-500/30'
-                  : u.hpDelta > 0
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
               }`}
             >
               <Heart className="w-3.5 h-3.5" />

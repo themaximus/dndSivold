@@ -561,8 +561,9 @@ ${inventoryFormatted}
         : '';
 
       // Detect combat trigger, duel, trespassing or aggressive provocation
+      const hasNegatedAggression = /(не\s+(атаковать|бить|стрелять|рубить|убивать|нападать)|без\s+(боя|нападения|драки)|прекратить\s+(атаковать|бой)|мирн(ый|о)|умиротвор|успоко)/i.test(a.actionText);
       const aggressiveRegex = /(атак(а|ую|овать)|удар(ить|яю)?|рубл(ю|ить)|выстрел(ить|ю)?|стреля(ю|ть)|дуэл(ь|и)|напад(аю|ать|ение)|сража(ться|юсь)|вступаю в бой|выхватываю (меч|клинок|оружие)|достаю (меч|клинок|топор|лук)|врезать|приконч(ить|у)|уб(ить|ью)|вламыва(юсь|ться)|взламыва(ю|ть)|захожу в запретн|прокрадыва(юсь|ться) в покои|нарыва(юсь|ется)|провоцир(ую|овать))/i;
-      const isAggressiveAction = a.actionType === 'attack' || aggressiveRegex.test(a.actionText);
+      const isAggressiveAction = !hasNegatedAggression && (a.actionType === 'attack' || aggressiveRegex.test(a.actionText));
       let combatTriggerDirective = '';
       if (isAggressiveAction && !arbiterDirective) {
         combatTriggerDirective = `\n  ⚔️ [ТРИГГЕР БОЕВОЙ АГРЕССИИ / ДУЭЛИ / ВТОРЖЕНИЯ]: Игрок инициировал явную атаку, дуэль, нарывается на драку или вторгается в охраняемую/запретную зону! Если бой еще не начался, ОБЯЗАТЕЛЬНО СОЗДАЙ противника(ов) в массиве "activeEnemies" (укажи реалистичные name, КБ ~12-16, HP ~15-40, status: "В бою"), установи "mood": "combat", опиши начало битвы и рассчитай попадание/урон по КБ!`;
