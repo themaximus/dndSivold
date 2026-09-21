@@ -211,7 +211,27 @@ export class SimulationAIProvider implements IAIProvider {
     });
 
     narrativeParagraphs.push(atmosphereIntro);
-    narrativeParagraphs.push(partyProseLines.join(' '));
+
+    if (context.characterReactions && context.characterReactions.length > 0) {
+      const activeReactions = context.characterReactions.filter(r => r.status === 'completed');
+      activeReactions.forEach(r => {
+        const rollVal = r.reactionRoll?.total || 12;
+        const isSuccess = rollVal >= (context.currentDC || 12);
+        const toneDesc = r.responseType === 'negative'
+          ? 'воспротивился действию соратника и отстранился'
+          : r.responseType === 'counter'
+          ? 'ловко перехватил инициативу и совершил встречный маневр'
+          : 'без колебаний поддержал задумку и прикрыл соратника';
+
+        partyProseLines.push(
+          `В этот же момент ${r.targetCharacterName} ${toneDesc}: «${r.reactionText}» (реакция d20: ${rollVal} — ${isSuccess ? 'успешно' : 'с трудом'}).`
+        );
+      });
+    }
+
+    if (partyProseLines.length > 0) {
+      narrativeParagraphs.push(partyProseLines.join(' '));
+    }
 
     // 4. Enemy counterattack or peaceful NPC interaction
     const critFails = analyzedActions.filter(a => a.isCritFail);

@@ -1,4 +1,5 @@
-import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem } from '../db';
+import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem, CharacterReactionRequest } from '../db';
+export { CharacterReactionRequest };
 
 export interface CampaignMapNode {
   id: string;
@@ -102,6 +103,7 @@ export interface AIDMContext {
   previousHistory: string[];
   turnMode?: 'simultaneous' | 'turn_by_turn';
   turnPlayerName?: string;
+  characterReactions?: CharacterReactionRequest[];
 }
 
 export interface PlayerHpUpdate {

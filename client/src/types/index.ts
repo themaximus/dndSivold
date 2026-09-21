@@ -167,6 +167,22 @@ export interface RoomEnemy {
   isDead: boolean;
 }
 
+export interface CharacterReactionRequest {
+  id: string;
+  initiatorUserId: string;
+  initiatorCharacterName: string;
+  initiatorActionText: string;
+  initiatorRoll?: any;
+  targetUserId: string;
+  targetCharacterId: string;
+  targetCharacterName: string;
+  status: 'pending' | 'completed' | 'skipped';
+  reactionText?: string;
+  reactionRoll?: any;
+  responseType?: 'positive' | 'negative' | 'counter';
+  createdAt: string;
+}
+
 export interface Room {
   id: string;
   code: string;
@@ -190,6 +206,7 @@ export interface Room {
   activeEnemies?: RoomEnemy[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
+  pendingReactions?: CharacterReactionRequest[];
   createdAt: string;
 }
 
@@ -235,6 +252,8 @@ export interface DiceRollResult {
   isCriticalSuccess: boolean;
   isCriticalFail: boolean;
   purpose: string; // e.g., 'Атака мечом', 'Проверка внимательности'
+  baseRoll?: number;
+  breakdown?: string;
 }
 
 export interface ConditionUpdate {

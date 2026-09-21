@@ -18,6 +18,7 @@ import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
 import { InventoryToastStack } from './game/InventoryToastStack';
 import { RoomDiceBroadcastModal } from './game/RoomDiceBroadcastModal';
+import { ReactionModal } from './game/ReactionModal';
 
 interface GameTableProps {
   roomCode: string;
@@ -73,6 +74,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     learnTalent,
     shortRest,
     longRest,
+    submitReaction,
+    skipReaction,
   } = useGameSession(roomCode);
 
   const { loadingLogId, isSpeakingText, toggleVoice } = useNarrativeVoice(roomCode);
@@ -99,6 +102,14 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
   const isMyTurn = !isTurnByTurn || !room.activePlayerUserId || room.activePlayerUserId === user?.id;
   const activePlayer = players.find(p => p.userId === room.activePlayerUserId);
   const activePlayerName = activePlayer?.character?.name || activePlayer?.username || 'Игрок';
+
+  const pendingReactionForMe = room.pendingReactions?.find(
+    r => r.status === 'pending' && (r.targetUserId === user?.id || (myCharacter && r.targetCharacterId === myCharacter.id))
+  );
+
+  const pendingWaitingNames = room.pendingReactions
+    ?.filter(r => r.status === 'pending')
+    ?.map(r => r.targetCharacterName) || [];
 
   const handleAttachRoll = (roll: DiceRollResult) => {
     // Strictly 1 dice roll per turn
@@ -188,6 +199,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             lastDeathSaveMessage={lastDeathSaveMessage}
             activeEnemies={room.activeEnemies || []}
             rejectedAction={rejectedAction}
+            pendingReactionNames={pendingWaitingNames}
             onRemoveRoll={handleRemoveRoll}
             onOpenDiceModal={handleOpenDiceModal}
             onSubmit={handleSubmitAction}
@@ -279,6 +291,16 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         isHost={room.hostUserId === user?.id}
         onFinishAdventure={finishAdventure}
         onReturnToLobby={onLeave}
+      />
+
+      {/* Reaction Prompt Modal for Mentioned Characters */}
+      <ReactionModal
+        isOpen={!!pendingReactionForMe}
+        reactionRequest={pendingReactionForMe || null}
+        character={myCharacter}
+        targetDC={room.targetDC || 12}
+        onSubmit={submitReaction}
+        onSkip={skipReaction}
       />
 
       {/* Floating Inventory Activity Toasts */}

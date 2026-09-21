@@ -61,6 +61,15 @@ export const api = {
     return request<{ user: User }>('/auth/me');
   },
 
+  async restoreSession(username: string, userId?: string): Promise<{ token: string; user: User; restored?: boolean }> {
+    const res = await request<{ token: string; user: User; restored?: boolean }>('/auth/restore-session', {
+      method: 'POST',
+      body: JSON.stringify({ username, userId }),
+    });
+    setAuthToken(res.token);
+    return res;
+  },
+
   // Characters
   async getCharacters(): Promise<Character[]> {
     return request<Character[]>('/characters');
@@ -80,6 +89,20 @@ export const api = {
   async deleteCharacter(id: string): Promise<{ success: boolean }> {
     return request<{ success: boolean }>(`/characters/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  async syncBackupCharacters(characters: Character[]): Promise<{ success: boolean; restoredCount: number; characters: Character[] }> {
+    return request<{ success: boolean; restoredCount: number; characters: Character[] }>('/characters/sync-backup', {
+      method: 'POST',
+      body: JSON.stringify({ characters }),
+    });
+  },
+
+  async learnTalent(characterId: string, talentId: string): Promise<Character> {
+    return request<Character>(`/characters/${characterId}/talents`, {
+      method: 'POST',
+      body: JSON.stringify({ talentId }),
     });
   },
 

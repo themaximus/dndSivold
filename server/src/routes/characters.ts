@@ -111,6 +111,55 @@ router.delete('/:id', authMiddleware, (req: Request, res: Response): void => {
 });
 
 import { characterRepository } from '../repositories/CharacterRepository';
+import { gameSessionService } from '../services/game/GameSessionService';
+
+// POST /api/characters/sync-backup - Restore user's characters from client-side backup
+router.post('/sync-backup', authMiddleware, (req: Request, res: Response): void => {
+  try {
+    const userId = (req as any).userId;
+    const backupList: CharacterEntity[] = Array.isArray(req.body.characters) ? req.body.characters : [];
+    const currentChars = db.characters.findByUserId(userId);
+    let restoredCount = 0;
+
+    for (const char of backupList) {
+      if (!char || !char.name) continue;
+      const exists = currentChars.some(c => c.id === char.id || c.name.toLowerCase().trim() === char.name.toLowerCase().trim());
+      if (!exists) {
+        db.characters.create({
+          ...char,
+          id: char.id || crypto.randomUUID(),
+          userId,
+          createdAt: char.createdAt || new Date().toISOString(),
+        });
+        restoredCount++;
+      }
+    }
+
+    const updatedChars = db.characters.findByUserId(userId);
+    res.json({ success: true, restoredCount, characters: updatedChars });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка синхронизации резервной копии' });
+  }
+});
+
+// POST /api/characters/:id/talents - Learn talent with instant level increase
+router.post('/:id/talents', authMiddleware, (req: Request, res: Response): void => {
+  try {
+    const { talentId } = req.body;
+    if (!talentId) {
+      res.status(400).json({ error: 'talentId обязателен' });
+      return;
+    }
+    const updatedChar = gameSessionService.learnTalent(req.params.id, talentId);
+    if (!updatedChar) {
+      res.status(400).json({ error: 'Не удалось изучить талант (недостаточно очков или талант не найден)' });
+      return;
+    }
+    res.json(updatedChar);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка прокачки таланта' });
+  }
+});
 
 // POST /api/characters/:id/rest/short - Perform Short Rest with Hit Dice
 router.post('/:id/rest/short', authMiddleware, (req: Request, res: Response): void => {

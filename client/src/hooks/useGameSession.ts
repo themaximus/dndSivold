@@ -162,8 +162,22 @@ export function useGameSession(roomCode: string) {
     });
 
     socket.on('character_updated', (updatedChar: Character) => {
-      setMyCharacter(prev => (prev && prev.id === updatedChar.id ? updatedChar : prev));
-      setPlayers(prev => prev.map(p => (p.characterId === updatedChar.id ? { ...p, character: updatedChar } : p)));
+      setMyCharacter(prev => {
+        if (!prev || prev.id === updatedChar.id || myPlayer?.characterId === updatedChar.id || user?.id === updatedChar.userId) {
+          return updatedChar;
+        }
+        return prev;
+      });
+      setMyPlayer(prev => (prev && (prev.characterId === updatedChar.id || prev.character?.id === updatedChar.id)) ? { ...prev, character: updatedChar } : prev);
+      setPlayers(prev => prev.map(p => (p.characterId === updatedChar.id || p.character?.id === updatedChar.id ? { ...p, character: updatedChar } : p)));
+    });
+
+    socket.on('reactions_requested', (data: { pendingReactions: any[]; room: Room }) => {
+      if (data.room) setRoom(data.room);
+    });
+
+    socket.on('reaction_updated', (data: { reactionRequestId: string; room: Room }) => {
+      if (data.room) setRoom(data.room);
     });
 
     socket.on('death_save_result', (data: { characterId: string; character: Character; message: string; state: string }) => {
@@ -222,6 +236,8 @@ export function useGameSession(roomCode: string) {
       socket.off('loot_picked_up');
       socket.off('item_used');
       socket.off('character_updated');
+      socket.off('reactions_requested');
+      socket.off('reaction_updated');
       socket.off('death_save_result');
       socket.off('talents_loaded');
       socket.off('action_rejected');
@@ -330,7 +346,7 @@ export function useGameSession(roomCode: string) {
     });
   }, [myCharacter]);
 
-  const learnTalent = useCallback((talentId: string) => {
+  const learnTalent = useCallback(async (talentId: string) => {
     if (!myCharacter) return;
     const socket = getSocket();
     socket.emit('learn_talent', {
@@ -338,7 +354,43 @@ export function useGameSession(roomCode: string) {
       characterId: myCharacter.id,
       talentId,
     });
+
+    // Also call REST endpoint to guarantee persistent storage and instant UI level update!
+    try {
+      const updated = await api.learnTalent(myCharacter.id, talentId);
+      if (updated) {
+        setMyCharacter(updated);
+        setMyPlayer(prev => prev ? { ...prev, character: updated } : null);
+        setPlayers(prev => prev.map(p => (p.characterId === updated.id || p.character?.id === updated.id ? { ...p, character: updated } : p)));
+      }
+    } catch (e) {
+      console.warn('REST learnTalent fallback error (socket may handle):', e);
+    }
   }, [roomCode, myCharacter]);
+
+  const submitReaction = useCallback((
+    reactionRequestId: string,
+    reactionText: string,
+    reactionRoll: any,
+    responseType?: 'positive' | 'negative' | 'counter'
+  ) => {
+    const socket = getSocket();
+    socket.emit('submit_reaction', {
+      roomCode,
+      reactionRequestId,
+      reactionText,
+      reactionRoll,
+      responseType,
+    });
+  }, [roomCode]);
+
+  const skipReaction = useCallback((reactionRequestId: string) => {
+    const socket = getSocket();
+    socket.emit('skip_reaction', {
+      roomCode,
+      reactionRequestId,
+    });
+  }, [roomCode]);
 
   const forceResolveRound = useCallback(() => {
     const socket = getSocket();
@@ -432,5 +484,7 @@ export function useGameSession(roomCode: string) {
     learnTalent,
     shortRest,
     longRest,
+    submitReaction,
+    skipReaction,
   };
 }

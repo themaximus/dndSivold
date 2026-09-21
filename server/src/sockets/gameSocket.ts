@@ -201,6 +201,25 @@ export function setupGameSockets(io: Server) {
         room,
       });
 
+      // If action mentioned other characters, pause resolution and await companion reactions!
+      if (submission.waitingForReactions) {
+        io.to(room.id).emit('reactions_requested', {
+          pendingReactions: submission.pendingReactions,
+          room: submission.room,
+        });
+
+        submission.pendingReactions.forEach(r => {
+          io.to(room.id).emit('feed_activity', {
+            id: crypto.randomUUID(),
+            type: 'player_action',
+            text: `💬 ${characterName} вовлекает ${r.targetCharacterName} в совместное действие: «${r.initiatorActionText}». Ожидается реакция и бросок d20!`,
+            timestamp: new Date().toISOString(),
+          });
+        });
+
+        return;
+      }
+
       // IN TURN-BY-TURN MODE: Resolve THIS player's turn step immediately!
       if (submission.isTurnByTurn) {
         io.to(room.id).emit('dm_thinking');
@@ -323,6 +342,254 @@ export function setupGameSockets(io: Server) {
           console.error('Error resolving round via GameSessionService:', error);
           io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
           io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером. Попробуйте еще раз или нажмите «Ход Мастера».');
+        }
+      }
+    });
+
+    // Player submits their reaction to being mentioned in another player's action
+    socket.on('submit_reaction', async (data: {
+      roomCode: string;
+      reactionRequestId: string;
+      reactionText: string;
+      reactionRoll: any;
+      responseType?: 'positive' | 'negative' | 'counter';
+    }) => {
+      const result = gameSessionService.submitReaction(
+        data.roomCode,
+        userId,
+        data.reactionRequestId,
+        data.reactionText,
+        data.reactionRoll,
+        data.responseType
+      );
+      if (!result) return;
+
+      const { room, initiatorUserId, initiatorCharacterName, targetCharacterName, allCompleted, completedReactions, shouldResolveRound } = result;
+
+      io.to(room.id).emit('reaction_updated', {
+        reactionRequestId: data.reactionRequestId,
+        room: sanitizeRoom(room),
+      });
+
+      const sign = data.reactionRoll?.modifier >= 0 ? '+' : '';
+      const rollExpr = data.reactionRoll ? ` (d20 [${data.reactionRoll.baseRoll ?? data.reactionRoll.total}]${sign}${data.reactionRoll.modifier ?? 0} = ${data.reactionRoll.total})` : '';
+      const typeLabel = data.responseType === 'negative' ? 'противодействует' : (data.responseType === 'counter' ? 'парирует/защищается' : 'содействует');
+      io.to(room.id).emit('feed_activity', {
+        id: crypto.randomUUID(),
+        type: 'player_action',
+        text: `⚡ ${targetCharacterName} ${typeLabel} действию ${initiatorCharacterName}: «${data.reactionText}»${rollExpr}`,
+        timestamp: new Date().toISOString(),
+      });
+
+      // If all pending reactions are completed, proceed to DM resolution
+      if (allCompleted) {
+        if (room.turnMode === 'turn_by_turn') {
+          io.to(room.id).emit('dm_thinking');
+          try {
+            const turnResolved = await gameSessionService.resolveTurnStep(room.id, initiatorUserId, completedReactions);
+            if (turnResolved) {
+              if (turnResolved.rejectedAction) {
+                io.to(room.id).emit('action_rejected', turnResolved.rejectedAction);
+                io.to(room.id).emit('room_players_updated', turnResolved.players);
+                return;
+              }
+
+              if (turnResolved.log) {
+                if (turnResolved.inventoryNotifications && turnResolved.inventoryNotifications.length > 0) {
+                  turnResolved.inventoryNotifications.forEach(notif => {
+                    io.to(room.id).emit('inventory_notification', notif);
+                    const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                    const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                    io.to(room.id).emit('feed_activity', {
+                      id: crypto.randomUUID(),
+                      type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                      text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                      timestamp: notif.timestamp,
+                    });
+                  });
+                }
+
+                if (!turnResolved.isRoundComplete) {
+                  io.to(room.id).emit('turn_step_resolved', {
+                    log: turnResolved.log,
+                    room: sanitizeRoom(turnResolved.room),
+                    players: turnResolved.players,
+                    nextActiveUserId: turnResolved.nextActiveUserId,
+                  });
+                  io.to(room.id).emit('room_players_updated', turnResolved.players);
+                  io.to(room.id).emit('narrator_playing', {
+                    logId: turnResolved.log.id,
+                    narrativeText: turnResolved.log.narrativeText,
+                    startedBy: 'DM',
+                  });
+                } else {
+                  io.to(room.id).emit('round_resolved', {
+                    log: turnResolved.log,
+                    room: sanitizeRoom(turnResolved.room),
+                    players: turnResolved.players,
+                    nextRoundNumber: turnResolved.nextRoundNumber,
+                  });
+                  io.to(room.id).emit('room_players_updated', turnResolved.players);
+                  io.to(room.id).emit('narrator_playing', {
+                    logId: turnResolved.log.id,
+                    narrativeText: turnResolved.log.narrativeText,
+                    startedBy: 'DM',
+                  });
+                }
+              }
+            }
+          } catch (error: any) {
+            console.error('Error resolving turn step with reactions:', error);
+            io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки хода' });
+            io.to(room.id).emit('error_message', 'Ошибка при обработке хода мастером.');
+          }
+        } else if (shouldResolveRound) {
+          io.to(room.id).emit('dm_thinking');
+          try {
+            const resolved = await gameSessionService.resolveRound(room.id, completedReactions);
+            if (resolved && resolved.log) {
+              if (resolved.inventoryNotifications && resolved.inventoryNotifications.length > 0) {
+                resolved.inventoryNotifications.forEach(notif => {
+                  io.to(room.id).emit('inventory_notification', notif);
+                  const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                  const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                  io.to(room.id).emit('feed_activity', {
+                    id: crypto.randomUUID(),
+                    type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                    text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                    timestamp: notif.timestamp,
+                  });
+                });
+              }
+
+              io.to(room.id).emit('round_resolved', {
+                ...resolved,
+                room: sanitizeRoom(resolved.room),
+              });
+              io.to(room.id).emit('room_players_updated', resolved.players);
+              io.to(room.id).emit('narrator_playing', {
+                logId: resolved.log.id,
+                narrativeText: resolved.log.narrativeText,
+                startedBy: 'DM',
+              });
+            }
+          } catch (error: any) {
+            console.error('Error resolving round with reactions:', error);
+            io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
+            io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером.');
+          }
+        }
+      }
+    });
+
+    // Skip reaction (by target player, initiator, or host if inactive)
+    socket.on('skip_reaction', async (data: {
+      roomCode: string;
+      reactionRequestId: string;
+    }) => {
+      const result = gameSessionService.skipReaction(data.roomCode, userId, data.reactionRequestId);
+      if (!result) return;
+
+      const { room, initiatorUserId, targetCharacterName, allCompleted, completedReactions, shouldResolveRound } = result;
+
+      io.to(room.id).emit('reaction_updated', {
+        reactionRequestId: data.reactionRequestId,
+        room: sanitizeRoom(room),
+      });
+
+      io.to(room.id).emit('feed_activity', {
+        id: crypto.randomUUID(),
+        type: 'player_action',
+        text: `⏩ Реакция персонажа ${targetCharacterName} была пропущена.`,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (allCompleted) {
+        if (room.turnMode === 'turn_by_turn') {
+          io.to(room.id).emit('dm_thinking');
+          try {
+            const turnResolved = await gameSessionService.resolveTurnStep(room.id, initiatorUserId, completedReactions);
+            if (turnResolved && turnResolved.log) {
+              if (turnResolved.inventoryNotifications && turnResolved.inventoryNotifications.length > 0) {
+                turnResolved.inventoryNotifications.forEach(notif => {
+                  io.to(room.id).emit('inventory_notification', notif);
+                  const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                  const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                  io.to(room.id).emit('feed_activity', {
+                    id: crypto.randomUUID(),
+                    type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                    text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                    timestamp: notif.timestamp,
+                  });
+                });
+              }
+
+              if (!turnResolved.isRoundComplete) {
+                io.to(room.id).emit('turn_step_resolved', {
+                  log: turnResolved.log,
+                  room: sanitizeRoom(turnResolved.room),
+                  players: turnResolved.players,
+                  nextActiveUserId: turnResolved.nextActiveUserId,
+                });
+                io.to(room.id).emit('room_players_updated', turnResolved.players);
+                io.to(room.id).emit('narrator_playing', {
+                  logId: turnResolved.log.id,
+                  narrativeText: turnResolved.log.narrativeText,
+                  startedBy: 'DM',
+                });
+              } else {
+                io.to(room.id).emit('round_resolved', {
+                  log: turnResolved.log,
+                  room: sanitizeRoom(turnResolved.room),
+                  players: turnResolved.players,
+                  nextRoundNumber: turnResolved.nextRoundNumber,
+                });
+                io.to(room.id).emit('room_players_updated', turnResolved.players);
+                io.to(room.id).emit('narrator_playing', {
+                  logId: turnResolved.log.id,
+                  narrativeText: turnResolved.log.narrativeText,
+                  startedBy: 'DM',
+                });
+              }
+            }
+          } catch (error: any) {
+            console.error('Error resolving turn step after reaction skip:', error);
+            io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки хода' });
+          }
+        } else if (shouldResolveRound) {
+          io.to(room.id).emit('dm_thinking');
+          try {
+            const resolved = await gameSessionService.resolveRound(room.id, completedReactions);
+            if (resolved && resolved.log) {
+              if (resolved.inventoryNotifications && resolved.inventoryNotifications.length > 0) {
+                resolved.inventoryNotifications.forEach(notif => {
+                  io.to(room.id).emit('inventory_notification', notif);
+                  const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                  const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                  io.to(room.id).emit('feed_activity', {
+                    id: crypto.randomUUID(),
+                    type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                    text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                    timestamp: notif.timestamp,
+                  });
+                });
+              }
+
+              io.to(room.id).emit('round_resolved', {
+                ...resolved,
+                room: sanitizeRoom(resolved.room),
+              });
+              io.to(room.id).emit('room_players_updated', resolved.players);
+              io.to(room.id).emit('narrator_playing', {
+                logId: resolved.log.id,
+                narrativeText: resolved.log.narrativeText,
+                startedBy: 'DM',
+              });
+            }
+          } catch (error: any) {
+            console.error('Error resolving round after reaction skip:', error);
+            io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
+          }
         }
       }
     });

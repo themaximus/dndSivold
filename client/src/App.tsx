@@ -33,19 +33,50 @@ export function App() {
     setIsLoadingChars(true);
     try {
       const data = await api.getCharacters();
-      setCharacters(data);
+      if (Array.isArray(data) && data.length > 0) {
+        setCharacters(data);
+        localStorage.setItem(`dnd_characters_cache_${user.id}`, JSON.stringify(data));
+      } else {
+        // If server has 0 characters (e.g. after container redeploy), auto-restore from client-side backup!
+        const cachedStr = localStorage.getItem(`dnd_characters_cache_${user.id}`);
+        if (cachedStr) {
+          try {
+            const cachedChars: Character[] = JSON.parse(cachedStr);
+            if (Array.isArray(cachedChars) && cachedChars.length > 0) {
+              const syncRes = await api.syncBackupCharacters(cachedChars);
+              if (syncRes.characters && syncRes.characters.length > 0) {
+                setCharacters(syncRes.characters);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('Error syncing cached characters:', e);
+          }
+        }
+        setCharacters(data || []);
+      }
     } catch (err) {
       console.error('Failed to load characters', err);
+      // Fallback to offline/cached characters
+      const cachedStr = localStorage.getItem(`dnd_characters_cache_${user.id}`);
+      if (cachedStr) {
+        try {
+          const cachedChars: Character[] = JSON.parse(cachedStr);
+          if (Array.isArray(cachedChars) && cachedChars.length > 0) {
+            setCharacters(cachedChars);
+          }
+        } catch (e) {}
+      }
     } finally {
       setIsLoadingChars(false);
     }
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && (currentView === 'characters' || currentView === 'lobby')) {
       loadCharacters();
     }
-  }, [user]);
+  }, [user, currentView]);
 
   if (loading) {
     return (

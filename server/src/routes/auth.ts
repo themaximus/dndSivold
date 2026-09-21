@@ -102,4 +102,44 @@ router.get('/me', authMiddleware, (req: Request, res: Response): void => {
   res.json({ user: { id: user.id, username: user.username } });
 });
 
+// POST /api/auth/restore-session - Auto-recovery if server restarted or container was recreated
+router.post('/restore-session', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { username, userId } = req.body;
+    if (!username || typeof username !== 'string' || username.trim().length < 2) {
+      res.status(400).json({ error: 'Имя пользователя обязательно для восстановления сессии' });
+      return;
+    }
+
+    const cleanUsername = username.trim();
+    let user = db.users.findByUsername(cleanUsername);
+
+    if (!user && userId) {
+      user = db.users.findById(userId);
+    }
+
+    if (!user) {
+      // Re-create user if server was wiped during container redeploy
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash('recovered_' + cleanUsername, salt);
+      user = db.users.create({
+        id: userId || crypto.randomUUID(),
+        username: cleanUsername,
+        passwordHash,
+        createdAt: new Date().toISOString(),
+      });
+      console.log(`Auto-restored user account after deployment: ${cleanUsername} (${user.id})`);
+    }
+
+    const token = jwt.sign({ userId: user.id }, config.jwtSecret, { expiresIn: '30d' });
+    res.json({
+      token,
+      user: { id: user.id, username: user.username },
+      restored: true,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Ошибка восстановления сессии' });
+  }
+});
+
 export default router;

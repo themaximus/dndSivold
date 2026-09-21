@@ -101,6 +101,22 @@ export interface RoomEnemy {
   isDead: boolean;
 }
 
+export interface CharacterReactionRequest {
+  id: string;
+  initiatorUserId: string;
+  initiatorCharacterName: string;
+  initiatorActionText: string;
+  initiatorRoll?: any;
+  targetUserId: string;
+  targetCharacterId: string;
+  targetCharacterName: string;
+  status: 'pending' | 'completed' | 'skipped';
+  reactionText?: string;
+  reactionRoll?: any;
+  responseType?: 'positive' | 'negative' | 'counter';
+  createdAt: string;
+}
+
 export interface RoomEntity {
   id: string;
   code: string;
@@ -120,6 +136,7 @@ export interface RoomEntity {
   activeEnemies?: RoomEnemy[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
+  pendingReactions?: CharacterReactionRequest[];
   genre?: string;
   campaignDuration?: 'short' | 'medium' | 'long';
   campaignMap?: any;
@@ -214,16 +231,64 @@ class Database {
       fs.mkdirSync(config.dataDir, { recursive: true });
     }
 
+    const repoDefaultPath = path.resolve(__dirname, '../../data/database.default.json');
+    const defaultPath = fs.existsSync(repoDefaultPath)
+      ? repoDefaultPath
+      : path.join(config.dataDir, 'database.default.json');
+
     if (fs.existsSync(this.filePath)) {
       try {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         this.data = JSON.parse(raw);
+
+        // Merge safeguard: Ensure any users or characters from default seed are never lost
+        if (fs.existsSync(defaultPath)) {
+          try {
+            const defaultRaw = fs.readFileSync(defaultPath, 'utf-8');
+            const defaultData: DatabaseSchema = JSON.parse(defaultRaw);
+            let merged = false;
+
+            if (Array.isArray(defaultData.users)) {
+              for (const u of defaultData.users) {
+                if (!this.data.users.some(existing => existing.id === u.id || existing.username.toLowerCase() === u.username.toLowerCase())) {
+                  this.data.users.push(u);
+                  merged = true;
+                }
+              }
+            }
+
+            if (Array.isArray(defaultData.characters)) {
+              for (const c of defaultData.characters) {
+                if (!this.data.characters.some(existing => existing.id === c.id)) {
+                  this.data.characters.push(c);
+                  merged = true;
+                }
+              }
+            }
+
+            if (merged) {
+              console.log('Synchronized existing users and characters into database');
+              this.save();
+            }
+          } catch (e) {
+            console.warn('Fallback sync check encountered error:', e);
+          }
+        }
       } catch (err) {
-        console.error('Failed to parse database.json, initializing default empty db', err);
-        this.save();
+        console.error('Failed to parse database.json, initializing from default', err);
+        if (fs.existsSync(defaultPath)) {
+          try {
+            fs.copyFileSync(defaultPath, this.filePath);
+            const raw = fs.readFileSync(this.filePath, 'utf-8');
+            this.data = JSON.parse(raw);
+          } catch (e) {
+            this.save();
+          }
+        } else {
+          this.save();
+        }
       }
     } else {
-      const defaultPath = path.join(config.dataDir, 'database.default.json');
       if (fs.existsSync(defaultPath)) {
         try {
           fs.copyFileSync(defaultPath, this.filePath);
@@ -242,8 +307,19 @@ class Database {
   public save() {
     try {
       const tempPath = `${this.filePath}.tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
+      const jsonStr = JSON.stringify(this.data, null, 2);
+      fs.writeFileSync(tempPath, jsonStr, 'utf-8');
       fs.renameSync(tempPath, this.filePath);
+
+      // Also mirror to repository default file if different, so git deployments preserve latest state
+      const repoDefaultPath = path.resolve(__dirname, '../../data/database.default.json');
+      if (repoDefaultPath !== this.filePath && fs.existsSync(path.dirname(repoDefaultPath))) {
+        try {
+          fs.writeFileSync(repoDefaultPath, jsonStr, 'utf-8');
+        } catch (e) {
+          // ignore in environments with restricted permissions
+        }
+      }
     } catch (err) {
       console.error('Database write error:', err);
     }

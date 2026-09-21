@@ -27,6 +27,7 @@ interface ActionConsoleProps {
   lastDeathSaveMessage?: string | null;
   activeEnemies?: RoomEnemy[];
   rejectedAction?: ActionRejectedEvent | null;
+  pendingReactionNames?: string[];
   onRemoveRoll: (index: number) => void;
   onOpenDiceModal: (opts?: { defaultPurpose?: string; defaultAdvantage?: boolean; defaultDisadvantage?: boolean; defaultStatKey?: string }) => void;
   onSubmit: (actionText: string, meta?: ActionMeta) => void;
@@ -58,6 +59,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   lastDeathSaveMessage,
   activeEnemies = [],
   rejectedAction,
+  pendingReactionNames = [],
   onOpenDiceModal,
   onSubmit,
   onRollDeathSave,
@@ -185,12 +187,16 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
 
   // 3. Submitted this round
   if (hasSubmittedThisRound) {
+    const isWaitingForReactions = pendingReactionNames && pendingReactionNames.length > 0;
+
     return (
       <div className="p-3 bg-fantasy-card/95 border-t border-fantasy-border flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 text-amber-300">
           <Clock className="w-4 h-4 text-amber-400 animate-spin" />
           <span>
-            {isDMThinking
+            {isWaitingForReactions
+              ? `⏳ Ожидание реакции соратника (${pendingReactionNames.join(', ')}) на совместное действие...`
+              : isDMThinking
               ? (turnMode === 'turn_by_turn' ? 'Мастер Подземелий описывает последствия вашего хода...' : 'Мастер Подземелий обдумывает исход раунда...')
               : (turnMode === 'turn_by_turn' ? 'Ваш ход совершен! Ожидание других героев...' : 'Действие принято! Ожидание остальных искателей приключений...')}
           </span>

@@ -13,7 +13,7 @@ import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { AIDMResponse, AIDMPrologueContext, AIDMContext, InventoryNotification } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
-import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy } from '../../db';
+import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, CharacterReactionRequest } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 
@@ -230,6 +230,47 @@ export class GameSessionService {
     return this.getRoomAndPlayers(room.code);
   }
 
+  public detectCharacterMentions(actionText: string, roomId: string, actingUserId: string): Array<{
+    userId: string;
+    characterId: string;
+    characterName: string;
+  }> {
+    const players = this.rooms.findPlayersByRoomId(roomId);
+    const mentions: Array<{ userId: string; characterId: string; characterName: string }> = [];
+    const textLower = actionText.toLowerCase();
+
+    for (const player of players) {
+      if (player.userId === actingUserId || !player.characterId) continue;
+      const character = this.characters.findById(player.characterId);
+      if (!character || !character.name) continue;
+
+      const charName = character.name.trim();
+      const nameLower = charName.toLowerCase();
+      // Stem for Russian name inflections
+      const endsInVowel = /[аяиыеоую]$/i.test(nameLower);
+      const stem = (charName.length >= 4 && endsInVowel)
+        ? nameLower.slice(0, -1)
+        : (charName.length >= 5 ? nameLower.slice(0, -1) : nameLower);
+
+      const isMentioned =
+        textLower.includes(nameLower) ||
+        textLower.includes(stem) ||
+        (player.username && textLower.includes(player.username.toLowerCase())) ||
+        textLower.includes(`@${nameLower}`) ||
+        textLower.includes(`@${player.username.toLowerCase()}`);
+
+      if (isMentioned) {
+        mentions.push({
+          userId: player.userId,
+          characterId: character.id,
+          characterName: character.name,
+        });
+      }
+    }
+
+    return mentions;
+  }
+
   public submitAction(
     roomCode: string,
     userId: string,
@@ -280,6 +321,27 @@ export class GameSessionService {
       hasRolledThisRound: true,
     });
 
+    // Detect if any other party member is mentioned in actionText
+    const mentionedCharacters = this.detectCharacterMentions(actionText, room.id, userId);
+    let pendingReactions: CharacterReactionRequest[] = [];
+
+    if (mentionedCharacters.length > 0) {
+      pendingReactions = mentionedCharacters.map(m => ({
+        id: crypto.randomUUID(),
+        initiatorUserId: userId,
+        initiatorCharacterName: charName,
+        initiatorActionText: actionText.trim(),
+        initiatorRoll: diceRolls?.[0],
+        targetUserId: m.userId,
+        targetCharacterId: m.characterId,
+        targetCharacterName: m.characterName,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      }));
+
+      this.rooms.update(room.id, { pendingReactions });
+    }
+
     const allPlayers = this.rooms.findPlayersByRoomId(room.id);
     const playersWithChar = allPlayers.filter(p => p.characterId);
     const onlineActive = playersWithChar.filter(p => p.isOnline);
@@ -307,18 +369,113 @@ export class GameSessionService {
     }
 
     const updatedRoom = this.rooms.findByCode(roomCode) || room;
+    const waitingForReactions = pendingReactions.length > 0;
 
     return {
       room: sanitizeRoom(updatedRoom),
       player,
       characterName: charName,
-      shouldResolveRound,
+      shouldResolveRound: waitingForReactions ? false : shouldResolveRound,
+      waitingForReactions,
+      pendingReactions,
       isTurnByTurn: room.turnMode === 'turn_by_turn',
       nextActiveUserId,
     };
   }
 
-  public async resolveTurnStep(roomId: string, actingUserId: string): Promise<TurnStepResolutionResult | null> {
+  public submitReaction(
+    roomCode: string,
+    userId: string,
+    reactionRequestId: string,
+    reactionText: string,
+    reactionRoll: any,
+    responseType?: 'positive' | 'negative' | 'counter'
+  ) {
+    const room = this.rooms.findByCode(roomCode);
+    if (!room || room.status !== 'active') return null;
+
+    const currentReactions = room.pendingReactions || [];
+    const targetReq = currentReactions.find(r => r.id === reactionRequestId && r.targetUserId === userId);
+    if (!targetReq) return null;
+
+    const updatedReactions = currentReactions.map(r => {
+      if (r.id === reactionRequestId) {
+        return {
+          ...r,
+          status: 'completed' as const,
+          reactionText: reactionText.trim(),
+          reactionRoll,
+          responseType: responseType || 'positive',
+        };
+      }
+      return r;
+    });
+
+    const updatedRoom = this.rooms.update(room.id, { pendingReactions: updatedReactions }) || room;
+    const allCompleted = updatedReactions.every(r => r.status === 'completed' || r.status === 'skipped');
+    const completedReactions = updatedReactions.filter(r => r.status === 'completed');
+
+    // Check if round should resolve (simultaneous mode)
+    const allPlayers = this.rooms.findPlayersByRoomId(room.id);
+    const playersWithChar = allPlayers.filter(p => p.characterId);
+    const onlineActive = playersWithChar.filter(p => p.isOnline);
+    const targetPlayers = onlineActive.length > 0 ? onlineActive : playersWithChar;
+    const readyPlayers = targetPlayers.filter(p => p.hasActedThisRound);
+    const shouldResolveRound = room.turnMode === 'simultaneous' && targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
+
+    return {
+      room: updatedRoom,
+      initiatorUserId: targetReq.initiatorUserId,
+      initiatorCharacterName: targetReq.initiatorCharacterName,
+      targetCharacterName: targetReq.targetCharacterName,
+      allCompleted,
+      completedReactions,
+      shouldResolveRound,
+    };
+  }
+
+  public skipReaction(roomCode: string, userId: string, reactionRequestId: string) {
+    const room = this.rooms.findByCode(roomCode);
+    if (!room || room.status !== 'active') return null;
+
+    const currentReactions = room.pendingReactions || [];
+    const targetReq = currentReactions.find(r => r.id === reactionRequestId);
+    if (!targetReq) return null;
+
+    if (userId !== room.hostUserId && userId !== targetReq.initiatorUserId && userId !== targetReq.targetUserId) {
+      return null;
+    }
+
+    const updatedReactions = currentReactions.map(r => {
+      if (r.id === reactionRequestId) {
+        return { ...r, status: 'skipped' as const };
+      }
+      return r;
+    });
+
+    const updatedRoom = this.rooms.update(room.id, { pendingReactions: updatedReactions }) || room;
+    const allCompleted = updatedReactions.every(r => r.status === 'completed' || r.status === 'skipped');
+    const completedReactions = updatedReactions.filter(r => r.status === 'completed');
+
+    const allPlayers = this.rooms.findPlayersByRoomId(room.id);
+    const playersWithChar = allPlayers.filter(p => p.characterId);
+    const onlineActive = playersWithChar.filter(p => p.isOnline);
+    const targetPlayers = onlineActive.length > 0 ? onlineActive : playersWithChar;
+    const readyPlayers = targetPlayers.filter(p => p.hasActedThisRound);
+    const shouldResolveRound = room.turnMode === 'simultaneous' && targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
+
+    return {
+      room: updatedRoom,
+      initiatorUserId: targetReq.initiatorUserId,
+      initiatorCharacterName: targetReq.initiatorCharacterName,
+      targetCharacterName: targetReq.targetCharacterName,
+      allCompleted,
+      completedReactions,
+      shouldResolveRound,
+    };
+  }
+
+  public async resolveTurnStep(roomId: string, actingUserId: string, completedReactions?: CharacterReactionRequest[]): Promise<TurnStepResolutionResult | null> {
     const room = this.rooms.findById(roomId);
     if (!room) return null;
 
@@ -364,6 +521,7 @@ export class GameSessionService {
       previousHistory: previousLogs,
       turnMode: 'turn_by_turn',
       turnPlayerName: actingAction.characterName,
+      characterReactions: completedReactions,
     };
 
     try {
@@ -593,7 +751,29 @@ export class GameSessionService {
       ? `\n   🎒 [Инвентарь]: ${itemActivities.join('; ')}`
       : '';
 
-    const formattedActionsSummary = `【${actingAction.characterName}】: «${actingAction.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}${itemsLine}`;
+    let reactionSummaryLines = '';
+    if (completedReactions && completedReactions.length > 0) {
+      reactionSummaryLines = '\n' + completedReactions.map(r => {
+        const rRoll = r.reactionRoll;
+        let rVerdict = '';
+        if (rRoll) {
+          const sign = rRoll.modifier >= 0 ? '+' : '';
+          const rollExpr = `d20 [${rRoll.baseRoll ?? rRoll.total}]${sign}${rRoll.modifier ?? 0} = ${rRoll.total}`;
+          const dc = room.targetDC || 12;
+          rVerdict = rRoll.isCriticalSuccess
+            ? `★ КРИТ. УСПЕХ (${rollExpr})`
+            : rRoll.isCriticalFail
+            ? `☠ КРИТ. ПРОВАЛ (${rollExpr})`
+            : rRoll.total >= dc
+            ? `★ УСПЕХ (${rollExpr} vs СЛ ${dc})`
+            : `✗ ПРОВАЛ (${rollExpr} vs СЛ ${dc})`;
+        }
+        const typeBadge = r.responseType === 'negative' ? '⚔️ [Противодействие]' : (r.responseType === 'counter' ? '🛡️ [Защита/Парирование]' : '🤝 [Содействие]');
+        return `   ↳ ${typeBadge} Реакция ${r.targetCharacterName}: «${r.reactionText || ''}»${rVerdict ? ` — ${rVerdict}` : ''}`;
+      }).join('\n');
+    }
+
+    const formattedActionsSummary = `【${actingAction.characterName}】: «${actingAction.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}${reactionSummaryLines}${itemsLine}`;
 
     // Update active enemies from dmResult
     const updatedEnemies: RoomEnemy[] = Array.isArray(dmResult.activeEnemies)
@@ -651,6 +831,7 @@ export class GameSessionService {
         requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
         activeEnemies: updatedEnemies,
         activePlayerUserId: nextActiveUserId,
+        pendingReactions: [],
       });
 
       const updated = this.getRoomAndPlayers(room.code);
@@ -674,6 +855,7 @@ export class GameSessionService {
         requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
         activeEnemies: updatedEnemies,
         activePlayerUserId: order[0] || undefined,
+        pendingReactions: [],
       });
 
       const updated = this.getRoomAndPlayers(room.code);
@@ -688,7 +870,7 @@ export class GameSessionService {
     }
   }
 
-  public async resolveRound(roomId: string): Promise<RoundResolutionResult | null> {
+  public async resolveRound(roomId: string, completedReactions?: CharacterReactionRequest[]): Promise<RoundResolutionResult | null> {
     const room = this.rooms.findById(roomId);
     if (!room) return null;
 
@@ -723,6 +905,7 @@ export class GameSessionService {
       activeEnemies: room.activeEnemies || [],
       actions: currentRoundActions,
       previousHistory: previousLogs,
+      characterReactions: completedReactions,
     };
 
     try {
@@ -939,7 +1122,7 @@ export class GameSessionService {
     });
 
     // Format Actions Summary with Player text, Roll math, DC/AC verdicts, and Item consumption/breakage
-    const formattedActionsSummary = currentRoundActions.map(a => {
+    let formattedActionsSummary = currentRoundActions.map(a => {
       const roll = a.diceRolls && a.diceRolls.length > 0 ? a.diceRolls[0] : null;
       let verdict = '';
       if (roll) {
@@ -984,6 +1167,28 @@ export class GameSessionService {
 
       return `【${a.characterName}】: «${a.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}${itemsLine}`;
     }).join('\n\n');
+
+    if (completedReactions && completedReactions.length > 0) {
+      const reactionsText = '\n\n' + completedReactions.map(r => {
+        const rRoll = r.reactionRoll;
+        let rVerdict = '';
+        if (rRoll) {
+          const sign = rRoll.modifier >= 0 ? '+' : '';
+          const rollExpr = `d20 [${rRoll.baseRoll ?? rRoll.total}]${sign}${rRoll.modifier ?? 0} = ${rRoll.total}`;
+          const dc = room.targetDC || 12;
+          rVerdict = rRoll.isCriticalSuccess
+            ? `★ КРИТ. УСПЕХ (${rollExpr})`
+            : rRoll.isCriticalFail
+            ? `☠ КРИТ. ПРОВАЛ (${rollExpr})`
+            : rRoll.total >= dc
+            ? `★ УСПЕХ (${rollExpr} vs СЛ ${dc})`
+            : `✗ ПРОВАЛ (${rollExpr} vs СЛ ${dc})`;
+        }
+        const typeBadge = r.responseType === 'negative' ? '⚔️ [Противодействие]' : (r.responseType === 'counter' ? '🛡️ [Защита/Парирование]' : '🤝 [Содействие]');
+        return `【${r.targetCharacterName}】: ${typeBadge} «${r.reactionText || ''}»${rVerdict ? `\n   ↳ ${rVerdict}` : ''}`;
+      }).join('\n\n');
+      formattedActionsSummary += reactionsText;
+    }
 
     // Save game log with sanitized narrative
     const cleanRoundNarrative = sanitizeNarrativeText(dmResult.narrative);
@@ -1107,6 +1312,7 @@ export class GameSessionService {
       activePlayerUserId: firstActiveUserId,
       campaignPlot: dmResult.campaignPlot || room.campaignPlot,
       activeEnemies: updatedEnemies,
+      pendingReactions: [],
     });
     this.rooms.resetPlayersTurn(room.id);
 
