@@ -19,13 +19,13 @@ export const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
 
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-      <span className="text-[#8e8574] text-[11px] font-serif whitespace-nowrap">Быстрые действия:</span>
+      <span className="text-slate-500 text-[11px] whitespace-nowrap">Быстрые действия:</span>
       {abilities.map(a => (
         <button
           key={a.id}
           type="button"
           onClick={() => onSelectAction(`Применяю способность "${a.name}": ${a.description}.`)}
-          className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] border border-[#2a303d] hover:border-[#c5a059]/60 text-[#ded7c8] whitespace-nowrap text-[11px] font-serif transition-colors"
+          className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 whitespace-nowrap text-[11px] transition-colors"
         >
           ⚡ {a.name}
         </button>
@@ -35,7 +35,7 @@ export const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
           key={w.id}
           type="button"
           onClick={() => onSelectAction(`Атакую оружием ${w.name}.`)}
-          className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] border border-[#2a303d] hover:border-[#c5a059]/60 text-[#ded7c8] whitespace-nowrap text-[11px] font-serif transition-colors"
+          className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 whitespace-nowrap text-[11px] transition-colors"
         >
           ⚔️ {w.name}
         </button>

@@ -166,7 +166,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         </div>
 
         {/* DM Chronicle + Action Console Column */}
-        <div className="lg:col-span-6 flex flex-col min-h-0 bg-[#13161d] border border-[#2a303d] rounded-xl shadow-2xl overflow-hidden">
+        <div className="lg:col-span-6 flex flex-col min-h-0 bg-fantasy-panel border border-fantasy-border rounded-2xl shadow-xl overflow-hidden">
           {/* Battlefield Loot Drops if any items dropped */}
           <LootDropsBar
             loot={room.availableLoot || []}

@@ -120,26 +120,26 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-xl bg-[#13161d] border border-[#3d4554] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+      <div className="w-full max-w-xl bg-fantasy-card border-2 border-amber-500/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="px-5 py-3.5 bg-[#0e1117] border-b border-[#2a303d] flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-gradient-to-r from-amber-950/60 to-slate-900 border-b border-fantasy-border flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-[#201c15] rounded border border-[#524126] text-[#c5a059]">
-              <MessageSquare className="w-4 h-4" />
+            <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/40 text-amber-400">
+              <MessageSquare className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-rpg font-bold text-[#ffd98a] tracking-wide">
+              <h3 className="text-base font-rpg font-bold text-amber-300">
                 Вас упомянули в действии!
               </h3>
-              <p className="text-xs text-[#8e8574] font-serif">
+              <p className="text-xs text-slate-400">
                 {reactionRequest.initiatorCharacterName} обращается к вам или вовлекает в сцену
               </p>
             </div>
           </div>
           <button
             onClick={() => onSkip(reactionRequest.id)}
-            className="text-[#8e8574] hover:text-[#ded7c8] p-1.5 rounded hover:bg-[#1f2533] transition-colors"
+            className="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
             title="Пропустить реакцию"
           >
             <X className="w-5 h-5" />
@@ -149,63 +149,63 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
         {/* Body */}
         <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar">
           {/* Initiator Action Quote */}
-          <div className="bg-[#0b0e13] border border-[#3b3121] rounded-lg p-3.5 relative">
-            <span className="text-[10px] font-rpg text-[#c5a059] font-bold uppercase tracking-wider block mb-1">
+          <div className="bg-slate-950/70 border border-amber-500/30 rounded-xl p-3.5 relative">
+            <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider block mb-1">
               Заявка соратника ({reactionRequest.initiatorCharacterName}):
             </span>
-            <p className="text-xs sm:text-sm text-[#ded7c8] italic font-serif leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-200 italic leading-relaxed">
               «{reactionRequest.initiatorActionText}»
             </p>
             {reactionRequest.initiatorRoll && (
-              <div className="mt-2 text-[11px] font-mono text-[#8e8574] flex items-center gap-1.5">
-                <Dices className="w-3.5 h-3.5 text-[#c5a059]" />
-                <span>Бросок инициатора: {reactionRequest.initiatorRoll.total}</span>
+              <div className="mt-2 text-[11px] font-mono text-slate-400 flex items-center gap-1.5">
+                <Dices className="w-3.5 h-3.5 text-amber-400" />
+                <span>Бросок инициатора: total {reactionRequest.initiatorRoll.total}</span>
               </div>
             )}
           </div>
 
           {/* Tone / Stance Selector */}
           <div>
-            <label className="block text-xs font-serif font-semibold text-[#ded7c8] mb-2">
+            <label className="block text-xs font-semibold text-slate-300 mb-2">
               Выберите характер вашей реакции:
             </label>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => handleSelectPreset('positive', 'Соглашаюсь и помогаю завершить задуманное')}
-                className={`p-2.5 rounded border text-xs font-serif flex flex-col items-center gap-1 transition-all ${
+                className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${
                   responseType === 'positive'
-                    ? 'bg-[#122219] border-[#2d5a3f] text-[#a7f3d0] font-semibold'
-                    : 'bg-[#181c25] border-[#2a303d] text-[#8e8574] hover:border-[#c5a059]/40'
+                    ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300 shadow-glow-gold'
+                    : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:border-emerald-600/40'
                 }`}
               >
-                <Handshake className="w-4 h-4 text-[#34d399]" />
+                <Handshake className="w-4 h-4 text-emerald-400" />
                 <span>🤝 Помощь</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectPreset('counter', 'Уклоняюсь или готовлю щит к защите')}
-                className={`p-2.5 rounded border text-xs font-serif flex flex-col items-center gap-1 transition-all ${
+                className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${
                   responseType === 'counter'
-                    ? 'bg-[#131c2d] border-[#2c4e7a] text-[#93c5fd] font-semibold'
-                    : 'bg-[#181c25] border-[#2a303d] text-[#8e8574] hover:border-[#c5a059]/40'
+                    ? 'bg-blue-950/60 border-blue-500 text-blue-300 shadow-glow-gold'
+                    : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:border-blue-600/40'
                 }`}
               >
-                <Shield className="w-4 h-4 text-[#60a5fa]" />
+                <Shield className="w-4 h-4 text-blue-400" />
                 <span>🛡️ Защита</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectPreset('negative', 'Оказываю активное сопротивление и перехватываю инициативу')}
-                className={`p-2.5 rounded border text-xs font-serif flex flex-col items-center gap-1 transition-all ${
+                className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${
                   responseType === 'negative'
-                    ? 'bg-[#271517] border-[#6d2d31] text-[#fca5a5] font-semibold'
-                    : 'bg-[#181c25] border-[#2a303d] text-[#8e8574] hover:border-[#c5a059]/40'
+                    ? 'bg-red-950/60 border-red-500 text-red-300 shadow-glow-gold'
+                    : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:border-red-600/40'
                 }`}
               >
-                <Swords className="w-4 h-4 text-[#f87171]" />
+                <Swords className="w-4 h-4 text-red-400" />
                 <span>⚔️ Отпор</span>
               </button>
             </div>
@@ -213,7 +213,7 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
 
           {/* Player Response Textarea */}
           <div>
-            <label className="block text-xs font-serif font-semibold text-[#ded7c8] mb-1.5">
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Что делает ваш персонаж ({character?.name || 'Вы'})?
             </label>
             <textarea
@@ -221,15 +221,15 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
               onChange={(e) => setReactionText(e.target.value)}
               placeholder="Опишите ваши слова, жест или ответное движение..."
               rows={2}
-              className="w-full bg-[#0b0e14] border border-[#2a303d] rounded-lg p-3 text-xs sm:text-sm text-[#ded7c8] placeholder-[#665e52] focus:outline-none focus:border-[#c5a059] font-serif resize-none transition-colors"
+              className="w-full bg-slate-950/90 border border-slate-700 rounded-xl p-3 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/80 resize-none transition-colors"
             />
           </div>
 
           {/* Mandatory 3D d20 Roll Area */}
-          <div className="bg-[#0e1117] border border-[#2a303d] rounded-lg p-4 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="flex items-center gap-2 mb-2 text-xs font-serif text-[#8e8574]">
-              <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
-              <span>Обязательный бросок кубика судьбы d20 для определения исхода</span>
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="flex items-center gap-2 mb-2 text-xs font-mono text-slate-400">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Обязательный бросок кубика d20 для определения успеха реакции</span>
             </div>
 
             {/* 3D d20 Canvas */}
@@ -248,31 +248,31 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
                 type="button"
                 disabled={isRolling}
                 onClick={handleRollDice}
-                className="mt-2 px-6 py-2 bg-[#252016] hover:bg-[#382f1e] border border-[#c5a059] text-[#ffd98a] font-serif font-bold text-xs sm:text-sm rounded transition-all flex items-center gap-2 disabled:opacity-50"
+                className="mt-2 px-6 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black font-rpg font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-600/30 transition-all flex items-center gap-2 disabled:opacity-50"
               >
-                <Dices className="w-4 h-4 text-[#c5a059]" />
+                <Dices className="w-4 h-4" />
                 {isRolling ? 'Кубик вращается...' : 'Бросить кубик d20 на реакцию'}
               </button>
             ) : (
               <div className="mt-2 text-center">
                 <div className="flex items-center justify-center gap-2 font-mono">
-                  <span className="text-xs text-[#8e8574]">Результат:</span>
-                  <span className={`text-base font-bold px-2 py-0.5 rounded border ${
+                  <span className="text-xs text-slate-400">Результат:</span>
+                  <span className={`text-base font-bold px-2 py-0.5 rounded-lg border ${
                     rollResult?.isCriticalSuccess
-                      ? 'bg-[#312513] border-[#c5a059] text-[#ffd98a]'
+                      ? 'bg-amber-500/30 border-amber-400 text-amber-300'
                       : rollResult?.isCriticalFail
-                      ? 'bg-[#331515] border-[#7f2626] text-[#fca5a5]'
+                      ? 'bg-red-500/30 border-red-500 text-red-400'
                       : (rollResult?.total ?? 0) >= targetDC
-                      ? 'bg-[#14291c] border-[#2e6b43] text-[#a7f3d0]'
-                      : 'bg-[#181c25] border-[#2a303d] text-[#ded7c8]'
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : 'bg-slate-800 border-slate-700 text-slate-300'
                   }`}>
                     {rollResult?.total}
                   </span>
-                  <span className="text-xs text-[#8e8574]">
+                  <span className="text-xs text-slate-500">
                     ({rollResult?.breakdown})
                   </span>
                 </div>
-                <p className="text-[11px] text-[#6ee7b7] font-serif font-semibold mt-1">
+                <p className="text-[11px] text-emerald-400 font-semibold mt-1">
                   ✓ Бросок совершен! Теперь подтвердите отправку реакции.
                 </p>
               </div>
@@ -281,11 +281,11 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 bg-[#0e1117] border-t border-[#2a303d] flex items-center justify-between gap-3">
+        <div className="px-5 py-3.5 bg-slate-900/90 border-t border-fantasy-border flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => onSkip(reactionRequest.id)}
-            className="px-3.5 py-1.5 text-xs text-[#8e8574] hover:text-[#ded7c8] hover:bg-[#1a202c] rounded transition-colors font-serif"
+            className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors"
           >
             Пропустить (ход без реакции)
           </button>
@@ -294,7 +294,7 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
             type="button"
             disabled={!hasRolled || !rollResult}
             onClick={handleSubmit}
-            className="px-5 py-2 bg-[#172e21] hover:bg-[#20422f] border border-[#2e6b43] text-[#a7f3d0] font-serif font-bold text-xs sm:text-sm rounded transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-slate-950 font-bold font-rpg text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <CheckCircle className="w-4 h-4" />
             <span>

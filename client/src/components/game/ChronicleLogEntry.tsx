@@ -69,18 +69,18 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
   }, [log.narrativeText, log.currentSituation, log.choiceDilemma]);
 
   return (
-    <div className="bg-[#141720] border border-[#2a303d] rounded-xl p-4 sm:p-5 shadow-md relative transition-all font-serif space-y-3">
+    <div className="bg-fantasy-card/90 border border-fantasy-border/80 rounded-2xl p-5 shadow-lg relative group transition-all animate-card-reveal">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#242935] pb-2.5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[#c5a059] text-xs">✦</span>
-          <h4 className="font-bold font-rpg text-base text-[#e2c26a] tracking-wide">
+      <div className="flex items-center justify-between mb-3 border-b border-fantasy-border/50 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+          <h4 className="font-bold font-rpg text-sm text-amber-400">
             {title}
           </h4>
           {log.targetDC && (
-            <span className="ml-1 px-2 py-0.5 rounded text-[11px] font-mono bg-[#1c1913] border border-[#4a3e26] text-[#e2c26a] font-bold flex items-center gap-1">
-              <ShieldAlert className="w-3 h-3 text-[#c5a059]" />
-              СЛ {log.targetDC} {log.requiredCheckStat ? `[${log.requiredCheckStat.toUpperCase()}]` : ''}
+            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold flex items-center gap-1">
+              <ShieldAlert className="w-3 h-3 text-amber-400" />
+              СЛ: {log.targetDC} {log.requiredCheckStat ? `[${log.requiredCheckStat.toUpperCase()}]` : ''}
             </span>
           )}
         </div>
@@ -93,14 +93,14 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
       </div>
 
       {/* Story text */}
-      <div className="text-[15px] sm:text-base text-[#ded7c8] leading-[1.75] whitespace-pre-line font-serif">
+      <div className="text-sm text-slate-200 leading-relaxed whitespace-pre-line font-serif">
         {displayNarrative}
       </div>
 
       {/* Step 2: Player Actions & Dice Check Verdicts */}
       {log.actionsSummary && (
-        <div className="mt-4 p-3.5 rounded-lg bg-[#0e1017] border border-[#242935] space-y-2.5">
-          <div className="font-rpg font-semibold text-[#c5a059] text-xs uppercase tracking-wider flex items-center gap-1.5">
+        <div className="mt-4 p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-2.5">
+          <div className="font-rpg font-semibold text-amber-400 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
             <span>🎲 Ходы героев и проверки:</span>
           </div>
           <div className="space-y-2">
@@ -128,50 +128,50 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
               return (
                 <div
                   key={idx}
-                  className={`p-2.5 rounded-lg border text-xs font-serif leading-relaxed transition-all ${
+                  className={`p-2.5 rounded-xl border text-xs leading-relaxed transition-all ${
                     isCritSuccess
-                      ? 'bg-[#231d13] border-[#785e2b] text-[#e2c26a]'
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-200 shadow-sm'
                       : isCritFail
-                      ? 'bg-[#261316] border-[#782b32] text-[#fca5a5]'
+                      ? 'bg-red-950/40 border-red-500/50 text-red-200 shadow-sm'
                       : isSuccess
-                      ? 'bg-[#122319] border-[#29563d] text-[#86efac]'
+                      ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200 shadow-sm'
                       : isFail
-                      ? 'bg-[#221316] border-[#6b252c] text-[#fca5a5]'
-                      : 'bg-[#131620] border-[#252a36] text-[#ded7c8]'
+                      ? 'bg-rose-950/30 border-rose-500/30 text-rose-200 shadow-sm'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-300'
                   }`}
                 >
-                  <div className="font-medium text-[#ded7c8]">{playerLine}</div>
+                  <div className="font-medium text-slate-100">{playerLine}</div>
                   
                   {rawVerdict && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-[11px] font-bold">
                       {isSuccess ? (
-                        <span className="px-2 py-0.5 rounded bg-[#163829] text-[#86efac] border border-[#29563d] inline-flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1">
                           {isCritSuccess ? '★ КРИТ. УСПЕХ' : '★ УСПЕХ'}
                         </span>
                       ) : isFail ? (
-                        <span className="px-2 py-0.5 rounded bg-[#2b1316] text-[#fca5a5] border border-[#782b32] inline-flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 inline-flex items-center gap-1">
                           {isCritFail ? '☠ КРИТ. ПРОВАЛ' : '✗ ПРОВАЛ'}
                         </span>
                       ) : null}
                       {cleanVerdictLine ? (
-                        <span className="text-[#ded7c8] font-serif font-normal">{cleanVerdictLine}</span>
+                        <span className="text-slate-300 font-sans font-normal">{cleanVerdictLine}</span>
                       ) : !isSuccess && !isFail ? (
-                        <span className="text-[#ded7c8] font-serif font-normal">{rawVerdict}</span>
+                        <span className="text-slate-300 font-sans font-normal">{rawVerdict}</span>
                       ) : null}
                     </div>
                   )}
 
                   {/* Reaction Lines */}
                   {reactionLines.map((rLine, rIdx) => (
-                    <div key={rIdx} className="mt-1.5 px-2.5 py-1 rounded bg-[#1a1728] border border-[#44376b] text-[#d8b4fe] text-[11px] font-serif">
+                    <div key={rIdx} className="mt-1.5 px-2.5 py-1 rounded-lg bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 text-[11px] font-sans">
                       {rLine.replace(/^↳\s*/, '')}
                     </div>
                   ))}
 
                   {/* Inventory Activity (Found, Used, Lost items) */}
                   {itemLines.map((iLine, iIdx) => (
-                    <div key={iIdx} className="mt-1.5 px-2.5 py-1 rounded bg-[#1c1913] border border-[#4a3e26] text-[#e2c26a] text-[11px] font-serif flex items-center gap-1.5">
-                      <Package className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
+                    <div key={iIdx} className="mt-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px] font-sans flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                       <span>{iLine.replace(/^↳\s*/, '').replace(/^🎒\s*(\[Инвентарь\]:)?\s*/, '')}</span>
                     </div>
                   ))}
@@ -184,26 +184,26 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
 
       {/* Step 3: Current Situation & Choice Dilemma Callout */}
       {(effectiveSituation || effectiveDilemma) && (
-        <div className="mt-4 p-3.5 rounded-lg bg-[#11131a] border border-[#3d3424] space-y-2 shadow-sm">
+        <div className="mt-4 p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-amber-950/40 border border-amber-500/40 space-y-2 shadow-md">
           {effectiveSituation && (
-            <div className="flex items-start gap-2 text-xs font-serif">
-              <Compass className="w-4 h-4 text-[#c5a059] shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 text-xs">
+              <Compass className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <span className="font-bold text-[#e2c26a] font-rpg uppercase tracking-wider text-[11px] mr-1.5">
+                <span className="font-bold text-amber-300 font-rpg uppercase tracking-wider text-[11px] mr-1.5">
                   Итог ситуации:
                 </span>
-                <span className="text-[#ded7c8]">{effectiveSituation}</span>
+                <span className="text-slate-200 font-sans">{effectiveSituation}</span>
               </div>
             </div>
           )}
           {effectiveDilemma && (
-            <div className="flex items-start gap-2 text-xs font-serif pt-2 border-t border-[#2a2e3b]">
-              <Sparkles className="w-4 h-4 text-[#c084fc] shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 text-xs pt-1.5 border-t border-amber-500/20">
+              <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <span className="font-bold text-[#d8b4fe] font-rpg uppercase tracking-wider text-[11px] mr-1.5">
+                <span className="font-bold text-purple-300 font-rpg uppercase tracking-wider text-[11px] mr-1.5">
                   Выбор перед отрядом:
                 </span>
-                <span className="text-[#e2c26a] font-medium">{effectiveDilemma}</span>
+                <span className="text-amber-100 font-medium font-sans">{effectiveDilemma}</span>
               </div>
             </div>
           )}
@@ -212,18 +212,18 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
 
       {/* Dropped Loot in this round */}
       {log.droppedLoot && log.droppedLoot.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-[#242935] flex flex-wrap items-center gap-2 font-serif">
-          <span className="text-xs font-rpg text-[#c5a059] flex items-center gap-1 font-semibold">
+        <div className="mt-4 pt-3 border-t border-fantasy-border/50 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-rpg text-amber-400 flex items-center gap-1 font-semibold">
             <Package className="w-3.5 h-3.5" /> Найдено:
           </span>
           {log.droppedLoot.map((item, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs bg-[#1c1913] text-[#e2c26a] border border-[#4a3e26]"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-medium bg-amber-500/15 text-amber-200 border border-amber-500/30"
             >
               {item.name}
-              {item.damage && <span className="text-[10px] text-[#c5a059] font-mono">({item.damage})</span>}
-              {item.healAmount && <span className="text-[10px] text-[#4ade80] font-mono">(+{item.healAmount} HP)</span>}
+              {item.damage && <span className="text-[10px] text-amber-400 font-mono">({item.damage})</span>}
+              {item.healAmount && <span className="text-[10px] text-emerald-400 font-mono">(+{item.healAmount} HP)</span>}
             </span>
           ))}
         </div>
@@ -231,16 +231,16 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
 
       {/* Damage / HP Updates Badge */}
       {log.playerUpdates && log.playerUpdates.length > 0 && (
-        <div className="mt-3 pt-2 border-t border-[#242935] flex flex-wrap gap-2 font-serif">
+        <div className="mt-3 pt-2 border-t border-fantasy-border/30 flex flex-wrap gap-2">
           {log.playerUpdates.map((u, i) => (
             <span
               key={i}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs border ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                 u.hpDelta < 0
-                  ? 'bg-[#281316] text-[#fca5a5] border-[#6b252c]'
+                  ? 'bg-red-500/10 text-red-400 border-red-500/30'
                   : u.hpDelta > 0
-                  ? 'bg-[#122319] text-[#86efac] border-[#29563d]'
-                  : 'bg-[#181c25] text-[#ded7c8] border-[#2e3544]'
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
             >
               <Heart className="w-3.5 h-3.5" />

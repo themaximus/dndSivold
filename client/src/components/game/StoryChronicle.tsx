@@ -41,10 +41,10 @@ export const StoryChronicle: React.FC<StoryChronicleProps> = ({
   return (
     <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 custom-scrollbar">
       {recentActivities && recentActivities.length > 0 && (
-        <div className="space-y-1.5 pb-2 border-b border-[#282f3d] animate-in fade-in">
+        <div className="space-y-1.5 pb-2 border-b border-slate-800/80 animate-in fade-in">
           {recentActivities.slice(0, 2).map((act) => (
-            <div key={act.id} className="text-[11px] font-serif text-[#d6c7ac] bg-[#0b0e14] px-2.5 py-1 rounded border border-[#2a303d] flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#c5a059]" />
+            <div key={act.id} className="text-[11px] font-mono text-amber-200 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span>{act.text}</span>
             </div>
           ))}

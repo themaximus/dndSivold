@@ -25,33 +25,33 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   const defeatedEnemies = enemies.filter(e => e.isDead || e.hpCurrent <= 0);
 
   return (
-    <div className="bg-[#13161d] border border-[#2a303d] rounded-xl p-3 sm:p-3.5 shadow-md flex flex-col min-h-0 h-full overflow-hidden font-serif">
+    <div className="bg-fantasy-panel border border-fantasy-border rounded-2xl p-4 shadow-xl flex flex-col min-h-0 h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-[#242935]">
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-fantasy-border/80">
         <div className="flex items-center gap-2">
-          <div className={`p-1.5 rounded border ${
+          <div className={`p-1.5 rounded-lg border ${
             activeEnemies.length > 0
-              ? 'bg-[#281316] border-[#6b252c] text-[#f87171]'
-              : 'bg-[#181c25] border-[#2e3544] text-[#968e7f]'
+              ? 'bg-red-950/50 border-red-500/50 text-red-400 animate-pulse'
+              : 'bg-slate-800/80 border-slate-700 text-slate-400'
           }`}>
             <Skull className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-bold font-rpg uppercase tracking-wider text-[#ded7c8]">
+            <h3 className="text-xs font-extrabold font-rpg uppercase tracking-wider text-slate-200">
               Оппоненты
             </h3>
-            <p className="text-[10px] text-[#968e7f]">
+            <p className="text-[10px] text-slate-400">
               {activeEnemies.length > 0 ? 'Угрозы на поле боя' : 'Зона безопасности'}
             </p>
           </div>
         </div>
 
         {activeEnemies.length > 0 ? (
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#281316] text-[#fca5a5] border border-[#6b252c]">
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-red-950/60 text-red-300 border border-red-500/50">
             {activeEnemies.length} в бою
           </span>
         ) : (
-          <span className="px-2 py-0.5 rounded text-[10px] font-serif text-[#86efac] bg-[#122319] border border-[#29563d] flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> Спокойно
           </span>
         )}
@@ -60,14 +60,14 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
       {/* Enemies List */}
       <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
         {enemies.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-4 text-[#968e7f]">
-            <div className="p-3 rounded-lg bg-[#0c0d11] border border-[#222733] mb-2.5 text-[#786e60]">
-              <Shield className="w-5 h-5 stroke-[1.5]" />
+          <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-400">
+            <div className="p-3 rounded-2xl bg-fantasy-card/60 border border-fantasy-border mb-2.5 text-slate-500">
+              <Shield className="w-6 h-6 stroke-[1.5]" />
             </div>
-            <p className="text-xs font-bold text-[#ded7c8] mb-1">
+            <p className="text-xs font-bold text-slate-300 mb-1">
               Угрозы не обнаружены
             </p>
-            <p className="text-[11px] text-[#968e7f] leading-relaxed max-w-[200px]">
+            <p className="text-[11px] text-slate-500 leading-relaxed max-w-[200px]">
               В текущей сцене нет активных врагов. Отряд может исследовать окружение или вести диалог.
             </p>
           </div>
@@ -82,22 +82,22 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
               return (
                 <div
                   key={enemy.id}
-                  className="bg-[#141720] border border-[#252a36] hover:border-[#4a262a] rounded-lg p-3 transition-all relative overflow-hidden group shadow-sm"
+                  className="bg-fantasy-card border border-fantasy-border hover:border-red-500/50 rounded-xl p-3 transition-all relative overflow-hidden group shadow-sm"
                 >
                   {/* Top Bar: Name, Type Badge & AC */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-xs text-[#ded7c8] truncate group-hover:text-[#fca5a5] transition-colors">
+                        <span className="font-bold text-xs text-slate-200 truncate group-hover:text-red-300 transition-colors">
                           {enemy.name}
                         </span>
                         {enemy.type && (
-                          <span className={`px-1.5 py-0.2 rounded text-[9px] uppercase font-bold font-serif tracking-wider ${
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] uppercase font-bold tracking-wider ${
                             enemy.type === 'boss'
-                              ? 'bg-[#281316] text-[#fca5a5] border border-[#6b252c]'
+                              ? 'bg-red-950/80 text-red-300 border border-red-500/60'
                               : enemy.type === 'elite'
-                              ? 'bg-[#1e1528] text-[#d8b4fe] border border-[#442c5c]'
-                              : 'bg-[#0c0d11] text-[#968e7f] border border-[#252a36]'
+                              ? 'bg-purple-950/80 text-purple-300 border border-purple-500/60'
+                              : 'bg-slate-800 text-slate-400 border border-slate-700'
                           }`}>
                             {enemy.type === 'boss' ? 'Босс' : enemy.type === 'elite' ? 'Элита' : enemy.type}
                           </span>
@@ -106,8 +106,8 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                     </div>
 
                     {enemy.ac && (
-                      <span className="shrink-0 flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 bg-[#0c0d11] border border-[#222733] rounded text-[#93c5fd]" title={`Класс брони: ${enemy.ac} КБ`}>
-                        <Shield className="w-3 h-3 text-[#60a5fa]" />
+                      <span className="shrink-0 flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 bg-slate-800/80 border border-slate-700/80 rounded-md text-blue-300" title={`Класс брони: ${enemy.ac} КБ`}>
+                        <Shield className="w-3 h-3 text-blue-400" />
                         <span>{enemy.ac}</span>
                       </span>
                     )}
@@ -116,23 +116,23 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                   {/* HP Bar */}
                   <div className="mb-2">
                     <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-                      <span className="text-[#968e7f] flex items-center gap-1">
-                        <Heart className={`w-3 h-3 ${isCriticallyWounded ? 'text-[#f87171] animate-pulse' : 'text-[#fca5a5]'}`} />
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <Heart className={`w-3 h-3 ${isCriticallyWounded ? 'text-red-500 animate-pulse' : 'text-red-400'}`} />
                         <span>Здоровье</span>
                       </span>
-                      <span className={`font-bold ${isCriticallyWounded ? 'text-[#f87171]' : 'text-[#ded7c8]'}`}>
+                      <span className={`font-bold ${isCriticallyWounded ? 'text-red-400' : 'text-slate-300'}`}>
                         {enemy.hpCurrent} / {enemy.hpMax}
                       </span>
                     </div>
 
-                    <div className="w-full h-1.5 bg-[#0c0d11] rounded overflow-hidden border border-[#222733]">
+                    <div className="w-full h-1.5 bg-slate-800/80 rounded-full overflow-hidden border border-slate-700/50">
                       <div
-                        className={`h-full transition-all duration-500 rounded ${
+                        className={`h-full transition-all duration-500 rounded-full ${
                           isCriticallyWounded
-                            ? 'bg-[#8b262a]'
+                            ? 'bg-gradient-to-r from-red-600 to-rose-500'
                             : isWounded
-                            ? 'bg-[#785e2b]'
-                            : 'bg-[#29563d]'
+                            ? 'bg-gradient-to-r from-amber-600 to-amber-400'
+                            : 'bg-gradient-to-r from-emerald-600 to-emerald-400'
                         }`}
                         style={{ width: `${hpPercent}%` }}
                       />
@@ -145,7 +145,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                       {enemy.conditions.map(cond => {
                         const badge = CONDITION_BADGES[cond] || {
                           label: cond,
-                          color: 'bg-[#181c25] text-[#ded7c8] border-[#2e3544]',
+                          color: 'bg-slate-800 text-slate-300 border-slate-700',
                           desc: cond,
                         };
                         return (
@@ -163,8 +163,8 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
 
                   {/* Status / Tactical Behavior */}
                   {enemy.status && (
-                    <div className="flex items-start gap-1.5 text-[11px] text-[#ded7c8]/90 bg-[#0c0d11] p-1.5 rounded border border-[#222733]">
-                      <Crosshair className="w-3 h-3 text-[#f87171] mt-0.5 shrink-0" />
+                    <div className="flex items-start gap-1.5 text-[11px] text-slate-300 bg-slate-900/50 p-1.5 rounded-lg border border-slate-800">
+                      <Crosshair className="w-3 h-3 text-red-400/80 mt-0.5 shrink-0" />
                       <span className="italic leading-snug">{enemy.status}</span>
                     </div>
                   )}
@@ -174,23 +174,23 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
 
             {/* Defeated Enemies Collapsible or compact list */}
             {defeatedEnemies.length > 0 && (
-              <div className="pt-2 border-t border-[#242935]">
-                <p className="text-[10px] font-mono uppercase text-[#736c5f] mb-1.5 px-1">
+              <div className="pt-2 border-t border-slate-800/80">
+                <p className="text-[10px] font-mono uppercase text-slate-500 mb-1.5 px-1">
                   Повержены ({defeatedEnemies.length}):
                 </p>
                 <div className="space-y-1.5">
                   {defeatedEnemies.map((enemy) => (
                     <div
                       key={enemy.id}
-                      className="bg-[#0c0d11] border border-[#1e232d] rounded p-2 flex items-center justify-between text-xs opacity-50"
+                      className="bg-slate-900/40 border border-slate-800/60 rounded-lg p-2 flex items-center justify-between text-xs opacity-50"
                     >
                       <div className="flex items-center gap-1.5">
-                        <Skull className="w-3 h-3 text-[#736c5f]" />
-                        <span className="line-through text-[#968e7f] text-[11px]">
+                        <Skull className="w-3 h-3 text-slate-500" />
+                        <span className="line-through text-slate-400 text-[11px]">
                           {enemy.name}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono text-[#736c5f] italic">
+                      <span className="text-[10px] font-mono text-slate-500 italic">
                         {enemy.status || 'Пал в бою'}
                       </span>
                     </div>
@@ -204,8 +204,8 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
 
       {/* Master Tactical Note if provided */}
       {enemiesStatus && activeEnemies.length > 0 && (
-        <div className="mt-2.5 pt-2 border-t border-[#242935] text-[11px] text-[#968e7f] flex items-start gap-1.5 bg-[#0c0d11] p-2 rounded">
-          <ShieldAlert className="w-3.5 h-3.5 text-[#c5a059] shrink-0 mt-0.5" />
+        <div className="mt-3 pt-2.5 border-t border-fantasy-border/60 text-[11px] text-slate-400 flex items-start gap-1.5 bg-fantasy-card/40 p-2 rounded-xl">
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
           <span className="italic line-clamp-2 leading-tight">
             {enemiesStatus}
           </span>

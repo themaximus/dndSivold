@@ -69,81 +69,81 @@ export const ChronicleDiceBroadcast: React.FC<ChronicleDiceBroadcastProps> = ({
   const isFail = !isCritSuccess && (isCritFail || (targetDC !== undefined && roll.total < targetDC));
 
   return (
-    <div className="bg-[#12141c] border border-[#3d3424] rounded-xl p-3.5 shadow-md relative my-3 animate-in fade-in font-serif">
+    <div className="bg-gradient-to-b from-slate-900/95 via-slate-950/95 to-slate-900/95 border-2 border-amber-500/50 rounded-2xl p-4 shadow-2xl relative my-3 animate-in fade-in slide-in-from-bottom-3 duration-300">
       {/* Dismiss Button */}
       <button
         type="button"
         onClick={onDismiss}
-        className="absolute top-2.5 right-2.5 text-[#968e7f] hover:text-[#ded7c8] p-1 rounded-lg hover:bg-[#1a1f2b] transition-colors z-10"
-        title="Скрыть карточку броска"
+        className="absolute top-3 right-3 text-slate-400 hover:text-white p-1 rounded-lg transition-colors z-10"
+        title="Скрыть бросок"
       >
         <X className="w-4 h-4" />
       </button>
 
       {/* Header with Roller Character Info */}
       <div className="flex flex-col items-center text-center">
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded bg-[#181c25] border border-[#4a3e26] text-[#e2c26a] text-xs font-rpg font-bold">
-          <Dices className="w-3.5 h-3.5 text-[#c5a059]" />
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-rpg font-bold">
+          <Dices className="w-4 h-4 text-amber-400 animate-spin-slow" />
           <span>Бросок кубика: {broadcast.characterName || broadcast.username}</span>
         </div>
 
         {roll.purpose && (
-          <p className="text-xs text-[#ded7c8] italic mt-1 line-clamp-2 max-w-md font-serif">
+          <p className="text-xs text-slate-300 italic mt-1.5 line-clamp-2 max-w-md font-serif">
             «{roll.purpose}»
           </p>
         )}
 
         {/* 3D d20 Canvas */}
-        <div className="my-2 p-1 rounded-lg bg-[#0c0d11] border border-[#2a303d] relative flex items-center justify-center">
+        <div className="my-2 relative flex items-center justify-center">
           <ThreeD20Die
             isRolling={isSpinning}
             targetNumber={rawDie}
             targetDC={targetDC}
-            size={150}
+            size={160}
             onSettle={handleSettle}
           />
 
           {isSpinning && (
-            <div className="absolute bottom-1 px-2.5 py-0.5 rounded bg-black/80 border border-[#4a3e26] text-[10px] text-[#e2c26a] font-serif animate-pulse">
-              Судьба решает исход...
+            <div className="absolute bottom-0 px-2.5 py-0.5 rounded-full bg-black/70 border border-amber-500/30 text-[10px] text-amber-300/90 font-mono animate-pulse">
+              🎲 Кость d20 вращается в 3D...
             </div>
           )}
         </div>
 
         {/* Settled Outcome */}
         {!isSpinning && (
-          <div className="w-full space-y-1 animate-result-bounce">
+          <div className="w-full space-y-1.5 animate-result-bounce">
             {isCritSuccess && (
-              <div className="py-0.5 px-3 rounded bg-[#2b2213] border border-[#785e2b] text-[#e2c26a] font-bold font-rpg text-xs uppercase inline-flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>★ КРИТИЧЕСКИЙ УСПЕХ (20)</span>
+              <div className="py-0.5 px-3 rounded-full bg-amber-400 text-black font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1 shadow-md shadow-amber-500/40">
+                <Sparkles className="w-3.5 h-3.5 fill-current" />
+                <span>★ КРИТИЧЕСКИЙ УСПЕХ (20)!</span>
               </div>
             )}
             {isCritFail && (
-              <div className="py-0.5 px-3 rounded bg-[#2b1316] border border-[#782b32] text-[#fca5a5] font-bold font-rpg text-xs uppercase inline-flex items-center gap-1">
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>☠ КРИТИЧЕСКИЙ ПРОВАЛ (1)</span>
+              <div className="py-0.5 px-3 rounded-full bg-red-600 text-white font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1 shadow-md shadow-red-600/40">
+                <ShieldAlert className="w-3.5 h-3.5 fill-current" />
+                <span>☠ КРИТИЧЕСКИЙ ПРОВАЛ (1)!</span>
               </div>
             )}
             {!isCritSuccess && !isCritFail && isSuccess && (
-              <div className="py-0.5 px-3 rounded bg-[#152a1e] border border-[#29563d] text-[#86efac] font-bold font-rpg text-xs uppercase inline-flex items-center gap-1">
+              <div className="py-0.5 px-3 rounded-full bg-emerald-500 text-black font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1 shadow-md shadow-emerald-500/30">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>★ УСПЕХ ({roll.total} против СЛ {targetDC})</span>
+                <span>★ УСПЕХ! ({roll.total} против СЛ {targetDC})</span>
               </div>
             )}
             {!isCritSuccess && !isCritFail && isFail && (
-              <div className="py-0.5 px-3 rounded bg-[#2b1619] border border-[#6b252c] text-[#fca5a5] font-bold font-rpg text-xs uppercase inline-flex items-center gap-1">
+              <div className="py-0.5 px-3 rounded-full bg-rose-600 text-white font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1 shadow-md shadow-rose-600/30">
                 <XCircle className="w-3.5 h-3.5" />
-                <span>✗ ПРОВАЛ ({roll.total} против СЛ {targetDC})</span>
+                <span>✗ ПРОВАЛ! ({roll.total} против СЛ {targetDC})</span>
               </div>
             )}
 
             {/* Total and formula */}
-            <div className="text-2xl sm:text-3xl font-extrabold font-rpg text-[#e2c26a]">
+            <div className="text-2xl sm:text-3xl font-extrabold font-rpg text-amber-300">
               Итог: {roll.total}
             </div>
 
-            <div className="text-[11px] text-[#ded7c8]/80 font-mono">
+            <div className="text-[11px] text-slate-300 font-mono">
               Кость [{rawDie}] {roll.modifier >= 0 ? `+ ${roll.modifier}` : `- ${Math.abs(roll.modifier)}`} ({roll.statName ? roll.statName.toUpperCase() : 'мод'})
             </div>
           </div>

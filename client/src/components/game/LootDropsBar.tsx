@@ -26,14 +26,14 @@ export const LootDropsBar: React.FC<LootDropsBarProps> = ({ loot, onPickup, disa
   };
 
   return (
-    <div className="mx-4 my-2 p-3 bg-[#13161f] border border-[#3a3224] rounded-lg shadow-md">
-      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-[#28231a]">
-        <span className="text-xs font-rpg tracking-wider text-[#d8b872] flex items-center gap-1.5">
-          <Package className="w-3.5 h-3.5 text-[#c5a059]" />
+    <div className="mx-4 my-2 p-3 bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-amber-950/40 border border-amber-500/30 rounded-xl shadow-lg">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-rpg font-semibold text-amber-300 flex items-center gap-1.5">
+          <Package className="w-4 h-4 text-amber-400" />
           Добыча на поле боя:
         </span>
-        <span className="text-[10px] text-[#8e8574] font-serif italic">
-          Предметы, найденные в ходе событий
+        <span className="text-[10px] text-slate-400 font-sans">
+          Предметы, найденные в ходе повествования
         </span>
       </div>
 
@@ -41,15 +41,15 @@ export const LootDropsBar: React.FC<LootDropsBarProps> = ({ loot, onPickup, disa
         {validLoot.map(item => (
           <div
             key={item.id}
-            className="flex items-center justify-between gap-2.5 px-3 py-1.5 bg-[#181c26] border border-[#2a303d] hover:border-[#c5a059]/70 rounded text-xs transition-all shadow-sm group"
+            className="flex items-center justify-between gap-2.5 px-3 py-1.5 bg-fantasy-card/90 border border-fantasy-border hover:border-amber-500/50 rounded-lg text-xs transition-all shadow-sm group"
           >
             <div className="flex items-center gap-2">
               {getItemIcon(item.type)}
               <div>
-                <span className="font-serif font-medium text-[#ded7c8]">{item.name}</span>
-                {item.damage && <span className="ml-1 text-[10px] text-[#c5a059] font-mono">({item.damage})</span>}
-                {item.ac_bonus && <span className="ml-1 text-[10px] text-[#7fb4e8] font-mono">(+{item.ac_bonus} КБ)</span>}
-                {item.healAmount && <span className="ml-1 text-[10px] text-[#6ee7b7] font-mono">(+{item.healAmount} HP)</span>}
+                <span className="font-medium text-slate-200">{item.name}</span>
+                {item.damage && <span className="ml-1 text-[10px] text-amber-400 font-mono">({item.damage})</span>}
+                {item.ac_bonus && <span className="ml-1 text-[10px] text-blue-400 font-mono">(+{item.ac_bonus} КБ)</span>}
+                {item.healAmount && <span className="ml-1 text-[10px] text-emerald-400 font-mono">(+{item.healAmount} HP)</span>}
               </div>
             </div>
 
@@ -57,7 +57,7 @@ export const LootDropsBar: React.FC<LootDropsBarProps> = ({ loot, onPickup, disa
               type="button"
               disabled={disabled}
               onClick={() => onPickup(item.id)}
-              className="px-2.5 py-0.5 bg-[#252016] hover:bg-[#382e1c] border border-[#5a482b] hover:border-[#c5a059] text-[#e0cfab] hover:text-[#ffd98a] font-serif text-[11px] tracking-wide rounded transition-all flex items-center gap-1 disabled:opacity-40"
+              className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black font-semibold text-[11px] rounded transition-colors flex items-center gap-1 disabled:opacity-50"
             >
               <PlusCircle className="w-3 h-3" />
               Взять

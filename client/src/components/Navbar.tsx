@@ -18,40 +18,40 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
   };
 
   return (
-    <header className="border-b border-[#242935] bg-[#0c0d11]/95 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-2.5 shadow-md">
+    <header className="border-b border-fantasy-border bg-fantasy-panel/90 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Brand */}
         <div
           onClick={() => setCurrentView('characters')}
           className="flex items-center gap-3 cursor-pointer group"
         >
-          <div className="w-9 h-9 rounded bg-[#181c25] border border-[#4a3e26] flex items-center justify-center text-[#c5a059] shadow-sm group-hover:border-[#c5a059] transition-all">
-            <Dices className="w-5 h-5 text-[#c5a059]" />
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shadow-glow-gold group-hover:scale-105 transition-transform">
+            <Dices className="w-6 h-6 text-black" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold font-rpg tracking-wider text-[#e2c26a] group-hover:text-[#f3d98a] transition-colors">
+            <h1 className="text-xl font-bold font-rpg tracking-wider text-amber-400 group-hover:text-amber-300 transition-colors">
               СиволДнДаево
             </h1>
-            <p className="text-[11px] text-[#968e7f] font-serif -mt-0.5 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#c5a059]/80"></span>
+            <p className="text-xs text-slate-400 -mt-1 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               AI Dungeon Master
             </p>
           </div>
         </div>
 
         {/* Navigation & Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-4">
           {/* TTS Voice Toggle */}
           <button
             onClick={toggleSpeech}
             title={isSpeechOn ? "Озвучка мастера включена" : "Озвучка мастера выключена"}
-            className={`px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 text-xs font-serif ${
+            className={`p-2 rounded-lg border transition-all flex items-center gap-1.5 text-xs font-medium ${
               isSpeechOn
-                ? 'bg-[#2b2213] border-[#785e2b] text-[#e2c26a] hover:bg-[#3d301a]'
-                : 'bg-[#181c25] border-[#2e3544] text-[#968e7f] hover:text-[#ded7c8]'
+                ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
             }`}
           >
-            {isSpeechOn ? <Volume2 className="w-4 h-4 text-[#c5a059]" /> : <VolumeX className="w-4 h-4" />}
+            {isSpeechOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             <span className="hidden sm:inline">{isSpeechOn ? 'Голос DM' : 'Без звука'}</span>
           </button>
 
@@ -59,10 +59,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
             <>
               <button
                 onClick={() => setCurrentView('characters')}
-                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-serif font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   currentView === 'characters'
-                    ? 'bg-[#181c25] text-[#e2c26a] border border-[#4a3e26]'
-                    : 'text-[#ded7c8] hover:text-[#e2c26a] hover:bg-[#181c25]'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 Герои
@@ -70,40 +70,40 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
 
               <button
                 onClick={() => setCurrentView('campaigns')}
-                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-serif font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                   currentView === 'campaigns'
-                    ? 'bg-[#181c25] text-[#e2c26a] border border-[#4a3e26]'
-                    : 'text-[#ded7c8] hover:text-[#e2c26a] hover:bg-[#181c25]'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                <Compass className="w-4 h-4 text-[#c5a059]" />
-                <span className="hidden sm:inline">Мои кампании</span>
+                <Compass className="w-4 h-4" />
+                Мои кампании
               </button>
 
               <button
                 onClick={() => setCurrentView('create-room')}
-                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-serif font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                   currentView === 'create-room'
-                    ? 'bg-[#181c25] text-[#e2c26a] border border-[#4a3e26]'
-                    : 'text-[#ded7c8] hover:text-[#e2c26a] hover:bg-[#181c25]'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                <PlusCircle className="w-4 h-4 text-[#c5a059]" />
-                <span className="hidden sm:inline">Создать комнату</span>
+                <PlusCircle className="w-4 h-4" />
+                Создать комнату
               </button>
 
-              <div className="h-5 w-px bg-[#242935] mx-1"></div>
+              <div className="h-6 w-px bg-fantasy-border"></div>
 
               {/* User badge */}
-              <div className="flex items-center gap-2 text-[#ded7c8] text-xs sm:text-sm bg-[#13161d] px-2.5 py-1.5 rounded-lg border border-[#2a303d]">
-                <User className="w-3.5 h-3.5 text-[#c5a059]" />
-                <span className="font-semibold text-[#ded7c8]">{user.username}</span>
+              <div className="flex items-center gap-2 text-slate-300 text-sm bg-fantasy-card px-3 py-1.5 rounded-lg border border-fantasy-border">
+                <User className="w-4 h-4 text-amber-400" />
+                <span className="font-semibold text-slate-100">{user.username}</span>
                 <button
                   onClick={logout}
                   title="Выйти"
-                  className="ml-1 text-[#968e7f] hover:text-[#f87171] transition-colors"
+                  className="ml-2 text-slate-400 hover:text-red-400 transition-colors"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-4 h-4" />
                 </button>
               </div>
             </>

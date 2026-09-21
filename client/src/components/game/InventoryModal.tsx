@@ -36,30 +36,28 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-xl bg-[#13161d] border border-[#3b4455] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="w-full max-w-xl bg-fantasy-card border border-fantasy-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#2a303d] flex items-center justify-between bg-[#0e1117]">
+        <div className="px-6 py-4 border-b border-fantasy-border flex items-center justify-between bg-fantasy-panel">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#1f1b13] rounded border border-[#524126] text-[#c5a059]">
-              <Package className="w-5 h-5" />
-            </div>
+            <Package className="w-5 h-5 text-amber-400" />
             <div>
-              <h2 className="text-base font-rpg font-bold text-[#ffd98a] tracking-wide">Инвентарь героя</h2>
-              <p className="text-xs text-[#8e8574] font-serif">{character.name} • Здоровье: {character.hpCurrent}/{character.hpMax} HP</p>
+              <h2 className="text-base font-rpg font-bold text-amber-300">Инвентарь героя</h2>
+              <p className="text-xs text-slate-400">{character.name} • Здоровье: {character.hpCurrent}/{character.hpMax} HP</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-[#8e8574] hover:text-[#ded7c8] hover:bg-[#1a202c] rounded transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-3 flex-1 custom-scrollbar">
+        <div className="p-6 overflow-y-auto space-y-3 flex-1">
           {items.length === 0 ? (
-            <div className="text-center py-12 text-[#8e8574] font-serif text-sm italic">
+            <div className="text-center py-12 text-slate-400 text-sm">
               Инвентарь пуст. Исследуйте мир и собирайте трофеи!
             </div>
           ) : (
@@ -71,34 +69,34 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
               return (
                 <div
                   key={item.id}
-                  className={`p-3.5 rounded border transition-all flex flex-col gap-2.5 ${
+                  className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
                     isEquipped
-                      ? 'bg-[#1f1b13] border-[#c5a059]/60 shadow-sm'
-                      : 'bg-[#181c26] border-[#2a303d] hover:border-[#3d4554]'
+                      ? 'bg-amber-950/25 border-amber-500/50'
+                      : 'bg-fantasy-panel/70 border-fantasy-border hover:border-slate-600'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <div className="p-2 bg-[#0e1117] rounded border border-[#2a303d] mt-0.5">
+                      <div className="p-2 bg-slate-800/80 rounded-lg border border-slate-700/60 mt-0.5">
                         {getItemIcon(item.type)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-serif font-semibold text-sm text-[#ded7c8]">{item.name}</span>
+                          <span className="font-semibold text-sm text-slate-100">{item.name}</span>
                           {item.quantity > 1 && (
-                            <span className="text-xs text-[#ffd98a] font-mono font-bold">x{item.quantity}</span>
+                            <span className="text-xs text-amber-400 font-mono font-bold">x{item.quantity}</span>
                           )}
                           {isEquipped && (
-                            <span className="px-2 py-0.5 bg-[#2a2416] border border-[#c5a059] text-[#ffd98a] text-[10px] font-serif font-bold rounded flex items-center gap-1">
+                            <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold rounded-full flex items-center gap-1">
                               <Check className="w-2.5 h-2.5" /> Экипировано
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-[#8e8574] font-serif mt-0.5 line-clamp-2">{item.description}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{item.description}</p>
                         <div className="flex items-center gap-3 mt-1 text-[11px] font-mono">
-                          {item.damage && <span className="text-[#ffd98a]">Урон: {item.damage}</span>}
-                          {item.ac_bonus && <span className="text-[#93c5fd]">КБ: +{item.ac_bonus}</span>}
-                          {item.healAmount && <span className="text-[#6ee7b7]">Исцеление: +{item.healAmount} HP</span>}
+                          {item.damage && <span className="text-amber-400">Урон: {item.damage}</span>}
+                          {item.ac_bonus && <span className="text-blue-400">КБ: +{item.ac_bonus}</span>}
+                          {item.healAmount && <span className="text-emerald-400">Исцеление: +{item.healAmount} HP</span>}
                         </div>
                       </div>
                     </div>
@@ -108,7 +106,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         <button
                           type="button"
                           onClick={() => onUseItem(item.id)}
-                          className="px-3 py-1 bg-[#172e21] hover:bg-[#20422f] border border-[#2e6b43] text-[#a7f3d0] font-serif text-xs rounded transition-colors flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
                         >
                           <Heart className="w-3.5 h-3.5" />
                           Выпить
@@ -119,7 +117,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         <button
                           type="button"
                           onClick={() => onEquipWeapon(item.id)}
-                          className="px-3 py-1 bg-[#252016] hover:bg-[#382f1e] border border-[#5a482b] hover:border-[#c5a059] text-[#ffd98a] font-serif text-xs rounded transition-colors flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 border border-amber-500/40 text-amber-300 hover:text-black font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
                         >
                           <Sword className="w-3.5 h-3.5" />
                           Экипировать
@@ -129,12 +127,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   </div>
 
                   {item.history && item.history.length > 0 && (
-                    <div className="mt-1 pt-2 border-t border-[#2a303d] space-y-1">
-                      <span className="text-[10px] uppercase font-rpg font-bold tracking-wider text-[#c5a059]">Хроника предмета:</span>
+                    <div className="mt-1 pt-2 border-t border-slate-700/40 space-y-1">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Хроника предмета:</span>
                       <ul className="space-y-0.5 pl-1">
                         {item.history.map((h, i) => (
-                          <li key={i} className="text-[11px] text-[#ded7c8] font-serif flex items-start gap-1.5 leading-relaxed">
-                            <span className="text-[#c5a059] text-[10px] select-none mt-0.5">•</span>
+                          <li key={i} className="text-[11px] text-slate-300 flex items-start gap-1.5 leading-relaxed">
+                            <span className="text-amber-500/80 text-[10px] select-none mt-0.5">•</span>
                             <span>{h}</span>
                           </li>
                         ))}
@@ -148,10 +146,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-[#2a303d] bg-[#0e1117] flex justify-end">
+        <div className="px-6 py-3 border-t border-fantasy-border bg-fantasy-panel flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-[#181c25] hover:bg-[#222735] border border-[#2a303d] text-[#ded7c8] font-serif rounded text-xs font-semibold transition-colors"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
           >
             Закрыть
           </button>
