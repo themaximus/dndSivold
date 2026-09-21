@@ -122,6 +122,7 @@ export interface AIDMContext {
   campaignPlot?: string;
   campaignMap?: CampaignMapData;
   loreJournal?: LoreMilestone[];
+  availableLoot?: RoomLootItem[];
   characters: CharacterEntity[];
   activeEnemies?: RoomEnemy[];
   sceneNPCs?: RoomNPC[];

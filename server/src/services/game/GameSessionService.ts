@@ -623,6 +623,7 @@ export class GameSessionService {
       turnPlayerName: actingAction.characterName,
       characterReactions: completedReactions,
       mechanicalDirectives,
+      availableLoot: room.availableLoot || [],
     };
 
     try {
@@ -665,6 +666,10 @@ export class GameSessionService {
       });
     }
 
+    // Track item activities per character to include in actions summary and feed
+    const itemActivitiesByCharacter: Record<string, string[]> = {};
+    const inventoryNotifications: InventoryNotification[] = [];
+
     // Apply procedural failure consequences from Mechanical Arbiter
     if (mechanicalRes.failureConsequence && actingChar) {
       const fc = mechanicalRes.failureConsequence;
@@ -692,6 +697,42 @@ export class GameSessionService {
           actingChar.conditions = updatedConds;
         }
       }
+      if (fc.type === 'gear_mishap' && actingChar.activeWeaponId) {
+        const weapon = actingChar.inventory?.find(i => i.id === actingChar.activeWeaponId || i.name.toLowerCase() === actingChar.activeWeaponId?.toLowerCase());
+        if (weapon) {
+          const alreadyRemoved = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(u =>
+            u.action === 'remove' && (u.characterId === actingChar.id || u.characterName?.toLowerCase() === actingChar.name.toLowerCase()) &&
+            u.item && u.item.name.toLowerCase().includes(weapon.name.toLowerCase())
+          );
+          if (!alreadyRemoved) {
+            const reason = fc.description || 'Оружие выскользнуло из рук в грязь';
+            this.characters.removeItemFromInventory(actingChar.id, weapon.name, 1, reason);
+            const droppedLootItem: RoomLootItem = {
+              id: weapon.id || crypto.randomUUID(),
+              name: weapon.name,
+              type: 'weapon',
+              description: weapon.description || 'Выроненное оружие',
+              quantity: 1,
+              damage: weapon.damage,
+              roundDropped: room.roundNumber,
+            };
+            this.rooms.addLoot(room.id, [droppedLootItem]);
+            room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: actingChar.id,
+              characterName: actingChar.name,
+              action: 'remove',
+              itemName: weapon.name,
+              quantity: 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
+            if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
+            itemActivitiesByCharacter[actingChar.id].push(`Выбито/утрачено: «${weapon.name}» (${reason})`);
+          }
+        }
+      }
     }
 
     // Filter out zero-delta playerUpdates so UI never renders confusing "0 HP"
@@ -700,8 +741,6 @@ export class GameSessionService {
     }
 
     // Process Dynamic Inventory Updates
-    const itemActivitiesByCharacter: Record<string, string[]> = {};
-    const inventoryNotifications: InventoryNotification[] = [];
     if (Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.length > 0) {
       dmResult.inventoryUpdates.forEach(invUpdate => {
         const target = this.characters.findById(invUpdate.characterId) ||
@@ -716,6 +755,13 @@ export class GameSessionService {
           }
           if (invUpdate.action === 'remove') {
             const reason = invUpdate.reason || `Израсходовано или утрачено в раунде ${room.roundNumber}`;
+            const existingItem = target.inventory?.find(i =>
+              i.id === cleanItemName ||
+              i.name.toLowerCase().trim() === cleanItemName.toLowerCase() ||
+              i.name.toLowerCase().includes(cleanItemName.toLowerCase()) ||
+              cleanItemName.toLowerCase().includes(i.name.toLowerCase().trim())
+            );
+
             this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1, reason);
             itemActivitiesByCharacter[target.id].push(`Потрачено/утрачено: «${cleanItemName}» (${reason})`);
             inventoryNotifications.push({
@@ -728,12 +774,58 @@ export class GameSessionService {
               reason,
               timestamp: new Date().toISOString(),
             });
+
+            // Ground loot tracking: if dropped/slipped/lost, save into room.availableLoot
+            const isConsumed = /выпи|съел|исцел|использ|потрач|potion|зель/i.test(reason) || (existingItem && (existingItem.type === 'potion' || existingItem.type === 'food' || existingItem.type === 'scroll'));
+            const isDestroyed = /расколол|сломал|вдребезги|уничтож|сгорел/i.test(reason);
+            if (!isConsumed && !isDestroyed && (existingItem || invUpdate.item.type === 'weapon' || /выби|вырон|грязь|земл|упал|скольз|роня|выскольз|утрат/i.test(reason))) {
+              const droppedLootItem: RoomLootItem = {
+                id: (existingItem && existingItem.id) || crypto.randomUUID(),
+                name: (existingItem && existingItem.name) || cleanItemName,
+                type: (existingItem && (existingItem.type === 'weapon' || existingItem.type === 'armor' || existingItem.type === 'potion'))
+                  ? existingItem.type
+                  : (invUpdate.item.type === 'weapon' || invUpdate.item.type === 'armor' ? invUpdate.item.type : 'misc'),
+                description: (existingItem && existingItem.description) || invUpdate.item.description || `Выроненный предмет: ${cleanItemName}`,
+                quantity: invUpdate.item.quantity || (existingItem && existingItem.quantity) || 1,
+                damage: (existingItem && existingItem.damage) || invUpdate.item.damage,
+                ac_bonus: (existingItem && existingItem.ac_bonus) || invUpdate.item.ac_bonus,
+                healAmount: (existingItem && existingItem.healAmount) || invUpdate.item.healAmount,
+                roundDropped: room.roundNumber,
+              };
+              this.rooms.addLoot(room.id, [droppedLootItem]);
+              room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+            }
           } else if (invUpdate.action === 'add') {
             const reason = invUpdate.reason || (Array.isArray(invUpdate.item.history) && invUpdate.item.history.length > 0 ? invUpdate.item.history[0] : `Получено в раунде ${room.roundNumber}`);
+
+            // Check if this item was lying on the ground in room.availableLoot
+            const matchedLoot = (room.availableLoot || []).find(loot =>
+              loot.name.toLowerCase().trim() === cleanItemName.toLowerCase() ||
+              loot.name.toLowerCase().includes(cleanItemName.toLowerCase()) ||
+              cleanItemName.toLowerCase().includes(loot.name.toLowerCase().trim())
+            );
+            if (matchedLoot) {
+              this.rooms.removeLoot(room.id, matchedLoot.id);
+              room.availableLoot = (room.availableLoot || []).filter(l => l.id !== matchedLoot.id);
+            }
+
             this.characters.addItemToInventory(target.id, {
               ...invUpdate.item,
               name: cleanItemName,
+              damage: invUpdate.item.damage || matchedLoot?.damage,
+              ac_bonus: invUpdate.item.ac_bonus || matchedLoot?.ac_bonus,
+              healAmount: invUpdate.item.healAmount || matchedLoot?.healAmount,
             }, reason);
+
+            // Auto-equip weapon if character is unarmed
+            const freshChar = this.characters.findById(target.id);
+            if (freshChar && (invUpdate.item.type === 'weapon' || matchedLoot?.type === 'weapon') && !freshChar.activeWeaponId) {
+              const addedInInv = freshChar.inventory?.find(i => i.name.toLowerCase().trim() === cleanItemName.toLowerCase());
+              if (addedInInv) {
+                this.characters.equipWeapon(target.id, addedInInv.id);
+              }
+            }
+
             itemActivitiesByCharacter[target.id].push(`Получено: «${cleanItemName}» (${reason})`);
             inventoryNotifications.push({
               id: crypto.randomUUID(),
@@ -801,9 +893,39 @@ export class GameSessionService {
               reason,
               timestamp: new Date().toISOString(),
             });
+
+            // If dropped/slipped rather than smashed to powder, add to room loot
+            if (!/расколол|вдребезги|уничтожен/i.test(narrativeLower)) {
+              const droppedLootItem: RoomLootItem = {
+                id: item.id || crypto.randomUUID(),
+                name: item.name,
+                type: (item.type === 'weapon' || item.type === 'armor' || item.type === 'potion') ? item.type : 'misc',
+                description: item.description || `Утраченный предмет: ${item.name}`,
+                quantity: 1,
+                damage: item.damage,
+                ac_bonus: item.ac_bonus,
+                healAmount: item.healAmount,
+                roundDropped: room.roundNumber,
+              };
+              this.rooms.addLoot(room.id, [droppedLootItem]);
+              room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+            }
           }
         }
       });
+    }
+
+    // Procedural Recovery Heuristic: ensure picked-up dropped items or ground weapons are restored even if AI DM forgot
+    if (actingChar) {
+      this.handleProceduralItemRecovery(
+        room,
+        actingAction,
+        actingChar,
+        dmResult,
+        !!mechanicalRes.failureConsequence,
+        itemActivitiesByCharacter,
+        inventoryNotifications
+      );
     }
 
     // Process Dropped Loot
@@ -1357,6 +1479,7 @@ export class GameSessionService {
       previousHistory: previousLogs,
       characterReactions: completedReactions,
       mechanicalDirectives,
+      availableLoot: room.availableLoot || [],
     };
 
     try {
@@ -1414,6 +1537,10 @@ export class GameSessionService {
       });
     }
 
+    // Track item activities per character to include in actions summary and feed
+    const itemActivitiesByCharacter: Record<string, string[]> = {};
+    const inventoryNotifications: InventoryNotification[] = [];
+
     // Apply procedural failure consequences across all mechanical resolutions in the round
     for (const res of mechanicalResolutions) {
       if (res.failureConsequence) {
@@ -1444,6 +1571,42 @@ export class GameSessionService {
               char.conditions = updatedConds;
             }
           }
+          if (fc.type === 'gear_mishap' && char.activeWeaponId) {
+            const weapon = char.inventory?.find(i => i.id === char.activeWeaponId || i.name.toLowerCase() === char.activeWeaponId?.toLowerCase());
+            if (weapon) {
+              const alreadyRemoved = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(u =>
+                u.action === 'remove' && (u.characterId === char.id || u.characterName?.toLowerCase() === char.name.toLowerCase()) &&
+                u.item && u.item.name.toLowerCase().includes(weapon.name.toLowerCase())
+              );
+              if (!alreadyRemoved) {
+                const reason = fc.description || 'Оружие выскользнуло из рук в грязь';
+                this.characters.removeItemFromInventory(char.id, weapon.name, 1, reason);
+                const droppedLootItem: RoomLootItem = {
+                  id: weapon.id || crypto.randomUUID(),
+                  name: weapon.name,
+                  type: 'weapon',
+                  description: weapon.description || 'Выроненное оружие',
+                  quantity: 1,
+                  damage: weapon.damage,
+                  roundDropped: room.roundNumber,
+                };
+                this.rooms.addLoot(room.id, [droppedLootItem]);
+                room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+                inventoryNotifications.push({
+                  id: crypto.randomUUID(),
+                  characterId: char.id,
+                  characterName: char.name,
+                  action: 'remove',
+                  itemName: weapon.name,
+                  quantity: 1,
+                  reason,
+                  timestamp: new Date().toISOString(),
+                });
+                if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
+                itemActivitiesByCharacter[char.id].push(`Выбито/утрачено: «${weapon.name}» (${reason})`);
+              }
+            }
+          }
         }
       }
     }
@@ -1452,10 +1615,6 @@ export class GameSessionService {
     if (Array.isArray(dmResult.playerUpdates)) {
       dmResult.playerUpdates = dmResult.playerUpdates.filter(u => u.hpDelta && u.hpDelta !== 0);
     }
-
-    // Track item activities per character to include in actions summary and feed
-    const itemActivitiesByCharacter: Record<string, string[]> = {};
-    const inventoryNotifications: InventoryNotification[] = [];
 
     // Process Dynamic Inventory Updates (items consumed, lost, broken or acquired)
     if (Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.length > 0) {
@@ -1474,6 +1633,13 @@ export class GameSessionService {
 
           if (invUpdate.action === 'remove') {
             const reason = invUpdate.reason || `Израсходовано или утрачено в раунде ${room.roundNumber}`;
+            const existingItem = target.inventory?.find(i =>
+              i.id === cleanItemName ||
+              i.name.toLowerCase().trim() === cleanItemName.toLowerCase() ||
+              i.name.toLowerCase().includes(cleanItemName.toLowerCase()) ||
+              cleanItemName.toLowerCase().includes(i.name.toLowerCase().trim())
+            );
+
             this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1, reason);
             itemActivitiesByCharacter[target.id].push(`Потрачено/утрачено: «${cleanItemName}» (${reason})`);
             inventoryNotifications.push({
@@ -1486,12 +1652,58 @@ export class GameSessionService {
               reason,
               timestamp: new Date().toISOString(),
             });
+
+            // Ground loot tracking: if dropped/slipped/lost, save into room.availableLoot
+            const isConsumed = /выпи|съел|исцел|использ|потрач|potion|зель/i.test(reason) || (existingItem && (existingItem.type === 'potion' || existingItem.type === 'food' || existingItem.type === 'scroll'));
+            const isDestroyed = /расколол|сломал|вдребезги|уничтож|сгорел/i.test(reason);
+            if (!isConsumed && !isDestroyed && (existingItem || invUpdate.item.type === 'weapon' || /выби|вырон|грязь|земл|упал|скольз|роня|выскольз|утрат/i.test(reason))) {
+              const droppedLootItem: RoomLootItem = {
+                id: (existingItem && existingItem.id) || crypto.randomUUID(),
+                name: (existingItem && existingItem.name) || cleanItemName,
+                type: (existingItem && (existingItem.type === 'weapon' || existingItem.type === 'armor' || existingItem.type === 'potion'))
+                  ? existingItem.type
+                  : (invUpdate.item.type === 'weapon' || invUpdate.item.type === 'armor' ? invUpdate.item.type : 'misc'),
+                description: (existingItem && existingItem.description) || invUpdate.item.description || `Выроненный предмет: ${cleanItemName}`,
+                quantity: invUpdate.item.quantity || (existingItem && existingItem.quantity) || 1,
+                damage: (existingItem && existingItem.damage) || invUpdate.item.damage,
+                ac_bonus: (existingItem && existingItem.ac_bonus) || invUpdate.item.ac_bonus,
+                healAmount: (existingItem && existingItem.healAmount) || invUpdate.item.healAmount,
+                roundDropped: room.roundNumber,
+              };
+              this.rooms.addLoot(room.id, [droppedLootItem]);
+              room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+            }
           } else if (invUpdate.action === 'add') {
             const reason = invUpdate.reason || (Array.isArray(invUpdate.item.history) && invUpdate.item.history.length > 0 ? invUpdate.item.history[0] : `Получено в раунде ${room.roundNumber}`);
+
+            // Check if this item was lying on the ground in room.availableLoot
+            const matchedLoot = (room.availableLoot || []).find(loot =>
+              loot.name.toLowerCase().trim() === cleanItemName.toLowerCase() ||
+              loot.name.toLowerCase().includes(cleanItemName.toLowerCase()) ||
+              cleanItemName.toLowerCase().includes(loot.name.toLowerCase().trim())
+            );
+            if (matchedLoot) {
+              this.rooms.removeLoot(room.id, matchedLoot.id);
+              room.availableLoot = (room.availableLoot || []).filter(l => l.id !== matchedLoot.id);
+            }
+
             this.characters.addItemToInventory(target.id, {
               ...invUpdate.item,
               name: cleanItemName,
+              damage: invUpdate.item.damage || matchedLoot?.damage,
+              ac_bonus: invUpdate.item.ac_bonus || matchedLoot?.ac_bonus,
+              healAmount: invUpdate.item.healAmount || matchedLoot?.healAmount,
             }, reason);
+
+            // Auto-equip weapon if character is unarmed
+            const freshChar = this.characters.findById(target.id);
+            if (freshChar && (invUpdate.item.type === 'weapon' || matchedLoot?.type === 'weapon') && !freshChar.activeWeaponId) {
+              const addedInInv = freshChar.inventory?.find(i => i.name.toLowerCase().trim() === cleanItemName.toLowerCase());
+              if (addedInInv) {
+                this.characters.equipWeapon(target.id, addedInInv.id);
+              }
+            }
+
             itemActivitiesByCharacter[target.id].push(`Получено: «${cleanItemName}» (${reason})`);
             inventoryNotifications.push({
               id: crypto.randomUUID(),
@@ -1566,9 +1778,42 @@ export class GameSessionService {
               reason,
               timestamp: new Date().toISOString(),
             });
+
+            // If dropped/slipped rather than smashed to powder, add to room loot
+            if (!/расколол|вдребезги|уничтожен/i.test(narrativeLower)) {
+              const droppedLootItem: RoomLootItem = {
+                id: item.id || crypto.randomUUID(),
+                name: item.name,
+                type: (item.type === 'weapon' || item.type === 'armor' || item.type === 'potion') ? item.type : 'misc',
+                description: item.description || `Утраченный предмет: ${item.name}`,
+                quantity: 1,
+                damage: item.damage,
+                ac_bonus: item.ac_bonus,
+                healAmount: item.healAmount,
+                roundDropped: room.roundNumber,
+              };
+              this.rooms.addLoot(room.id, [droppedLootItem]);
+              room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+            }
           }
         }
       });
+    });
+
+    // Procedural Recovery Heuristic: ensure picked-up dropped items or ground weapons are restored even if AI DM forgot
+    currentRoundActions.forEach(a => {
+      const char = activeCharacters.find(c => c.id === a.characterId || c.name.toLowerCase().trim() === a.characterName.toLowerCase().trim());
+      if (!char) return;
+      const mRes = mechanicalResolutions.find(r => r.actionId === a.id || r.characterId === char.id);
+      this.handleProceduralItemRecovery(
+        room,
+        a,
+        char,
+        dmResult,
+        !!mRes?.failureConsequence,
+        itemActivitiesByCharacter,
+        inventoryNotifications
+      );
     });
 
     // Process Dropped Loot (strictly filtering out empty items)
@@ -2269,6 +2514,163 @@ export class GameSessionService {
     }
 
     return list;
+  }
+
+  /**
+   * Procedural Item Recovery:
+   * When a player successfully rolls to pick up / retrieve a weapon or item from the ground,
+   * restore it to character inventory, equip it if it's a weapon and character is unarmed,
+   * and clean it up from room.availableLoot or loreJournal.
+   */
+  private handleProceduralItemRecovery(
+    room: RoomEntity,
+    action: TurnActionEntity,
+    char: CharacterEntity,
+    dmResult: AIDMResponse,
+    hasFailureConsequence: boolean,
+    itemActivitiesByCharacter: Record<string, string[]>,
+    inventoryNotifications: InventoryNotification[]
+  ): void {
+    if (!action || !char) return;
+
+    const pickupRegex = /(подня(л|ть|ли|ла)|подобра(л|ть|ли|ла)|вытащи(л|ть|ли|ла)|выдерну(л|ть|ли|ла)|схвати(л|ть|ли|ла)|подхвати(л|ть|ли|ла)|наш(ел|ла|ли)|забра(л|ть|ли|ла)|верну(л|ть|ли|ла)|достал(а)?|взя(л|ть|ла|ли))/i;
+    const actionLower = (action.actionText || '').toLowerCase();
+    const narrativeLower = (dmResult.narrative || '').toLowerCase();
+
+    const isPickupInAction = pickupRegex.test(actionLower);
+    const isPickupInNarrative = pickupRegex.test(narrativeLower);
+    if (!isPickupInAction && !isPickupInNarrative) return;
+
+    const roll = (action.diceRolls && action.diceRolls.length > 0) ? action.diceRolls[0] : (action as any).diceRoll;
+    const isRollSuccess = roll
+      ? (roll.isCriticalSuccess || roll.isNat20 || roll.total >= (room.targetDC || 12))
+      : true;
+
+    if (!isRollSuccess || hasFailureConsequence) return;
+
+    const freshChar = this.characters.findById(char.id) || char;
+    const currentInv = freshChar.inventory || [];
+
+    const isAlreadyRecoveredOrAdded = (nameLower: string) => {
+      const inCurrentInv = currentInv.some(i => i.name.toLowerCase().trim() === nameLower || i.name.toLowerCase().includes(nameLower));
+      const addedInDm = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(u =>
+        u.action === 'add' && (u.characterId === char.id || u.characterName?.toLowerCase() === char.name.toLowerCase()) &&
+        u.item && (u.item.name.toLowerCase().includes(nameLower) || nameLower.includes(u.item.name.toLowerCase().trim()))
+      );
+      const addedInNotifications = inventoryNotifications.some(n =>
+        n.characterId === char.id && n.action === 'add' && (n.itemName.toLowerCase().includes(nameLower) || nameLower.includes(n.itemName.toLowerCase().trim()))
+      );
+      return inCurrentInv || addedInDm || addedInNotifications;
+    };
+
+    // 1. Recover from room.availableLoot
+    const lootList = [...(room.availableLoot || [])];
+    for (const loot of lootList) {
+      if (!loot || !loot.name) continue;
+      const lootLower = loot.name.toLowerCase().trim();
+      const isMatched = actionLower.includes(lootLower) ||
+        (lootLower.length > 4 && actionLower.includes(lootLower.slice(0, -2))) ||
+        (loot.type === 'weapon' && /(оружие|секир|топор|меч|клинок|лук|арбалет|щит|кинжал|молот)/i.test(actionLower));
+
+      if (isMatched && !isAlreadyRecoveredOrAdded(lootLower)) {
+        const reason = `Успешно поднято из грязи / с земли в раунде ${room.roundNumber}`;
+        const newInvItem = {
+          id: loot.id || crypto.randomUUID(),
+          name: loot.name,
+          type: loot.type,
+          description: loot.description || 'Предмет, поднятый с земли.',
+          quantity: loot.quantity || 1,
+          damage: loot.damage,
+          ac_bonus: loot.ac_bonus,
+          healAmount: loot.healAmount,
+          history: [reason],
+        };
+
+        this.characters.addItemToInventory(char.id, newInvItem, reason);
+        this.rooms.removeLoot(room.id, loot.id);
+        room.availableLoot = (room.availableLoot || []).filter(l => l.id !== loot.id);
+
+        if (loot.type === 'weapon') {
+          const charAfter = this.characters.findById(char.id);
+          if (charAfter && !charAfter.activeWeaponId) {
+            this.characters.equipWeapon(char.id, newInvItem.id);
+          }
+        }
+
+        if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
+        itemActivitiesByCharacter[char.id].push(`Поднято: «${loot.name}» (${reason})`);
+
+        inventoryNotifications.push({
+          id: crypto.randomUUID(),
+          characterId: char.id,
+          characterName: char.name,
+          action: 'add',
+          itemName: loot.name,
+          quantity: loot.quantity || 1,
+          reason,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // 2. Recover previously lost items recorded in room.loreJournal (e.g. from previous rounds)
+    for (const m of (room.loreJournal || [])) {
+      if (!m || !m.milestone) continue;
+      const milestoneLower = m.milestone.toLowerCase();
+      if (milestoneLower.includes('теряет') || milestoneLower.includes('выскользну') || milestoneLower.includes('утрачено') || milestoneLower.includes('вылетает') || milestoneLower.includes('жижу') || milestoneLower.includes('грязь')) {
+        const match = m.milestone.match(/«([^»]+)»/);
+        if (match && match[1]) {
+          const lostName = match[1].trim();
+          const lostLower = lostName.toLowerCase();
+          const isTargetItem = actionLower.includes(lostLower) ||
+            (lostLower.length > 4 && actionLower.includes(lostLower.slice(0, -2))) ||
+            (/(секир|топор)/i.test(lostLower) && /(секир|топор)/i.test(actionLower)) ||
+            (/(меч|клинок)/i.test(lostLower) && /(меч|клинок)/i.test(actionLower));
+
+          if (isTargetItem && !isAlreadyRecoveredOrAdded(lostLower)) {
+            const isAxe = /секир|топор/i.test(lostName);
+            const isSword = /меч|клинок/i.test(lostName);
+            const isBow = /лук|арбалет/i.test(lostName);
+            const isDagger = /кинжал|нож/i.test(lostName);
+            const isWeapon = isAxe || isSword || isBow || isDagger || /молот|копь/i.test(lostName);
+            const damage = isAxe ? '1d12' : (isSword ? '1d8' : (isBow ? '1d8' : (isDagger ? '1d4' : '1d6')));
+            const reason = `Возвращено в снаряжение: «${lostName}» поднято из грязи / с земли`;
+            const restoredId = crypto.randomUUID();
+
+            this.characters.addItemToInventory(char.id, {
+              id: restoredId,
+              name: lostName,
+              type: isWeapon ? 'weapon' : 'misc',
+              description: `Оружие/снаряжение героя, возвращенное в бою.`,
+              quantity: 1,
+              damage: isWeapon ? damage : undefined,
+              history: [reason],
+            }, reason);
+
+            if (isWeapon) {
+              const charAfter = this.characters.findById(char.id);
+              if (charAfter && !charAfter.activeWeaponId) {
+                this.characters.equipWeapon(char.id, restoredId);
+              }
+            }
+
+            if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
+            itemActivitiesByCharacter[char.id].push(`Поднято: «${lostName}» (${reason})`);
+
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: char.id,
+              characterName: char.name,
+              action: 'add',
+              itemName: lostName,
+              quantity: 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+      }
+    }
   }
 }
 

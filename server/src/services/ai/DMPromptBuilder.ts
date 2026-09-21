@@ -1,4 +1,4 @@
-import { CharacterEntity, TurnActionEntity } from '../../db';
+import { CharacterEntity, TurnActionEntity, RoomLootItem, LoreMilestone } from '../../db';
 import { AIDMContext, AIDMPrologueContext } from '../../domain/types';
 
 export class DMPromptBuilder {
@@ -132,10 +132,12 @@ export class DMPromptBuilder {
   * Если персонаж выпил зелье, применил свиток, перевязал рану, накормил или исцелил союзника/путника — предмет УДАЛЯЕТСЯ из рюкзака («action»: «remove», с указанием понятной причины в «reason»).
   * Если оружие или щит СЛОМАЛИСЬ в бою (критический провал d20=1, удар о каменную плоть, парирование сокрушительного удара великана) — предмет ЛОМАЕТСЯ и УДАЛЯЕТСЯ («action»: «remove», «reason»: «Клинок раскололся от колоссального удара»). Если это оружие было экипировано, оно автоматически снимается, а все его бонусы исчезают!
   * Если персонажа ОГРАБИЛИ карманники, бандиты или воры в толпе — похищенный предмет УДАЛЯЕТСЯ («action»: «remove», «reason»: «Срезано с пояса ловким вором»).
-- ПОЛУЧЕНИЕ НОВЫХ ПРЕДМЕТОВ («action»: «add»):
+- ПОЛУЧЕНИЕ НОВЫХ ПРЕДМЕТОВ ИЛИ ПОДБОР ВЫРОНЕННОГО («action»: «add»):
+  * Если персонаж успешно поднял/подобрал ранее выроненное оружие или предмет с земли/из грязи — ОБЯЗАТЕЛЬНО добавь его обратно в «inventoryUpdates» с «action»: «add», вернув ему прежнее название и тип!
   * Если отряд получил предмет в награду от путника/каравана/торговца, приобрёл в лавке или нашёл ценный трофей — добавь в «inventoryUpdates» объект с «action»: «add», указав понятное «name», «type», «description», параметры и начальную историю «history» из одного лаконичного предложения (например, ["Подарено раненым гонцом в благодарность за спасение"]).
 - ВНИМАНИЕ К НАЗВАНИЯМ ПРЕДМЕТОВ В ЗАЯВКАХ ИГРОКОВ:
   * Если игрок упомянул название предмета из своего инвентаря — обязательно развивай судьбу этого предмета! Если он его использовал или повредил — отрази это в "inventoryUpdates".
+  * Если игрок заявил подбор выроненного или лежащего на земле предмета и проверка успешна — ОБЯЗАТЕЛЬНО верни предмет через «inventoryUpdates» с «action»: «add»!
 
 ЗАКОН 7: БОЕВАЯ СИСТЕМА D&D 5E — АТАКИ ПО КБ ВРАГА И СОСТОЯНИЯ (CONDITIONS)
 - АТАКА ПО ЦЕЛИ: Если игрок заявил атаку и указал цель из списка врагов с её КБ:
@@ -277,7 +279,13 @@ export class DMPromptBuilder {
 
   public buildUserPrompt(context: AIDMContext): string {
     const partyInfo = this.formatPartyInfo(context.characters);
-    const actionsSummary = this.formatActionsSummary(context.actions, context.characters, context.mechanicalDirectives);
+    const actionsSummary = this.formatActionsSummary(
+      context.actions,
+      context.characters,
+      context.mechanicalDirectives,
+      context.availableLoot,
+      context.loreJournal
+    );
 
     const livingEnemies = (context.activeEnemies || []).filter(e => !e.isDead && e.hpCurrent > 0);
     const enemiesSummary = livingEnemies.length > 0
@@ -518,7 +526,9 @@ ${inventoryFormatted}
   public formatActionsSummary(
     actions: TurnActionEntity[],
     characters?: CharacterEntity[],
-    mechanicalDirectives?: Record<string, string>
+    mechanicalDirectives?: Record<string, string>,
+    availableLoot?: RoomLootItem[],
+    loreJournal?: LoreMilestone[]
   ): string {
     return actions.map(a => {
       const typeLabel = a.actionType === 'attack'
@@ -555,6 +565,40 @@ ${inventoryFormatted}
      - Если получен новый предмет — добавь его в "inventoryUpdates" с action="add" и стартовой историей "history".`;
       }
 
+      // Check if player action attempts to PICK UP a dropped item or ground loot
+      const pickupRegex = /(подня(л|ть|ли|ла)|подобра(л|ть|ли|ла)|вытащи(л|ть|ли|ла)|выдерну(л|ть|ли|ла)|схвати(л|ть|ли|ла)|подхвати(л|ть|ли|ла)|наш(ел|ла|ли)|забра(л|ть|ли|ла)|верну(л|ть|ли|ла)|достал(а)?)/i;
+      const actLower = a.actionText.toLowerCase();
+      const isTryingToPickup = pickupRegex.test(actLower);
+      const itemsToPickup: string[] = [];
+
+      if (isTryingToPickup) {
+        for (const loot of (availableLoot || [])) {
+          if (loot && loot.name) {
+            const lootLower = loot.name.toLowerCase().trim();
+            if (actLower.includes(lootLower) || (lootLower.length > 4 && actLower.includes(lootLower.slice(0, -2))) || (loot.type === 'weapon' && /(оружие|секир|топор|меч|клинок)/i.test(actLower))) {
+              itemsToPickup.push(`«${loot.name}» (лежит на земле/в грязи)`);
+            }
+          }
+        }
+        for (const m of (loreJournal || [])) {
+          if (m && m.milestone && (m.milestone.includes('теряет') || m.milestone.includes('выскользну') || m.milestone.includes('утрачено'))) {
+            const match = m.milestone.match(/«([^»]+)»/);
+            if (match && match[1]) {
+              const lostName = match[1].trim();
+              if (actLower.includes(lostName.toLowerCase()) && !itemsToPickup.some(p => p.includes(lostName))) {
+                itemsToPickup.push(`«${lostName}» (ранее выронено)`);
+              }
+            }
+          }
+        }
+      }
+
+      let pickupDirective = '';
+      if (itemsToPickup.length > 0) {
+        pickupDirective = `\n  🔍 [ВНИМАНИЕ — ИГРОК ПОДНИМАЕТ ПРЕДМЕТ]: В тексте заявки указана попытка поднять/подобрать: ${itemsToPickup.join(', ')}.
+     - Если бросок кубика УСПЕШЕН (>= СЛ) — ОБЯЗАТЕЛЬНО добавь этот предмет обратно в "inventoryUpdates" с action="add" и понятной причиной "reason" (например, "Поднято из грязи / с земли")!`;
+      }
+
       // Check for mechanical arbiter directive for this action
       const arbiterDirective = mechanicalDirectives && mechanicalDirectives[a.id]
         ? `\n  ${mechanicalDirectives[a.id]}`
@@ -569,7 +613,7 @@ ${inventoryFormatted}
         combatTriggerDirective = `\n  ⚔️ [ТРИГГЕР БОЕВОЙ АГРЕССИИ / ДУЭЛИ / ВТОРЖЕНИЯ]: Игрок инициировал явную атаку, дуэль, нарывается на драку или вторгается в охраняемую/запретную зону! Если бой еще не начался, ОБЯЗАТЕЛЬНО СОЗДАЙ противника(ов) в массиве "activeEnemies" (укажи реалистичные name, КБ ~12-16, HP ~15-40, status: "В бою"), установи "mood": "combat", опиши начало битвы и рассчитай попадание/урон по КБ!`;
       }
 
-      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}${arbiterDirective}${itemTrackingDirective}${combatTriggerDirective}`;
+      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}${arbiterDirective}${itemTrackingDirective}${pickupDirective}${combatTriggerDirective}`;
     }).join('\n\n');
   }
 
