@@ -17,44 +17,46 @@ export const AttachedRollsBar: React.FC<AttachedRollsBarProps> = ({ rolls, targe
         const isD20 = roll.diceType.toLowerCase() === 'd20';
         const isSuccess = targetDC ? roll.total >= targetDC : undefined;
 
-        let borderClass = 'border-slate-700 bg-slate-800 text-slate-200';
+        let borderClass = 'border-[#2a303d] bg-[#141720] text-[#ded7c8]';
         if (roll.isCriticalSuccess) {
-          borderClass = 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-glow-gold';
+          borderClass = 'bg-[#231e14] text-[#ffd98a] border-[#c5a059] shadow-sm';
         } else if (roll.isCriticalFail) {
-          borderClass = 'bg-red-500/20 text-red-300 border-red-500';
+          borderClass = 'bg-[#251313] text-[#fca5a5] border-[#7f2626] shadow-sm';
         } else if (isD20 && isSuccess !== undefined) {
           borderClass = isSuccess
-            ? 'bg-emerald-950/40 text-emerald-200 border-emerald-500/60'
-            : 'bg-rose-950/40 text-rose-200 border-rose-500/60';
+            ? 'bg-[#122219] text-[#a7f3d0] border-[#2d5a3f]'
+            : 'bg-[#221315] text-[#fecaca] border-[#6b2c2c]';
         }
 
         return (
           <span
             key={idx}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-semibold border ${borderClass}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-serif border ${borderClass}`}
           >
-            <Dices className="w-3.5 h-3.5 text-amber-400" />
+            <Dices className="w-3.5 h-3.5 text-[#c5a059]" />
             {roll.purpose ? `${roll.purpose}: ` : ''}
-            {roll.diceType} ({roll.rolls.join('+')}
-            {roll.modifier !== 0 ? `${roll.modifier >= 0 ? '+' : ''}${roll.modifier}` : ''}) ={' '}
-            <strong className="text-amber-300">{roll.total}</strong>
+            <span className="font-mono text-[11px]">
+              {roll.diceType} ({roll.rolls.join('+')}
+              {roll.modifier !== 0 ? `${roll.modifier >= 0 ? '+' : ''}${roll.modifier}` : ''}) ={' '}
+            </span>
+            <strong className="text-[#ffd98a] font-mono text-xs">{roll.total}</strong>
 
             {isD20 && targetDC !== undefined && (
               <span
-                className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-sans font-bold uppercase tracking-wider ${
                   roll.isCriticalSuccess
-                    ? 'bg-amber-400/30 text-amber-200'
+                    ? 'bg-[#3d3119] text-[#ffd98a] border border-[#c5a059]'
                     : roll.isCriticalFail
-                    ? 'bg-red-500/30 text-red-200'
+                    ? 'bg-[#3b1818] text-[#fca5a5] border border-[#7f2626]'
                     : isSuccess
-                    ? 'bg-emerald-500/30 text-emerald-300'
-                    : 'bg-rose-500/30 text-rose-300'
+                    ? 'bg-[#183624] text-[#a7f3d0] border border-[#2d5a3f]'
+                    : 'bg-[#361a1a] text-[#fecaca] border border-[#6b2c2c]'
                 }`}
               >
                 {roll.isCriticalSuccess
-                  ? '★ Крит!'
+                  ? '★ Триумф'
                   : roll.isCriticalFail
-                  ? '☠ Крит. провал'
+                  ? '☠ Рок'
                   : isSuccess
                   ? `✓ Успех (${roll.total} ≥ ${targetDC})`
                   : `✗ Провал (${roll.total} < ${targetDC})`}

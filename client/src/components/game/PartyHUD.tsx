@@ -23,21 +23,21 @@ export const PartyHUD: React.FC<PartyHUDProps> = ({
 
   return (
     <>
-      <div className="bg-fantasy-panel border border-fantasy-border rounded-2xl p-4 shadow-xl flex flex-col h-full overflow-hidden">
+      <div className="bg-[#13161d] border border-[#2a303d] rounded-xl p-3 sm:p-3.5 shadow-md flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between mb-3 border-b border-fantasy-border pb-2.5">
-          <h3 className="text-sm font-bold font-rpg text-amber-400 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-amber-500" />
+        <div className="flex items-center justify-between mb-2.5 border-b border-[#242935] pb-2">
+          <h3 className="text-sm font-bold font-rpg text-[#e2c26a] flex items-center gap-2 tracking-wide">
+            <Shield className="w-4 h-4 text-[#c5a059]" />
             Отряд героев ({activeCount})
           </h3>
-          <div className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300">
+          <div className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-[#0c0d11] border border-[#2e3544] text-[#968e7f]">
             {turnMode === 'turn_by_turn' ? (
-              <span className="flex items-center gap-1 text-amber-400" title="Пошаговый режим: игроки ходят строго по очереди">
-                <ListOrdered className="w-3 h-3" /> По очереди
+              <span className="flex items-center gap-1 text-[#d8b4fe]" title="Пошаговый режим: игроки ходят строго по очереди">
+                <ListOrdered className="w-3 h-3 text-[#c084fc]" /> По очереди
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-slate-400" title="Общий режим: одновременные заявки">
-                <Users className="w-3 h-3" /> Общий ход
+              <span className="flex items-center gap-1 text-[#c5a059]" title="Общий режим: одновременные заявки">
+                <Users className="w-3 h-3 text-[#c5a059]" /> Общий ход
               </span>
             )}
           </div>

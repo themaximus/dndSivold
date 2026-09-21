@@ -219,151 +219,174 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
     );
   }
 
-  // 5. Active Action Console (Compact, High-Efficiency Dock)
+  // 5. Active Action Console (Sir Brante "Book of Decisions" aesthetic)
   return (
-    <div className="p-2.5 sm:p-3 bg-slate-950/95 border-t border-fantasy-border space-y-2">
+    <div className="p-3 sm:p-4 bg-[#11131a] border-t border-[#2a303d] space-y-3">
       {/* Rejection Alert Banner if DM rejected turn */}
       {rejectedAction && (
-        <div className="px-3 py-1.5 rounded-xl bg-red-950/70 border border-red-500/50 flex items-center gap-2 text-xs text-red-200 animate-in fade-in">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-          <div className="flex-1 leading-tight">
-            <span className="font-bold text-red-400">Ход отклонен Мастером: </span>
+        <div className="px-3.5 py-2 rounded-lg bg-[#281418] border border-[#69252c] flex items-center gap-2.5 text-xs text-[#fca5a5] animate-in fade-in font-serif">
+          <AlertTriangle className="w-4 h-4 text-[#f87171] shrink-0" />
+          <div className="flex-1 leading-snug">
+            <span className="font-bold text-[#f87171]">Мастер отклонил заявку: </span>
             <span>{rejectedAction.reason}</span>
           </div>
         </div>
       )}
 
-
-      {/* Suggestion Chips & DC indicator Row */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className={`flex items-center gap-1.5 overflow-x-auto custom-scrollbar text-[11px] py-0.5 transition-opacity ${d20Roll ? 'opacity-40 pointer-events-none' : ''}`}>
-          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Подсказки:</span>
-          {livingEnemies.length === 0 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Вступаю в разговор и расспрашиваю')}
-                className="px-2 py-0.5 rounded-full bg-blue-950/40 text-blue-300 border border-blue-800/40 hover:bg-blue-900/50 transition-colors flex items-center gap-1 shrink-0"
-              >
-                💬 <span>Диалог</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Внимательно осматриваю местность и ищу зацепки')}
-                className="px-2 py-0.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/40 hover:bg-amber-900/50 transition-colors flex items-center gap-1 shrink-0"
-              >
-                🔍 <span>Осмотр</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Предлагаю помощь или торговлю')}
-                className="px-2 py-0.5 rounded-full bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 hover:bg-emerald-900/50 transition-colors flex items-center gap-1 shrink-0"
-              >
-                🤝 <span>Сделка / Помощь</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Использую заклинание или трюк')}
-                className="px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-800/40 hover:bg-purple-900/50 transition-colors flex items-center gap-1 shrink-0"
-              >
-                <Sparkles className="w-2.5 h-2.5" />
-                <span>Магия / Трюк</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Продолжаем путь по тракту')}
-                className="px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-colors flex items-center gap-1 shrink-0"
-              >
-                🗺️ <span>В путь</span>
-              </button>
-            </>
-          ) : (
-            <>
-              {primaryEnemy && (
-                <button
-                  type="button"
-                  onClick={() => handleSuggestionClick(`Атакую ${primaryEnemy.name}`)}
-                  className="px-2 py-0.5 rounded-full bg-red-950/40 text-red-300 border border-red-800/40 hover:bg-red-900/50 transition-colors flex items-center gap-1 shrink-0"
-                >
-                  <Swords className="w-2.5 h-2.5" />
-                  <span>Атака ({primaryEnemy.name})</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Ищу укрытие от врагов')}
-                className="px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-colors flex items-center gap-1 shrink-0"
-              >
-                <Shield className="w-2.5 h-2.5" />
-                <span>Укрыться</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Использую заклинание')}
-                className="px-2 py-0.5 rounded-full bg-purple-950/40 text-purple-300 border border-purple-800/40 hover:bg-purple-900/50 transition-colors flex items-center gap-1 shrink-0"
-              >
-                <Sparkles className="w-2.5 h-2.5" />
-                <span>Заклинание</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSuggestionClick('Опрокидываю стол и импровизирую')}
-                className="px-2 py-0.5 rounded-full bg-amber-950/40 text-amber-300 border border-amber-800/40 hover:bg-amber-900/50 transition-colors shrink-0"
-              >
-                🤸 Окружение
-              </button>
-            </>
+      {/* Decision Header: Challenge DC & Stat requirement */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242935] pb-2">
+        <div className="flex items-center gap-2 text-xs font-serif text-[#ded7c8]">
+          <span className="text-[#c5a059] font-bold tracking-wide">Испытание раунда:</span>
+          <span className="px-2 py-0.5 rounded bg-[#181c25] border border-[#4a3e26] text-[#e2c26a] font-mono font-bold text-[11px]">
+            СЛ {targetDC} [{statShort}]
+          </span>
+          {dcReason && (
+            <span className="text-[#968e7f] italic hidden sm:inline">
+              — {dcReason}
+            </span>
           )}
         </div>
-
-        {/* Challenge DC badge */}
-        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1 shrink-0">
-          <span className="text-amber-400 font-bold">СЛ {targetDC}</span>
-          <span className="text-slate-500">[{statShort}]</span>
-          {dcReason && <span className="text-slate-500 hidden sm:inline">• {dcReason}</span>}
+        <div className="text-[11px] font-serif text-[#968e7f]">
+          {d20Roll ? 'Шаг II: Подтверждение хода' : 'Шаг I: Описание действия и бросок'}
         </div>
       </div>
 
-      {/* Main Console Input Row */}
-      <form onSubmit={handleSubmit} className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          {/* If d20 roll is completed, show locked result badge on the left */}
-          {d20Roll && (() => {
-            const isCritSuccess = !!d20Roll.isCriticalSuccess;
-            const isCritFail = !!d20Roll.isCriticalFail;
-            const isSuccess = !isCritFail && (isCritSuccess || (targetDC !== undefined && d20Roll.total >= targetDC));
-
-            return (
-              <div
-                className={`px-3 py-2 rounded-xl border font-mono text-xs font-bold flex items-center gap-1.5 shrink-0 animate-result-bounce select-none cursor-default ${
-                  isCritSuccess
-                    ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-glow-gold'
-                    : isCritFail
-                    ? 'bg-red-950/60 border-red-500 text-red-300 shadow-glow-crimson'
-                    : isSuccess
-                    ? 'bg-emerald-950/50 border-emerald-400 text-emerald-300 shadow-lg shadow-emerald-500/20'
-                    : 'bg-rose-950/50 border-rose-500 text-rose-300 shadow-lg shadow-rose-500/20'
-                }`}
-                title="Бросок d20 совершен и зафиксирован на этот ход. Переброс запрещен правилами честной игры."
-              >
-                {isCritSuccess ? (
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                ) : isCritFail ? (
-                  <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-                ) : isSuccess ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <span className="w-3.5 h-3.5 text-rose-400 font-bold">✗</span>
+      {/* Literary Action Suggestions (Sir Brante decision choices) */}
+      {!d20Roll && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1 text-[11px] font-serif text-[#968e7f]">
+            <span>Возможные намерения героя:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-serif">
+            {livingEnemies.length === 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Вступаю в разговор и расспрашиваю')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
+                >
+                  <span className="text-[#c5a059] mr-1">I.</span> Диалог и расспрос
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Внимательно осматриваю местность и ищу зацепки')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
+                >
+                  <span className="text-[#c5a059] mr-1">II.</span> Осмотр местности
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Предлагаю помощь или торговлю')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
+                >
+                  <span className="text-[#c5a059] mr-1">III.</span> Помощь или сделка
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Использую заклинание или трюк')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
+                >
+                  <span className="text-[#c5a059] mr-1">IV.</span> Магический трюк
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Продолжаем путь по тракту')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
+                >
+                  <span className="text-[#c5a059] mr-1">V.</span> Следовать в путь
+                </button>
+              </>
+            ) : (
+              <>
+                {primaryEnemy && (
+                  <button
+                    type="button"
+                    onClick={() => handleSuggestionClick(`Атакую ${primaryEnemy.name}`)}
+                    className="px-2.5 py-1 rounded bg-[#261518] hover:bg-[#381a20] text-[#fca5a5] hover:text-white border border-[#59262b] hover:border-[#8b353d] transition-colors flex items-center gap-1"
+                  >
+                    <Swords className="w-3 h-3 text-[#f87171]" />
+                    <span>Атаковать ({primaryEnemy.name})</span>
+                  </button>
                 )}
-                <span>
-                  d20: {d20Roll.total} {isCritSuccess ? '★ КРИТ. УСПЕХ' : isCritFail ? '☠ КРИТ. ПРОВАЛ' : isSuccess ? '★ УСПЕХ' : '✗ ПРОВАЛ'}
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Ищу надежное укрытие от вражеских атак')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] transition-colors flex items-center gap-1"
+                >
+                  <Shield className="w-3 h-3 text-[#968e7f]" />
+                  <span>Укрыться</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Сотворяю боевое заклинание')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] transition-colors flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3 text-[#c084fc]" />
+                  <span>Заклинание</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick('Использую элементы окружения и импровизирую')}
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] transition-colors"
+                >
+                  Окружение и трюк
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Outcome Banner if d20 is already rolled */}
+      {d20Roll && (() => {
+        const isCritSuccess = !!d20Roll.isCriticalSuccess;
+        const isCritFail = !!d20Roll.isCriticalFail;
+        const isSuccess = !isCritFail && (isCritSuccess || (targetDC !== undefined && d20Roll.total >= targetDC));
+        const rawDie = d20Roll.baseRoll || (d20Roll.rolls && d20Roll.rolls.length > 0 ? d20Roll.rolls[0] : d20Roll.total);
+
+        return (
+          <div
+            className={`p-2.5 rounded-lg border text-xs font-serif flex items-center justify-between gap-3 animate-in fade-in ${
+              isCritSuccess
+                ? 'bg-[#2b2213] border-[#785e2b] text-[#e2c26a]'
+                : isCritFail
+                ? 'bg-[#2b1316] border-[#782b32] text-[#fca5a5]'
+                : isSuccess
+                ? 'bg-[#152a1e] border-[#29563d] text-[#86efac]'
+                : 'bg-[#2b1619] border-[#6b252c] text-[#fca5a5]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {isCritSuccess ? (
+                <Sparkles className="w-4 h-4 text-[#e2c26a] shrink-0" />
+              ) : isCritFail ? (
+                <ShieldAlert className="w-4 h-4 text-[#f87171] shrink-0" />
+              ) : isSuccess ? (
+                <CheckCircle2 className="w-4 h-4 text-[#86efac] shrink-0" />
+              ) : (
+                <span className="w-4 h-4 text-[#f87171] font-bold text-center shrink-0">✗</span>
+              )}
+              <div>
+                <span className="font-bold tracking-wide">
+                  {isCritSuccess ? '★ КРИТИЧЕСКИЙ УСПЕХ' : isCritFail ? '☠ КРИТИЧЕСКИЙ ПРОВАЛ' : isSuccess ? '★ УСПЕХ' : '✗ ПРОВАЛ'}
+                </span>
+                <span className="ml-2 font-mono text-[11px] opacity-90">
+                  (Итог: {d20Roll.total} против СЛ {targetDC})
                 </span>
               </div>
-            );
-          })()}
+            </div>
+            <div className="text-[11px] font-mono text-right opacity-80 hidden sm:block">
+              d20 [{rawDie}] {d20Roll.modifier !== undefined ? (d20Roll.modifier >= 0 ? `+ ${d20Roll.modifier}` : `- ${Math.abs(d20Roll.modifier)}`) : ''}
+            </div>
+          </div>
+        );
+      })()}
 
-          {/* Natural Language Action Input */}
-          <div className="flex-1 relative min-w-0">
+      {/* Main Console Form */}
+      <form onSubmit={handleSubmit} className="space-y-2.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Action Input Field */}
+          <div className="flex-1 relative">
             <input
               type="text"
               value={actionText}
@@ -373,39 +396,39 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
               readOnly={!!d20Roll}
               placeholder={
                 d20Roll
-                  ? "Действие зафиксировано для совершенного броска d20"
+                  ? "Действие скреплено броском кубика"
                   : livingEnemies.length > 0
-                  ? "Шаг 1: Опишите действие героя (атака, укрытие, магия, трюк)..."
-                  : "Шаг 1: Опишите действие героя (диалог с NPC, осмотр, сделка, помощь, путь)..."
+                  ? "Опишите задуманное действие героя (атака, укрытие, магия, трюк)..."
+                  : "Опишите задуманное действие героя (диалог, осмотр, сделка, помощь, путь)..."
               }
-              className={`w-full px-3 py-2 border rounded-xl text-xs sm:text-sm transition-all ${
+              className={`w-full py-2.5 px-3.5 border rounded-lg text-xs sm:text-sm font-serif transition-all ${
                 d20Roll
-                  ? 'bg-slate-950/80 border-amber-500/40 text-amber-200 cursor-not-allowed pl-8'
-                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30'
+                  ? 'bg-[#0f1117] border-[#4a3e26] text-[#e2c26a] cursor-not-allowed pl-9 shadow-inner'
+                  : 'bg-[#0c0d11] border-[#2e3544] text-[#ded7c8] placeholder-[#736c5f] focus:outline-none focus:border-[#c5a059]'
               }`}
             />
             {d20Roll && (
-              <Lock className="w-3.5 h-3.5 text-amber-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Lock className="w-4 h-4 text-[#c5a059] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             )}
           </div>
 
-          {/* Dynamic Main Button: Step 1 (Roll D20) -> Step 2 (Submit Move) */}
+          {/* Action Button: Step 1 (Roll d20) -> Step 2 (Submit Move) */}
           {!d20Roll ? (
             <button
               type="button"
               onClick={handleOpenDice}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-rpg text-xs font-bold rounded-xl shadow-md shadow-amber-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
-              title="Бросить кубик d20 для проверки действия"
+              className="px-5 py-2.5 bg-[#2b2213] hover:bg-[#3d301a] text-[#e2c26a] hover:text-white border border-[#785e2b] hover:border-[#c5a059] font-rpg text-xs sm:text-sm font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 active:scale-98"
+              title="Бросить кубик d20 для проверки задуманного действия"
             >
-              <Dices className="w-4 h-4" />
+              <Dices className="w-4 h-4 text-[#c5a059]" />
               <span>Бросить кубик d20</span>
             </button>
           ) : (
             <button
               type="submit"
               disabled={!actionText.trim()}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-rpg text-xs font-bold rounded-xl shadow-md shadow-emerald-500/25 transition-all flex items-center gap-1.5 shrink-0 animate-pulse hover:scale-105 active:scale-95"
-              title="Отправить ход Мастеру Подземелий"
+              className="px-5 py-2.5 bg-[#1b3d2b] hover:bg-[#25523a] text-[#a7f3d0] hover:text-white border border-[#3b7857] hover:border-[#4ade80] font-rpg text-xs sm:text-sm font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 animate-pulse active:scale-98"
+              title="Отправить готовый ход Мастеру Подземелий"
             >
               <Send className="w-4 h-4" />
               <span>Сделать ход</span>
@@ -413,16 +436,21 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           )}
         </div>
 
-        {/* Lock Notice underneath input when rolled */}
-        {d20Roll && (
-          <div className="flex items-center justify-between text-[11px] text-amber-300/80 px-1 font-mono">
-            <span className="flex items-center gap-1">
-              <Lock className="w-3 h-3 text-amber-400" />
-              Действие зафиксировано под бросок d20. Для отправки хода нажмите «Сделать ход».
+        {/* Informative Guidance Line */}
+        <div className="flex flex-wrap items-center justify-between text-[11px] font-serif text-[#968e7f] px-0.5 pt-0.5">
+          {d20Roll ? (
+            <span className="text-[#c5a059]">
+              ✓ Бросок выполнен и зафиксирован. Нажмите «Сделать ход» для передачи заявки Мастеру.
             </span>
-            <span className="text-slate-500 text-[10px]">Строго 1 попытка за раунд</span>
-          </div>
-        )}
+          ) : (
+            <span>
+              Шаг 1: введите действие героя, затем нажмите «Бросить кубик d20».
+            </span>
+          )}
+          <span className="text-[#6e675b] font-mono text-[10px]">
+            1 ход в раунд
+          </span>
+        </div>
       </form>
     </div>
   );
