@@ -20,7 +20,7 @@ export function useGameSession(roomCode: string) {
   const [rejectedAction, setRejectedAction] = useState<ActionRejectedEvent | null>(null);
   const [recentActivities, setRecentActivities] = useState<FeedActivity[]>([]);
   const [inventoryNotifications, setInventoryNotifications] = useState<InventoryNotification[]>([]);
-  const [roomRollBroadcast, setRoomRollBroadcast] = useState<RoomRollBroadcast | null>(null);
+  const [roomRollBroadcasts, setRoomRollBroadcasts] = useState<RoomRollBroadcast[]>([]);
   const [finishedAdventure, setFinishedAdventure] = useState<{
     finishType: 'cliffhanger' | 'triumph' | 'open_ended';
     title: string;
@@ -141,13 +141,14 @@ export function useGameSession(roomCode: string) {
       }
       soundFx.playDiceRoll();
       if (data && data.roll) {
-        setRoomRollBroadcast({
+        const newBroadcast: RoomRollBroadcast = {
           id: crypto.randomUUID(),
           playerId: data.playerId,
           username: data.username,
           characterName: data.characterName,
           roll: data.roll,
-        });
+        };
+        setRoomRollBroadcasts(prev => [...prev.slice(-5), newBroadcast]);
       }
     });
 
@@ -451,8 +452,12 @@ export function useGameSession(roomCode: string) {
     setInventoryNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
-  const dismissRoomRoll = useCallback(() => {
-    setRoomRollBroadcast(null);
+  const dismissRoomRoll = useCallback((id?: string) => {
+    if (id) {
+      setRoomRollBroadcasts(prev => prev.filter(b => b.id !== id));
+    } else {
+      setRoomRollBroadcasts([]);
+    }
   }, []);
 
   return {
@@ -472,7 +477,8 @@ export function useGameSession(roomCode: string) {
     recentActivities,
     inventoryNotifications,
     dismissInventoryNotification,
-    roomRollBroadcast,
+    roomRollBroadcasts,
+    roomRollBroadcast: roomRollBroadcasts[roomRollBroadcasts.length - 1] || null,
     dismissRoomRoll,
     finishedAdventure,
     setFinishedAdventure,

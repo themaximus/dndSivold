@@ -36,16 +36,10 @@ export const ChronicleDiceBroadcast: React.FC<ChronicleDiceBroadcastProps> = ({
       setIsSpinning(false);
     }, 1300);
 
-    // Auto dismiss after 6.5s so it doesn't clutter the chronicle forever
-    const autoDismissTimer = setTimeout(() => {
-      onDismiss();
-    }, 6500);
-
     return () => {
       clearTimeout(spinTimer);
-      clearTimeout(autoDismissTimer);
     };
-  }, [broadcast.id, onDismiss]);
+  }, [broadcast.id]);
 
   const handleSettle = () => {
     if (hasLanded) return;

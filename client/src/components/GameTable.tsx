@@ -58,7 +58,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     recentActivities,
     inventoryNotifications,
     dismissInventoryNotification,
-    roomRollBroadcast,
+    roomRollBroadcasts,
     dismissRoomRoll,
     finishedAdventure,
     finishAdventure,
@@ -180,7 +180,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             recentActivities={recentActivities}
             isSpeakingText={isSpeakingText}
             onToggleVoice={toggleVoice}
-            activeRoomRoll={roomRollBroadcast && roomRollBroadcast.playerId !== user?.id ? roomRollBroadcast : null}
+            activeRoomRolls={roomRollBroadcasts.filter(b => b.playerId !== user?.id)}
             targetDC={room.targetDC}
             onDismissRoomRoll={dismissRoomRoll}
           />

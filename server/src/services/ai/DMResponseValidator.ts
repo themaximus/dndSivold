@@ -1,15 +1,44 @@
 import { AIDMResponse } from '../../domain/types';
 
+function repairJson(raw: string): string {
+  let s = raw.trim();
+
+  // Remove markdown code blocks if model wrapped them
+  if (s.startsWith('```json')) {
+    s = s.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (s.startsWith('```')) {
+    s = s.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+
+  // Extract outermost { ... }
+  const firstBrace = s.indexOf('{');
+  const lastBrace = s.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    s = s.slice(firstBrace, lastBrace + 1);
+  }
+
+  // Remove trailing commas before closing brackets or braces (e.g. [ { ... }, ] or { "a": 1, })
+  s = s.replace(/,\s*([}\]])/g, '$1');
+
+  return s;
+}
+
+function extractStringField(raw: string, field: string): string | undefined {
+  const regex = new RegExp(`"${field}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 's');
+  const match = raw.match(regex);
+  if (match && match[1]) {
+    try {
+      return JSON.parse(`"${match[1]}"`);
+    } catch {
+      return match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+  }
+  return undefined;
+}
+
 export class DMResponseValidator {
   public validateAndParse(rawText: string): AIDMResponse {
-    let cleaned = rawText.trim();
-
-    // Remove markdown code blocks if model wrapped them
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
+    const cleaned = repairJson(rawText);
 
     try {
       const parsed = JSON.parse(cleaned);
@@ -106,11 +135,23 @@ export class DMResponseValidator {
           : undefined,
       };
     } catch (err: any) {
-      console.warn('JSON parsing error from AI response, using fallback format', err.message);
+      console.warn('JSON parsing error from AI response, recovering via regex extraction:', err.message);
+
+      // Attempt resilient regex extraction of fields so raw JSON never leaks to narrative
+      const extractedNarrative = extractStringField(cleaned, 'narrative');
+      const extractedSituation = extractStringField(cleaned, 'currentSituation');
+      const extractedDilemma = extractStringField(cleaned, 'choiceDilemma');
+
+      let fallbackNarrative = extractedNarrative;
+      if (!fallbackNarrative || fallbackNarrative.trim().startsWith('{')) {
+        fallbackNarrative = 'Мастер обдумывает последствия действий отряда и следит за реакцией окружающего мира.';
+      }
+
       return {
-        narrative: cleaned || 'Мастер обдумывает последствия ваших действий...',
+        narrative: fallbackNarrative,
         playerUpdates: [],
-        currentSituation: 'Что вы делаете дальше?',
+        currentSituation: extractedSituation || 'Что вы предпринимаете дальше?',
+        choiceDilemma: extractedDilemma,
         nextRoundDC: 13,
         nextRoundDCReason: 'Обострение обстановки',
         droppedLoot: [],

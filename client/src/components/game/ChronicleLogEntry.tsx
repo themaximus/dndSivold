@@ -23,9 +23,29 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
       : `Хроника Раунда ${log.roundNumber}`;
 
   const { displayNarrative, effectiveSituation, effectiveDilemma } = React.useMemo(() => {
-    const raw = log.narrativeText || '';
+    let raw = log.narrativeText || '';
     let sit = log.currentSituation;
     let dil = log.choiceDilemma;
+
+    // Safeguard against raw JSON strings in narrativeText
+    if (raw.trim().startsWith('{') && raw.includes('"narrative"')) {
+      const match = raw.match(/"narrative"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (match && match[1]) {
+        try {
+          raw = JSON.parse(`"${match[1]}"`);
+        } catch {
+          raw = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        }
+      }
+      if (!sit) {
+        const sitMatch = log.narrativeText.match(/"currentSituation"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        if (sitMatch && sitMatch[1]) sit = sitMatch[1];
+      }
+      if (!dil) {
+        const dilMatch = log.narrativeText.match(/"choiceDilemma"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        if (dilMatch && dilMatch[1]) dil = dilMatch[1];
+      }
+    }
 
     const outcomeMatch = raw.match(/📌\s*Итог ситуации:\s*([\s\S]*?)(?=(\n*❓\s*Выбор|$))/i);
     if (!sit && outcomeMatch && outcomeMatch[1]) {
@@ -92,12 +112,18 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
               const itemLines = subLines.filter(l => l.includes('🎒 [Инвентарь]:') || l.startsWith('🎒'));
               const reactionLines = subLines.filter(l => l.includes('[Противодействие]') || l.includes('[Защита') || l.includes('[Содействие]'));
               const verdictLines = subLines.filter(l => !l.includes('🎒 [Инвентарь]:') && !l.startsWith('🎒') && !l.includes('[Противодействие]') && !l.includes('[Защита') && !l.includes('[Содействие]'));
-              const verdictLine = verdictLines.join(' ').replace(/^↳\s*/, '');
+              const rawVerdict = verdictLines.join(' ').replace(/^↳\s*/, '');
+              const isCritSuccess = rawVerdict.includes('КРИТИЧЕСКИЙ УСПЕХ') || rawVerdict.includes('КРИТИЧЕСКОЕ ПОПАДАНИЕ');
+              const isCritFail = rawVerdict.includes('КРИТИЧЕСКИЙ ПРОВАЛ') || rawVerdict.includes('КРИТИЧЕСКИЙ ПРОМАХ');
+              const isSuccess = isCritSuccess || rawVerdict.includes('УСПЕХ') || rawVerdict.includes('ПОПАДАНИЕ');
+              const isFail = isCritFail || rawVerdict.includes('ПРОВАЛ') || rawVerdict.includes('ПРОМАХ');
               
-              const isCritSuccess = verdictLine.includes('КРИТИЧЕСКИЙ УСПЕХ') || verdictLine.includes('КРИТИЧЕСКОЕ ПОПАДАНИЕ');
-              const isCritFail = verdictLine.includes('КРИТИЧЕСКИЙ ПРОВАЛ') || verdictLine.includes('КРИТИЧЕСКИЙ ПРОМАХ');
-              const isSuccess = isCritSuccess || verdictLine.includes('УСПЕХ') || verdictLine.includes('ПОПАДАНИЕ');
-              const isFail = isCritFail || verdictLine.includes('ПРОВАЛ') || verdictLine.includes('ПРОМАХ');
+              const cleanVerdictLine = rawVerdict
+                .replace(/^★\s*(КРИТИЧЕСКИЙ\s+)?(УСПЕХ|ПОПАДАНИЕ)[!:]?\s*/i, '')
+                .replace(/^☠\s*(КРИТИЧЕСКИЙ\s+)?(ПРОВАЛ|ПРОМАХ)[!:]?\s*/i, '')
+                .replace(/^✗\s*(КРИТИЧЕСКИЙ\s+)?(ПРОВАЛ|ПРОМАХ)[!:]?\s*/i, '')
+                .replace(/^(КРИТИЧЕСКИЙ\s+)?(УСПЕХ|ПОПАДАНИЕ|ПРОВАЛ|ПРОМАХ)[!:]?\s*/i, '')
+                .trim();
 
               return (
                 <div
@@ -116,7 +142,7 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
                 >
                   <div className="font-medium text-slate-100">{playerLine}</div>
                   
-                  {verdictLine && (
+                  {rawVerdict && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-[11px] font-bold">
                       {isSuccess ? (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1">
@@ -127,7 +153,11 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
                           {isCritFail ? '☠ КРИТ. ПРОВАЛ' : '✗ ПРОВАЛ'}
                         </span>
                       ) : null}
-                      <span className="text-slate-300 font-sans font-normal">{verdictLine}</span>
+                      {cleanVerdictLine ? (
+                        <span className="text-slate-300 font-sans font-normal">{cleanVerdictLine}</span>
+                      ) : !isSuccess && !isFail ? (
+                        <span className="text-slate-300 font-sans font-normal">{rawVerdict}</span>
+                      ) : null}
                     </div>
                   )}
 

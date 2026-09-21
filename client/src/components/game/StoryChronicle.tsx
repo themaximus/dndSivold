@@ -9,9 +9,10 @@ interface StoryChronicleProps {
   recentActivities?: FeedActivity[];
   isSpeakingText: (text?: string) => boolean;
   onToggleVoice: (logId: string, narrativeText: string) => void;
+  activeRoomRolls?: RoomRollBroadcast[];
   activeRoomRoll?: RoomRollBroadcast | null;
   targetDC?: number;
-  onDismissRoomRoll?: () => void;
+  onDismissRoomRoll?: (id?: string) => void;
 }
 
 export const StoryChronicle: React.FC<StoryChronicleProps> = ({
@@ -20,15 +21,22 @@ export const StoryChronicle: React.FC<StoryChronicleProps> = ({
   recentActivities,
   isSpeakingText,
   onToggleVoice,
+  activeRoomRolls,
   activeRoomRoll,
   targetDC,
   onDismissRoomRoll,
 }) => {
   const logEndRef = useRef<HTMLDivElement>(null);
 
+  const rollsToRender = (activeRoomRolls && activeRoomRolls.length > 0)
+    ? activeRoomRolls
+    : activeRoomRoll
+    ? [activeRoomRoll]
+    : [];
+
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs, activeRoomRoll]);
+  }, [logs, activeRoomRoll, activeRoomRolls]);
 
   return (
     <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 custom-scrollbar">
@@ -53,13 +61,14 @@ export const StoryChronicle: React.FC<StoryChronicleProps> = ({
       ))}
 
       {/* 3D Dice Roll Animation directly inside the Chronicle Events feed for observers */}
-      {activeRoomRoll && onDismissRoomRoll && (
+      {rollsToRender.map(broadcast => (
         <ChronicleDiceBroadcast
-          broadcast={activeRoomRoll}
+          key={broadcast.id}
+          broadcast={broadcast}
           targetDC={targetDC}
-          onDismiss={onDismissRoomRoll}
+          onDismiss={() => onDismissRoomRoll?.(broadcast.id)}
         />
-      )}
+      ))}
 
       <div ref={logEndRef} />
     </div>

@@ -19,7 +19,21 @@ import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 
 export function sanitizeNarrativeText(text: string): string {
   if (!text) return '';
-  return text
+  let clean = text.trim();
+
+  // If raw JSON leaked in (e.g. { "narrative": "..." })
+  if (clean.startsWith('{') && clean.includes('"narrative"')) {
+    const match = clean.match(/"narrative"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (match && match[1]) {
+      try {
+        clean = JSON.parse(`"${match[1]}"`);
+      } catch {
+        clean = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      }
+    }
+  }
+
+  return clean
     .replace(/\n*📌\s*Итог ситуации:[\s\S]*?(?=(\n*❓\s*Выбор|$))/i, '')
     .replace(/\n*❓\s*Выбор[\s\S]*$/i, '')
     .trim();
