@@ -268,106 +268,122 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
         <button
           type="button"
           onClick={() => handleTabChange('threats')}
-          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg font-bold transition-all relative ${
             activeTab === 'threats'
               ? 'bg-red-950/70 text-red-200 border border-red-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
           title="Враги и угрозы на поле боя"
         >
-          <Skull className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">Враги</span>
-          {activeEnemies.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-red-800 text-red-100 font-mono">
-              {activeEnemies.length}
-            </span>
-          )}
+          <div className="relative">
+            <Skull className="w-3.5 h-3.5" />
+            {activeEnemies.length > 0 && (
+              <span className="absolute -top-1.5 -right-2.5 px-1 py-0.2 rounded-full text-[8px] bg-red-600 text-white font-mono leading-none">
+                {activeEnemies.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] mt-1 leading-none">Враги</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleTabChange('npcs')}
-          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg font-bold transition-all relative ${
             activeTab === 'npcs'
               ? 'bg-emerald-950/70 text-emerald-200 border border-emerald-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
           title="Нейтральные персонажи и спутники сцены"
         >
-          <Users className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">Сцена</span>
-          {livingNPCs.length > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono ${
-              allyCombatants.length > 0
-                ? 'bg-emerald-600 text-white font-bold animate-pulse'
-                : 'bg-slate-700 text-slate-200'
-            }`}>
-              {livingNPCs.length}
-            </span>
-          )}
+          <div className="relative">
+            <Users className="w-3.5 h-3.5" />
+            {livingNPCs.length > 0 && (
+              <span className={`absolute -top-1.5 -right-2.5 px-1 py-0.2 rounded-full text-[8px] font-mono leading-none ${
+                allyCombatants.length > 0
+                  ? 'bg-emerald-600 text-white font-bold animate-pulse'
+                  : 'bg-slate-700 text-slate-200'
+              }`}>
+                {livingNPCs.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] mt-1 leading-none">Сцена</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleTabChange('quests')}
-          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg font-bold transition-all relative ${
             activeTab === 'quests'
               ? 'bg-amber-950/70 text-amber-200 border border-amber-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
           title="Задачи, квесты и цели отряда"
         >
-          <Compass className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-          <span className="truncate">Квесты</span>
-          {activeQuests.length > 0 ? (
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-800 text-amber-100 font-mono">
-              {activeQuests.length}
-            </span>
-          ) : completedQuests.length > 0 ? (
-            <span className="px-1 py-0.2 rounded-full text-[9px] bg-emerald-900/60 text-emerald-300 font-mono">
-              ✓
-            </span>
-          ) : null}
+          <div className="relative">
+            <Compass className="w-3.5 h-3.5 text-amber-400" />
+            {activeQuests.length > 0 ? (
+              <span className="absolute -top-1.5 -right-2.5 px-1 py-0.2 rounded-full text-[8px] bg-amber-800 text-amber-100 font-mono leading-none">
+                {activeQuests.length}
+              </span>
+            ) : completedQuests.length > 0 ? (
+              <span className="absolute -top-1.5 -right-2 px-1 py-0.2 rounded-full text-[8px] bg-emerald-900/80 text-emerald-300 font-mono leading-none">
+                ✓
+              </span>
+            ) : null}
+          </div>
+          <span className="text-[10px] mt-1 leading-none">Квесты</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleTabChange('history')}
-          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg font-bold transition-all relative ${
             activeTab === 'history'
               ? 'bg-purple-950/70 text-purple-200 border border-purple-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
           title="Архив мира и история обысков"
         >
-          <History className="w-3.5 h-3.5 shrink-0 text-purple-400" />
-          <span className="truncate">Архив</span>
-          {(worldNPCRegistry.length > 0 || searchedObjects.length > 0) && (
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-purple-900/80 text-purple-200 font-mono">
-              {worldNPCRegistry.length + searchedObjects.length}
-            </span>
-          )}
+          <div className="relative">
+            <History className="w-3.5 h-3.5 text-purple-400" />
+            {(worldNPCRegistry.length > 0 || searchedObjects.length > 0) && (
+              <span className="absolute -top-1.5 -right-2.5 px-1 py-0.2 rounded-full text-[8px] bg-purple-900/90 text-purple-200 font-mono leading-none">
+                {worldNPCRegistry.length + searchedObjects.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] mt-1 leading-none">Архив</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleTabChange('all')}
-          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg font-bold transition-all relative ${
             activeTab === 'all'
               ? 'bg-indigo-950/70 text-indigo-200 border border-indigo-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
           title="Показать всё"
         >
-          <Sparkles className="w-3.5 h-3.5 shrink-0" />
-          <span>Все</span>
+          <Sparkles className="w-3.5 h-3.5" />
+          <span className="text-[10px] mt-1 leading-none">Все</span>
         </button>
       </div>
 
       {/* Main List Container */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-        {/* Empty State */}
-        {enemies.length === 0 && sceneNPCs.length === 0 ? (
+        {/* Empty State only when 'all' tab is selected and everything is completely empty */}
+        {activeTab === 'all' &&
+         activeEnemies.length === 0 &&
+         livingNPCs.length === 0 &&
+         defeatedEnemies.length === 0 &&
+         fallenNPCs.length === 0 &&
+         activeQuests.length === 0 &&
+         completedQuests.length === 0 &&
+         worldNPCRegistry.length === 0 &&
+         searchedObjects.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-400">
             <div className="p-3 rounded-2xl bg-fantasy-card/60 border border-fantasy-border mb-2.5 text-slate-500">
               <Shield className="w-6 h-6 stroke-[1.5]" />
@@ -698,7 +714,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
             )}
 
             {/* 3. DEFEATED / FALLEN ENTITIES */}
-            {(defeatedEnemies.length > 0 || fallenNPCs.length > 0) && (
+            {(defeatedEnemies.length > 0 || fallenNPCs.length > 0) && (showThreats || showNPCs) && (
               <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
                 <p className="text-[10px] font-mono uppercase text-slate-500 px-1">
                   Покинули сцену / повержены ({defeatedEnemies.length + fallenNPCs.length}):
@@ -739,7 +755,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
             )}
 
             {/* 4. QUESTS & OBJECTIVES (when showQuests is true) */}
-            {showQuests && (
+            {showQuests && (activeTab !== 'all' || activeQuests.length > 0 || completedQuests.length > 0) && (
               <div className={`${activeTab === 'all' ? 'pt-3 border-t border-slate-800/80' : ''} space-y-3`}>
                 {/* Active Quests */}
                 <div className="space-y-2">
@@ -826,102 +842,116 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
             )}
 
             {/* 5. WORLD HISTORY & SEARCHED OBJECTS (when showHistory is true) */}
-            {showHistory && (
+            {showHistory && (activeTab !== 'all' || worldNPCRegistry.length > 0 || searchedObjects.length > 0) && (
               <div className={`${activeTab === 'all' ? 'pt-3 border-t border-slate-800/80' : ''} space-y-3`}>
-                {/* World NPC Archive (Departed NPCs) */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[11px] font-bold font-rpg uppercase text-purple-300 flex items-center gap-1.5">
-                      <Archive className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      Архив мира / История ({worldNPCRegistry.length})
-                    </span>
+                {activeTab === 'history' && worldNPCRegistry.length === 0 && searchedObjects.length === 0 ? (
+                  <div className="p-4 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border">
+                    <History className="w-6 h-6 mx-auto mb-2 text-purple-400/70" />
+                    <p className="text-xs font-bold text-slate-300 mb-1">Архив мира пуст</p>
+                    <p className="text-[11px] text-slate-500">Пока нет выбывших персонажей или исследованных объектов в летописи.</p>
                   </div>
-
-                  {worldNPCRegistry.length === 0 ? (
-                    <div className="p-3 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border text-xs">
-                      <p className="text-slate-300 font-semibold mb-0.5">Архив персонажей пуст</p>
-                      <p className="text-[10px] text-slate-500">Все встреченные персонажи находятся в текущей сцене.</p>
-                    </div>
-                  ) : (
-                    worldNPCRegistry.map((wn) => (
-                      <div
-                        key={wn.id}
-                        className="bg-slate-900/80 border border-purple-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-1.5">
-                          <span className="font-bold text-purple-200 text-xs flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                            {wn.name} <span className="text-[10px] text-slate-400 font-normal">({wn.role})</span>
-                          </span>
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-950/70 text-purple-300 border border-purple-800/50 shrink-0">
-                            Р{wn.departureRound} • {
-                              wn.departureReason === 'left_behind' ? 'Остался позади' :
-                              wn.departureReason === 'location_transition' ? 'Смена локации' :
-                              wn.departureReason === 'fled' ? 'В бегстве' :
-                              wn.departureReason === 'defeated' ? 'Повержен' : 'Вне сцены'
-                            }
+                ) : (
+                  <>
+                    {/* World NPC Archive (Departed NPCs) */}
+                    {(activeTab === 'history' || worldNPCRegistry.length > 0) && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[11px] font-bold font-rpg uppercase text-purple-300 flex items-center gap-1.5">
+                            <Archive className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            Архив мира / История ({worldNPCRegistry.length})
                           </span>
                         </div>
-                        {wn.narrativeNote && (
-                          <p className="text-[10px] text-slate-300 italic pl-5 leading-tight">
-                            {wn.narrativeNote}
-                          </p>
-                        )}
-                        {wn.potentialHooks && wn.potentialHooks.length > 0 && (
-                          <div className="text-[9px] text-amber-300/80 pl-5 flex items-center gap-1">
-                            <span className="text-amber-500">✦</span>
-                            <span>{wn.potentialHooks[0]}</span>
+
+                        {worldNPCRegistry.length === 0 ? (
+                          <div className="p-3 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border text-xs">
+                            <p className="text-slate-300 font-semibold mb-0.5">Архив персонажей пуст</p>
+                            <p className="text-[10px] text-slate-500">Все встреченные персонажи находятся в текущей сцене.</p>
                           </div>
+                        ) : (
+                          worldNPCRegistry.map((wn) => (
+                            <div
+                              key={wn.id}
+                              className="bg-slate-900/80 border border-purple-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"
+                            >
+                              <div className="flex items-start justify-between gap-1.5">
+                                <span className="font-bold text-purple-200 text-xs flex items-center gap-1.5">
+                                  <Users className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                  {wn.name} <span className="text-[10px] text-slate-400 font-normal">({wn.role})</span>
+                                </span>
+                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-950/70 text-purple-300 border border-purple-800/50 shrink-0">
+                                  Р{wn.departureRound} • {
+                                    wn.departureReason === 'left_behind' ? 'Остался позади' :
+                                    wn.departureReason === 'location_transition' ? 'Смена локации' :
+                                    wn.departureReason === 'fled' ? 'В бегстве' :
+                                    wn.departureReason === 'defeated' ? 'Повержен' : 'Вне сцены'
+                                  }
+                                </span>
+                              </div>
+                              {wn.narrativeNote && (
+                                <p className="text-[10px] text-slate-300 italic pl-5 leading-tight">
+                                  {wn.narrativeNote}
+                                </p>
+                              )}
+                              {wn.potentialHooks && wn.potentialHooks.length > 0 && (
+                                <div className="text-[9px] text-amber-300/80 pl-5 flex items-center gap-1">
+                                  <span className="text-amber-500">✦</span>
+                                  <span>{wn.potentialHooks[0]}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))
                         )}
                       </div>
-                    ))
-                  )}
-                </div>
+                    )}
 
-                {/* Searched & Exhausted Objects Registry */}
-                <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[11px] font-bold font-rpg uppercase text-cyan-300 flex items-center gap-1.5">
-                      <Package className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                      Обысканные объекты ({searchedObjects.length})
-                    </span>
-                  </div>
-
-                  {searchedObjects.length === 0 ? (
-                    <div className="p-3 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border text-xs">
-                      <p className="text-slate-300 font-semibold mb-0.5">Нет обысканных объектов</p>
-                      <p className="text-[10px] text-slate-500">Повозки, сундуки и помещения ещё не подвергались обыску.</p>
-                    </div>
-                  ) : (
-                    searchedObjects.map((obj) => (
-                      <div
-                        key={obj.id}
-                        className="bg-slate-900/80 border border-cyan-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-1.5">
-                          <span className="font-bold text-cyan-200 text-xs flex items-center gap-1.5">
+                    {/* Searched & Exhausted Objects Registry */}
+                    {(activeTab === 'history' || searchedObjects.length > 0) && (
+                      <div className={`space-y-2 ${worldNPCRegistry.length > 0 ? 'pt-2 border-t border-slate-800/80' : ''}`}>
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[11px] font-bold font-rpg uppercase text-cyan-300 flex items-center gap-1.5">
                             <Package className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                            {obj.targetName}
-                          </span>
-                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shrink-0">
-                            ОБЫЩЕНО • Р{obj.searchedInRound}
+                            Обысканные объекты ({searchedObjects.length})
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-300 pl-5">
-                          <span className="text-slate-500">Извлечено: </span>
-                          <span className="text-amber-300 font-semibold">
-                            {obj.extractedItems && obj.extractedItems.length > 0 ? obj.extractedItems.join(', ') : 'Все ценные вещи'}
-                          </span>
-                        </div>
-                        {obj.narrativeNote && (
-                          <p className="text-[10px] text-slate-400 italic pl-5 leading-tight">
-                            {obj.narrativeNote}
-                          </p>
+
+                        {searchedObjects.length === 0 ? (
+                          <div className="p-3 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border text-xs">
+                            <p className="text-slate-300 font-semibold mb-0.5">Нет обысканных объектов</p>
+                            <p className="text-[10px] text-slate-500">Повозки, сундуки и помещения ещё не подвергались обыску.</p>
+                          </div>
+                        ) : (
+                          searchedObjects.map((obj) => (
+                            <div
+                              key={obj.id}
+                              className="bg-slate-900/80 border border-cyan-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"
+                            >
+                              <div className="flex items-start justify-between gap-1.5">
+                                <span className="font-bold text-cyan-200 text-xs flex items-center gap-1.5">
+                                  <Package className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                  {obj.targetName}
+                                </span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shrink-0">
+                                  ОБЫЩЕНО • Р{obj.searchedInRound}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-300 pl-5">
+                                <span className="text-slate-500">Извлечено: </span>
+                                <span className="text-amber-300 font-semibold">
+                                  {obj.extractedItems && obj.extractedItems.length > 0 ? obj.extractedItems.join(', ') : 'Все ценные вещи'}
+                                </span>
+                              </div>
+                              {obj.narrativeNote && (
+                                <p className="text-[10px] text-slate-400 italic pl-5 leading-tight">
+                                  {obj.narrativeNote}
+                                </p>
+                              )}
+                            </div>
+                          ))
                         )}
                       </div>
-                    ))
-                  )}
-                </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </>
