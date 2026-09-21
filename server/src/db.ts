@@ -117,6 +117,9 @@ export interface RoomNPC {
   status: string;
   conditions?: string[];
   isDead: boolean;
+  affinity?: number;
+  trustNotes?: string[];
+  lastActionVerdict?: string;
 }
 
 export interface CharacterReactionRequest {

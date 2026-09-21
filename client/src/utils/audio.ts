@@ -27,9 +27,15 @@ export class AudioContextManager {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  public resume(): void {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
   }
 }
 
@@ -369,7 +375,11 @@ export class NeuralVoiceService {
         this.notify(true, cleanText);
         return true;
       } catch (playErr: any) {
-        console.warn('Audio play prevented by browser policy or audio device issue:', playErr);
+        if (playErr.name === 'NotAllowedError') {
+          console.info('[Audio] Playback paused waiting for user interaction (Browser Autoplay Policy). Click "Голос DM" to listen.');
+        } else {
+          console.warn('Audio play prevented by browser policy or audio device issue:', playErr);
+        }
         if (sessionId === this.playbackSessionId) {
           this.stop();
         }
@@ -466,6 +476,10 @@ export class SoundEffectsFacade {
 
   public stopSpeech(): void {
     this.voice.stop();
+  }
+
+  public resume(): void {
+    this.contextManager.resume();
   }
 
   public toggleMute(): boolean {

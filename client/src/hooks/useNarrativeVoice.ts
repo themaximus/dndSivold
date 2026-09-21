@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { soundFx } from '../utils/audio';
 import { getSocket, connectSocket } from '../services/socket';
 
@@ -6,6 +6,7 @@ export function useNarrativeVoice(roomCode?: string) {
   const [loadingLogId, setLoadingLogId] = useState<string | null>(null);
   const [speakingText, setSpeakingText] = useState<string | null>(null);
   const [speakingLogId, setSpeakingLogId] = useState<string | null>(null);
+  const lastLocalPlayRef = useRef<{ id: string; text: string; time: number }>({ id: '', text: '', time: 0 });
 
   useEffect(() => {
     const unsubscribe = soundFx.subscribeSpeaking((isSpeaking, text) => {
@@ -29,6 +30,16 @@ export function useNarrativeVoice(roomCode?: string) {
       startedBy?: string;
     }) => {
       if (!soundFx.getSpeechState()) return;
+
+      // Ignore if this client locally initiated playback for this log within the last 4 seconds
+      const now = Date.now();
+      if (
+        lastLocalPlayRef.current.id === data.logId &&
+        now - lastLocalPlayRef.current.time < 4000
+      ) {
+        return;
+      }
+
       if (soundFx.isCurrentlySpeaking(data.narrativeText)) return;
 
       setLoadingLogId(data.logId);
@@ -75,6 +86,10 @@ export function useNarrativeVoice(roomCode?: string) {
 
     setLoadingLogId(logId);
     setSpeakingLogId(logId);
+    lastLocalPlayRef.current = { id: logId, text: narrativeText, time: Date.now() };
+
+    // Explicitly un-suspend browser AudioContext on user interaction
+    soundFx.resume();
 
     // If speech was turned off in the header/navbar, enable it on deliberate user action
     if (!soundFx.getSpeechState()) {

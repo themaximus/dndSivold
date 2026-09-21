@@ -1019,12 +1019,13 @@ export function setupGameSockets(io: Server) {
       }
     });
 
-    // Synchronize TTS Narrator playback across all players in the room
+    // Synchronize TTS Narrator playback across other players in the room
     socket.on('narrator_play', ({ roomCode, logId, narrativeText, mood }: { roomCode: string; logId: string; narrativeText: string; mood?: string }) => {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      io.to(room.id).emit('narrator_playing', {
+      // Broadcast to other peers in the room (excluding initiator to avoid playback collision/cancellation)
+      socket.to(room.id).emit('narrator_playing', {
         logId,
         narrativeText,
         mood,
@@ -1036,7 +1037,7 @@ export function setupGameSockets(io: Server) {
       const room = roomRepository.findByCode(roomCode);
       if (!room) return;
 
-      io.to(room.id).emit('narrator_stopped', {
+      socket.to(room.id).emit('narrator_stopped', {
         stoppedBy: username,
       });
     });

@@ -71,6 +71,9 @@ export interface RoomNPC {
   status: string; // e.g. "Стреляет из арбалета по гоблинам", "Прячется под телегой"
   conditions?: string[];
   isDead: boolean;
+  affinity?: number;
+  trustNotes?: string[];
+  lastActionVerdict?: string;
 }
 
 export interface InventoryUpdate {

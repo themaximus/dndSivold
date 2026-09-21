@@ -36,12 +36,16 @@ export const StoryChronicle: React.FC<StoryChronicleProps> = ({
     : [];
 
   useEffect(() => {
-    // Only scroll the internal chronicle container when a NEW log entry is appended
+    // Only auto-scroll if the container exists and the user was already near bottom or initial load
     if (logs.length > prevLogsLengthRef.current && containerRef.current) {
-      containerRef.current.scrollTo({
-        top: containerRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
+      const container = containerRef.current;
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      if (prevLogsLengthRef.current === 0 || distanceFromBottom < 250) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth',
+        });
+      }
     }
     prevLogsLengthRef.current = logs.length;
   }, [logs.length]);

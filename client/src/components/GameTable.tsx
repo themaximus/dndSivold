@@ -93,24 +93,23 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     }
   }, [myPlayer?.pendingRoll]);
 
-  // Auto-play the newest DM narrative log if speech is enabled
+  // Auto-play the newest DM narrative log when a new round completes
   useEffect(() => {
     if (!room || logs.length === 0) return;
     const latestLog = logs[logs.length - 1];
     if (!latestLog || !latestLog.narrativeText) return;
 
     if (lastAutoPlayedLogIdRef.current === null) {
+      // First mount: register latest log id to prevent unprompted browser autoplay policy error
       lastAutoPlayedLogIdRef.current = latestLog.id;
-      if (soundFx.getSpeechState()) {
-        toggleVoice(latestLog.id, latestLog.narrativeText);
-      }
     } else if (lastAutoPlayedLogIdRef.current !== latestLog.id) {
       lastAutoPlayedLogIdRef.current = latestLog.id;
-      if (soundFx.getSpeechState()) {
-        toggleVoice(latestLog.id, latestLog.narrativeText);
+      // When a genuinely new round log arrives, speak narrative directly if speech is enabled
+      if (soundFx.getSpeechState() && !soundFx.isCurrentlySpeaking(latestLog.narrativeText)) {
+        soundFx.speakNarrative(latestLog.narrativeText);
       }
     }
-  }, [logs, room?.id, toggleVoice]);
+  }, [logs.length, room?.id]);
 
   // Memoize roll broadcasts from other players to avoid unnecessary StoryChronicle re-renders
   const otherPlayerRolls = useMemo(

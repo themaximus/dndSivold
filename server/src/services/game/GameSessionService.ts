@@ -17,6 +17,7 @@ import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootI
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 import { mechanicalArbiter, MechanicalResolution } from './MechanicalArbiter';
+import { socialArbiter, SocialResolutionResult, ContestedReactionResult } from './SocialArbiter';
 import { sessionAuditLogger, RoundAuditRecord } from '../logging/SessionAuditLogger';
 
 export function sanitizeNarrativeText(text: string): string {
@@ -254,27 +255,37 @@ export class GameSessionService {
   }> {
     const players = this.rooms.findPlayersByRoomId(roomId);
     const mentions: Array<{ userId: string; characterId: string; characterName: string }> = [];
-    const textLower = actionText.toLowerCase();
+
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     for (const player of players) {
       if (player.userId === actingUserId || !player.characterId) continue;
+      // Do not block room if player is offline
+      if (player.isOnline === false) continue;
+
       const character = this.characters.findById(player.characterId);
       if (!character || !character.name) continue;
+      if (character.lifeState === 'dead' || character.hpCurrent <= 0) continue;
 
       const charName = character.name.trim();
       const nameLower = charName.toLowerCase();
-      // Stem for Russian name inflections
+      // Stem for Russian name inflections (e.g. "Ира" -> "ир", "Оля" -> "ол", "Кирилл" -> "кирилл")
       const endsInVowel = /[аяиыеоую]$/i.test(nameLower);
-      const stem = (charName.length >= 4 && endsInVowel)
+      const stem = (charName.length >= 3 && endsInVowel)
         ? nameLower.slice(0, -1)
         : (charName.length >= 5 ? nameLower.slice(0, -1) : nameLower);
 
-      const isMentioned =
-        textLower.includes(nameLower) ||
-        textLower.includes(stem) ||
-        (player.username && textLower.includes(player.username.toLowerCase())) ||
-        textLower.includes(`@${nameLower}`) ||
-        textLower.includes(`@${player.username.toLowerCase()}`);
+      // Strict Unicode word boundaries to prevent false positives like "секира" matching "Ира"
+      const namePattern = new RegExp(
+        `(?<=^|[^\\p{L}\\p{N}])(?:${escapeRegex(nameLower)}|${escapeRegex(stem)}(?:[а-яё]{1,3})?)(?=[^\\p{L}\\p{N}]|$)`,
+        'iu'
+      );
+
+      const usernamePattern = player.username
+        ? new RegExp(`(?<=^|[^\\p{L}\\p{N}])(?:@?${escapeRegex(player.username.toLowerCase())})(?=[^\\p{L}\\p{N}]|$)`, 'iu')
+        : null;
+
+      const isMentioned = namePattern.test(actionText) || (usernamePattern ? usernamePattern.test(actionText) : false);
 
       if (isMentioned) {
         mentions.push({
@@ -526,6 +537,64 @@ export class GameSessionService {
     const mechanicalDirectives: Record<string, string> = {
       [actingAction.id]: mechanicalRes.promptDirective,
     };
+
+    // Procedural Contested Reactions (PvP parry/dodge or cooperative assist)
+    const completedReactionsList = completedReactions || (room.pendingReactions || []).filter(r => r.status === 'completed');
+    const contestedReactionResults: ContestedReactionResult[] = [];
+
+    for (const react of completedReactionsList) {
+      if (react.initiatorUserId === actingAction.playerId) {
+        const initChar = activeCharacters.find(c => c.userId === react.initiatorUserId);
+        const targetChar = activeCharacters.find(c => c.id === react.targetCharacterId);
+        const cRes = socialArbiter.evaluateContestedReaction(react, actingAction, initChar, targetChar);
+        contestedReactionResults.push(cRes);
+
+        // If target successfully parried or dodged, mitigate mechanical damage
+        if (cRes.damageMitigationMultiplier < 1.0 && mechanicalRes.targetUpdate) {
+          if (cRes.damageMitigationMultiplier === 0) {
+            mechanicalRes.targetUpdate.hpAfter = mechanicalRes.targetUpdate.hpBefore;
+            mechanicalRes.targetUpdate.isDead = false;
+            mechanicalRes.targetUpdate.newStatus = `Атака полностью парирована/отражена (${targetChar?.name || react.targetCharacterName}).`;
+          } else {
+            const delta = mechanicalRes.targetUpdate.hpBefore - mechanicalRes.targetUpdate.hpAfter;
+            const halfDelta = Math.ceil(delta * 0.5);
+            mechanicalRes.targetUpdate.hpAfter = mechanicalRes.targetUpdate.hpBefore - halfDelta;
+            mechanicalRes.targetUpdate.isDead = mechanicalRes.targetUpdate.hpAfter <= 0;
+            mechanicalRes.targetUpdate.newStatus = `Скользящий удар (${mechanicalRes.targetUpdate.hpAfter} HP).`;
+          }
+        }
+        mechanicalDirectives[actingAction.id] = (mechanicalDirectives[actingAction.id] || '') + '\n' + cRes.promptDirective;
+      }
+    }
+
+    // Procedural Social & Relationship Arbiter (NPCs)
+    const socialResults: SocialResolutionResult[] = [];
+    const targetNpc = (room.sceneNPCs || []).find(n => {
+      const actLower = actingAction.actionText.toLowerCase();
+      const nameLower = (n.name || '').toLowerCase();
+      const roleLower = (n.role || '').toLowerCase();
+      return (nameLower && actLower.includes(nameLower)) ||
+             (roleLower.length > 3 && actLower.includes(roleLower)) ||
+             actLower.includes('курьер') ||
+             actLower.includes('гонец') ||
+             actLower.includes('путниц') ||
+             actLower.includes('ранен') ||
+             ((room.sceneNPCs?.length === 1) && (actLower.includes('npc') || actLower.includes('нпс') || actLower.includes('союзник')));
+    });
+
+    if (targetNpc && actingChar) {
+      const sRes = socialArbiter.evaluateSocialAction(actingAction, actingChar, targetNpc, room.roundNumber);
+      socialResults.push(sRes);
+      mechanicalDirectives[actingAction.id] = (mechanicalDirectives[actingAction.id] || '') + '\n' + sRes.promptDirective;
+      targetNpc.affinity = sRes.newAffinity;
+      targetNpc.disposition = sRes.newDisposition;
+      targetNpc.combatRole = sRes.newCombatRole;
+      targetNpc.lastActionVerdict = sRes.auditNote;
+      if (sRes.trustNote) {
+        targetNpc.trustNotes = targetNpc.trustNotes || [];
+        targetNpc.trustNotes.push(sRes.trustNote);
+      }
+    }
 
     const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
     const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
@@ -963,6 +1032,24 @@ export class GameSessionService {
       }],
       enemiesAfter: updatedEnemies.map(e => ({ ...e })),
       sceneNPCsAfter: updatedNPCs.map(n => ({ ...n })),
+      socialResolutions: socialResults.map(s => ({
+        npcName: s.npcName,
+        actionType: s.actionType,
+        isSuccess: s.isSuccess,
+        affinityDelta: s.affinityDelta,
+        newAffinity: s.newAffinity,
+        newDisposition: s.newDisposition,
+        newCombatRole: s.newCombatRole,
+        auditNote: s.auditNote,
+      })),
+      contestedReactions: contestedReactionResults.map(c => ({
+        reactionRequestId: c.reactionRequestId,
+        initiatorCharacterName: c.initiatorCharacterName,
+        targetCharacterName: c.targetCharacterName,
+        outcome: c.outcome,
+        damageMitigationMultiplier: c.damageMitigationMultiplier,
+        auditNote: c.auditNote,
+      })),
       aiResponseSnapshot: {
         narrative: dmResult.narrative,
         currentSituation: dmResult.currentSituation,
@@ -1115,6 +1202,69 @@ export class GameSessionService {
             simNPCs[idx].isDead = res.targetUpdate.isDead;
             simNPCs[idx].status = res.targetUpdate.newStatus;
           }
+        }
+      }
+    }
+
+    // Procedural Contested Reactions (PvP parry/dodge or cooperative assist)
+    const completedReactionsList = completedReactions || (room.pendingReactions || []).filter(r => r.status === 'completed');
+    const contestedReactionResults: ContestedReactionResult[] = [];
+
+    for (const react of completedReactionsList) {
+      const initAction = currentRoundActions.find(a => a.playerId === react.initiatorUserId);
+      const initChar = activeCharacters.find(c => c.userId === react.initiatorUserId);
+      const targetChar = activeCharacters.find(c => c.id === react.targetCharacterId);
+      const cRes = socialArbiter.evaluateContestedReaction(react, initAction, initChar, targetChar);
+      contestedReactionResults.push(cRes);
+
+      if (initAction) {
+        mechanicalDirectives[initAction.id] = (mechanicalDirectives[initAction.id] || '') + '\n' + cRes.promptDirective;
+        // If parried or dodged, cancel damage
+        const mechRes = mechanicalResolutions.find(r => r.actionId === initAction.id);
+        if (cRes.damageMitigationMultiplier < 1.0 && mechRes?.targetUpdate) {
+          if (cRes.damageMitigationMultiplier === 0) {
+            mechRes.targetUpdate.hpAfter = mechRes.targetUpdate.hpBefore;
+            mechRes.targetUpdate.isDead = false;
+            mechRes.targetUpdate.newStatus = `Атака полностью парирована/отражена (${targetChar?.name || react.targetCharacterName}).`;
+          } else {
+            const delta = mechRes.targetUpdate.hpBefore - mechRes.targetUpdate.hpAfter;
+            const halfDelta = Math.ceil(delta * 0.5);
+            mechRes.targetUpdate.hpAfter = mechRes.targetUpdate.hpBefore - halfDelta;
+            mechRes.targetUpdate.isDead = mechRes.targetUpdate.hpAfter <= 0;
+            mechRes.targetUpdate.newStatus = `Скользящий удар (${mechRes.targetUpdate.hpAfter} HP).`;
+          }
+        }
+      }
+    }
+
+    // Procedural Social & Relationship Arbiter (NPCs)
+    const socialResults: SocialResolutionResult[] = [];
+    for (const action of currentRoundActions) {
+      const char = activeCharacters.find(c => c.id === action.characterId || c.name.toLowerCase() === action.characterName.toLowerCase());
+      const actLower = action.actionText.toLowerCase();
+      const targetNpc = simNPCs.find(n => {
+        const nameLower = (n.name || '').toLowerCase();
+        const roleLower = (n.role || '').toLowerCase();
+        return (nameLower && actLower.includes(nameLower)) ||
+               (roleLower.length > 3 && actLower.includes(roleLower)) ||
+               actLower.includes('курьер') ||
+               actLower.includes('гонец') ||
+               actLower.includes('путниц') ||
+               actLower.includes('ранен') ||
+               ((simNPCs.length === 1) && (actLower.includes('npc') || actLower.includes('нпс') || actLower.includes('союзник')));
+      });
+
+      if (targetNpc && char) {
+        const sRes = socialArbiter.evaluateSocialAction(action, char, targetNpc, room.roundNumber);
+        socialResults.push(sRes);
+        mechanicalDirectives[action.id] = (mechanicalDirectives[action.id] || '') + '\n' + sRes.promptDirective;
+        targetNpc.affinity = sRes.newAffinity;
+        targetNpc.disposition = sRes.newDisposition;
+        targetNpc.combatRole = sRes.newCombatRole;
+        targetNpc.lastActionVerdict = sRes.auditNote;
+        if (sRes.trustNote) {
+          targetNpc.trustNotes = targetNpc.trustNotes || [];
+          targetNpc.trustNotes.push(sRes.trustNote);
         }
       }
     }
@@ -1658,6 +1808,24 @@ export class GameSessionService {
       }),
       enemiesAfter: updatedEnemies.map(e => ({ ...e })),
       sceneNPCsAfter: updatedNPCs.map(n => ({ ...n })),
+      socialResolutions: socialResults.map(s => ({
+        npcName: s.npcName,
+        actionType: s.actionType,
+        isSuccess: s.isSuccess,
+        affinityDelta: s.affinityDelta,
+        newAffinity: s.newAffinity,
+        newDisposition: s.newDisposition,
+        newCombatRole: s.newCombatRole,
+        auditNote: s.auditNote,
+      })),
+      contestedReactions: contestedReactionResults.map(c => ({
+        reactionRequestId: c.reactionRequestId,
+        initiatorCharacterName: c.initiatorCharacterName,
+        targetCharacterName: c.targetCharacterName,
+        outcome: c.outcome,
+        damageMitigationMultiplier: c.damageMitigationMultiplier,
+        auditNote: c.auditNote,
+      })),
       aiResponseSnapshot: {
         narrative: dmResult.narrative,
         currentSituation: dmResult.currentSituation,
@@ -1874,12 +2042,65 @@ export class GameSessionService {
     actions: TurnActionEntity[],
     narrative?: string
   ): RoomNPC[] {
-    let list: RoomNPC[] = Array.isArray(aiNPCs) && aiNPCs.length > 0
-      ? aiNPCs.map(n => ({ ...n }))
-      : (currentNPCs || []).map(n => ({ ...n }));
+    const npcMap = new Map<string, RoomNPC>();
 
+    // 1. Seed with existing persistent NPCs so they never despawn unexpectedly between rounds
+    (currentNPCs || []).forEach(n => {
+      npcMap.set(n.id, { ...n });
+    });
+
+    // 2. Merge AI-provided updates or genuinely new NPCs
+    if (Array.isArray(aiNPCs) && aiNPCs.length > 0) {
+      for (const aiNpc of aiNPCs) {
+        if (!aiNpc || !aiNpc.name) continue;
+
+        // Try finding matching existing NPC by ID or trimmed name
+        let existingId: string | undefined = undefined;
+        if (npcMap.has(aiNpc.id)) {
+          existingId = aiNpc.id;
+        } else {
+          for (const [id, cur] of npcMap.entries()) {
+            if (cur.name.trim().toLowerCase() === aiNpc.name.trim().toLowerCase()) {
+              existingId = id;
+              break;
+            }
+          }
+        }
+
+        if (existingId) {
+          const existing = npcMap.get(existingId)!;
+          // Merge narrative status & conditions from AI while preserving authoritative procedural stats
+          existing.status = aiNpc.status || existing.status;
+          existing.conditions = aiNpc.conditions || existing.conditions;
+          if (aiNpc.combatRole === 'fled') {
+            existing.combatRole = 'fled';
+          }
+          if (aiNpc.hpMax && aiNpc.hpMax > 0) {
+            existing.hpMax = aiNpc.hpMax;
+          }
+        } else {
+          // Genuinely new NPC spawned in scene
+          const newId = aiNpc.id || crypto.randomUUID();
+          npcMap.set(newId, {
+            ...aiNpc,
+            id: newId,
+            hpCurrent: aiNpc.hpCurrent || 12,
+            hpMax: aiNpc.hpMax || 12,
+            disposition: aiNpc.disposition || 'neutral',
+            combatRole: aiNpc.combatRole || 'neutral_observer',
+            status: aiNpc.status || 'Присутствует в сцене',
+            isDead: false,
+            affinity: 0,
+            trustNotes: [],
+          });
+        }
+      }
+    }
+
+    let list = Array.from(npcMap.values());
     if (list.length === 0) return list;
 
+    // 3. Process actions targeting NPCs
     for (const action of actions) {
       if (!action || !action.actionText) continue;
       const actLower = action.actionText.toLowerCase();
@@ -1903,6 +2124,7 @@ export class GameSessionService {
         if (isTargeted) {
           const oldNpc = (currentNPCs || []).find(n => n.id === npc.id || n.name === npc.name);
           const oldHp = oldNpc ? oldNpc.hpCurrent : npc.hpCurrent;
+          const isMartial = /страж|воин|наемник|егерь|следопыт|рыцарь|маг|паладин|лучник|караульн/i.test(`${npc.role} ${npc.name}`);
 
           if (isHealing) {
             const healedHp = npc.hpCurrent > oldHp ? npc.hpCurrent : Math.min(npc.hpMax, oldHp + 8);
@@ -1910,13 +2132,12 @@ export class GameSessionService {
               ...npc,
               hpCurrent: healedHp,
               disposition: 'friendly',
+              affinity: Math.max(35, (npc.affinity || 0) + 25),
               isDead: false,
               status: npc.status?.includes('лечен') || npc.status?.includes('помощ') || npc.status?.includes('затяну')
                 ? npc.status
                 : `Восстановил здоровье (+${healedHp - oldHp > 0 ? healedHp - oldHp : 8} HP) благодаря ${action.characterName}.`,
-              combatRole: npc.combatRole === 'ally_combatant' || npc.role.includes('Страж') || npc.role.includes('Воин')
-                ? 'ally_combatant'
-                : 'hiding',
+              combatRole: isMartial ? 'ally_combatant' : (npc.combatRole || 'neutral_observer'),
             };
           } else if (isAttacking) {
             const damagedHp = npc.hpCurrent < oldHp ? npc.hpCurrent : Math.max(0, oldHp - 6);
@@ -1924,8 +2145,10 @@ export class GameSessionService {
               ...npc,
               hpCurrent: damagedHp,
               disposition: 'hostile',
+              affinity: Math.min(-50, (npc.affinity || 0) - 50),
               isDead: damagedHp <= 0,
               status: damagedHp <= 0 ? 'Пал в бою / Мёртв' : `Получил урон в бою (${damagedHp}/${npc.hpMax} HP).`,
+              combatRole: isMartial ? 'ally_combatant' : 'hiding',
             };
           }
         }

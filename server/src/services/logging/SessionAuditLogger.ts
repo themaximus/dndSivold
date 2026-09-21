@@ -65,6 +65,24 @@ export interface RoundAuditRecord {
   }>;
   enemiesAfter: RoomEnemy[];
   sceneNPCsAfter: RoomNPC[];
+  socialResolutions?: Array<{
+    npcName: string;
+    actionType: string;
+    isSuccess?: boolean;
+    affinityDelta: number;
+    newAffinity: number;
+    newDisposition: string;
+    newCombatRole: string;
+    auditNote: string;
+  }>;
+  contestedReactions?: Array<{
+    reactionRequestId: string;
+    initiatorCharacterName: string;
+    targetCharacterName: string;
+    outcome: string;
+    damageMitigationMultiplier: number;
+    auditNote: string;
+  }>;
   aiResponseSnapshot?: {
     narrative: string;
     currentSituation: string;
