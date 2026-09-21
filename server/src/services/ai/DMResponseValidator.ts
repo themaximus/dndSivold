@@ -104,6 +104,31 @@ export class DMResponseValidator {
               };
             })
           : [],
+        departedNPCs: Array.isArray(parsed.departedNPCs)
+          ? parsed.departedNPCs
+              .filter((d: any) => d && typeof d.name === 'string' && d.name.trim().length > 0)
+              .map((d: any) => ({
+                name: String(d.name).trim(),
+                reason: ['left_behind', 'departed', 'fled', 'defeated', 'location_transition'].includes(d.reason)
+                  ? d.reason
+                  : 'left_behind',
+                narrativeNote: typeof d.narrativeNote === 'string' ? d.narrativeNote.trim() : undefined,
+              }))
+          : [],
+        searchedObjectUpdates: Array.isArray(parsed.searchedObjectUpdates)
+          ? parsed.searchedObjectUpdates
+              .filter((s: any) => s && typeof s.targetName === 'string' && s.targetName.trim().length > 0)
+              .map((s: any) => ({
+                targetName: String(s.targetName).trim(),
+                targetType: ['vehicle', 'container', 'room', 'corpse', 'cache', 'environment'].includes(s.targetType)
+                  ? s.targetType
+                  : 'container',
+                extractedItems: Array.isArray(s.extractedItems)
+                  ? s.extractedItems.map(String).map((i: string) => i.trim()).filter((i: string) => i.length > 0)
+                  : [],
+                narrativeNote: typeof s.narrativeNote === 'string' ? s.narrativeNote.trim() : undefined,
+              }))
+          : [],
         conditionUpdates: Array.isArray(parsed.conditionUpdates) ? parsed.conditionUpdates : [],
         questUpdates: Array.isArray(parsed.questUpdates)
           ? parsed.questUpdates

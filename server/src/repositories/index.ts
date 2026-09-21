@@ -7,3 +7,4 @@ export * from './GameLogRepository';
 export * from './ItemLedgerRepository';
 export * from './WorldNPCRepository';
 export * from './QuestRepository';
+export * from './SearchedObjectRepository';

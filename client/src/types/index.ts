@@ -236,7 +236,22 @@ export interface Room {
   itemLedger?: ItemLedgerEntry[];
   worldNPCRegistry?: WorldNPCEntry[];
   worldQuests?: QuestEntity[];
+  searchedObjectsRegistry?: SearchedObjectEntry[];
   createdAt: string;
+}
+
+export interface SearchedObjectEntry {
+  id: string;
+  roomId: string;
+  targetKey: string;
+  targetName: string;
+  targetType: 'vehicle' | 'container' | 'room' | 'corpse' | 'cache' | 'environment';
+  status: 'searched' | 'exhausted' | 'empty';
+  searchedInRound: number;
+  searchedByCharacterName?: string;
+  extractedItems: string[];
+  narrativeNote?: string;
+  timestamp: string;
 }
 
 export type QuestStatus = 'active' | 'completed' | 'failed' | 'abandoned';
@@ -277,12 +292,14 @@ export interface WorldNPCEntry {
   name: string;
   role: string;
   originalType: 'npc' | 'enemy';
-  departureReason: 'fled' | 'departed' | 'defeated' | 'unconscious';
+  departureReason: 'fled' | 'departed' | 'defeated' | 'unconscious' | 'left_behind' | 'location_transition' | string;
   departureRound: number;
   finalStatus?: string;
   affinity: number;
   disposition?: NPCDisposition;
   notes: string[];
+  narrativeNote?: string;
+  potentialHooks?: string[];
   reinstated?: boolean;
   reinstatedRound?: number;
 }

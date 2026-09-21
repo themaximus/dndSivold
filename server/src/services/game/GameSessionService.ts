@@ -14,12 +14,14 @@ import {
   worldNPCRepository,
   IQuestRepository,
   questRepository,
+  ISearchedObjectRepository,
+  searchedObjectRepository,
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { AIDMResponse, AIDMPrologueContext, AIDMContext, InventoryNotification } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
-import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest, TurnActionEntity, QuestEntity } from '../../db';
+import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest, TurnActionEntity, QuestEntity, SearchedObjectEntry } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 import { mechanicalArbiter, MechanicalResolution } from './MechanicalArbiter';
@@ -85,6 +87,7 @@ export class GameSessionService {
   private itemLedgers: IItemLedgerRepository;
   private worldNPCs: IWorldNPCRepository;
   private quests: IQuestRepository;
+  private searchedObjects: ISearchedObjectRepository;
 
   constructor(
     rooms: IRoomRepository = roomRepository,
@@ -95,7 +98,8 @@ export class GameSessionService {
     tts: ITTSService = ttsService,
     itemLedgers: IItemLedgerRepository = itemLedgerRepository,
     worldNPCs: IWorldNPCRepository = worldNPCRepository,
-    quests: IQuestRepository = questRepository
+    quests: IQuestRepository = questRepository,
+    searchedObjects: ISearchedObjectRepository = searchedObjectRepository
   ) {
     this.rooms = rooms;
     this.characters = characters;
@@ -106,6 +110,7 @@ export class GameSessionService {
     this.itemLedgers = itemLedgers;
     this.worldNPCs = worldNPCs;
     this.quests = quests;
+    this.searchedObjects = searchedObjects;
   }
 
   public reconcileCharacterConditions(characterId: string, roomId?: string): CharacterEntity | null {
@@ -183,10 +188,25 @@ export class GameSessionService {
       }
     }
 
+    // Self-healing: Check if any sceneNPCs were left behind or should be archived into worldNPCRegistry
+    if (room.sceneNPCs && room.sceneNPCs.length > 0) {
+      const leftBehindRegex = /(остал(?:ся|ась|ись)|позади|на\s+развилк|в\s+лагер|на\s+мест|у\s+повозк|далек[оа]\s+позади|не\s+последовал|отстал|бросил\s+преследован)/i;
+      const stuckDeparted = room.sceneNPCs.filter(n => leftBehindRegex.test(n.status || '') || n.combatRole === 'fled');
+      if (stuckDeparted.length > 0) {
+        for (const n of stuckDeparted) {
+          this.worldNPCs.archiveNPC(room.id, n, 'left_behind', room.roundNumber || 1);
+        }
+        room.sceneNPCs = room.sceneNPCs.filter(n => !stuckDeparted.some(sd => sd.id === n.id));
+        this.rooms.update(room.id, { sceneNPCs: room.sceneNPCs });
+      }
+    }
+
     // Self-healing: Reconcile and synchronize room quests (ensuring completed tasks are never repeated)
     const allLogs = this.gameLogs.findByRoomId(room.id);
     questArbiter.reconcileRoomQuests(room, allLogs, room.loreJournal || []);
     room.worldQuests = this.quests.findByRoomId(room.id);
+    room.worldNPCRegistry = this.worldNPCs.findByRoomId(room.id);
+    room.searchedObjectsRegistry = this.searchedObjects.findByRoomId(room.id);
 
     const players = this.rooms.findPlayersByRoomId(room.id);
     const populatedPlayers = players.map(p => {
@@ -629,12 +649,14 @@ export class GameSessionService {
     const previousLogs = this.gameLogs.findByRoomId(room.id).map(l => l.narrativeText);
 
     // Procedural Mechanical Resolution & Validation
+    const roomSearched = this.searchedObjects.findByRoomId(room.id);
     const mechanicalRes = mechanicalArbiter.evaluateAction(
       actingAction,
       actingChar,
       room.activeEnemies || [],
       room.sceneNPCs || [],
-      room.targetDC || 12
+      room.targetDC || 12,
+      roomSearched
     );
 
     const mechanicalDirectives: Record<string, string> = {
@@ -734,6 +756,8 @@ export class GameSessionService {
       availableLoot: room.availableLoot || [],
       activeQuests,
       completedQuests,
+      searchedObjects: this.searchedObjects.findByRoomId(room.id),
+      worldNPCRegistry: this.worldNPCs.findByRoomId(room.id),
     };
 
     try {
@@ -752,6 +776,34 @@ export class GameSessionService {
     if (questRes.sanitizedSituation) {
       dmResult.currentSituation = questRes.sanitizedSituation;
     }
+
+    // Process AI or procedural searched object updates
+    if (dmResult.searchedObjectUpdates && dmResult.searchedObjectUpdates.length > 0) {
+      for (const update of dmResult.searchedObjectUpdates) {
+        if (!update || !update.targetName) continue;
+        this.searchedObjects.recordSearch(
+          room.id,
+          update.targetName,
+          update.targetType || 'other',
+          room.roundNumber,
+          update.extractedItems || [],
+          update.narrativeNote
+        );
+      }
+    }
+
+    const actTextLower = (actingAction.actionText || '').toLowerCase();
+    if (/(потайной\s+отсек|тайник|сундук|кузов|повозк|телег)/i.test(actTextLower) && /(обыск|поиск|искать|ищу|обшар|переры|вскры|лут)/i.test(actTextLower)) {
+      this.searchedObjects.recordSearch(
+        room.id,
+        'Повозка купца Бальтазара (потайной отсек и кузов)',
+        'vehicle',
+        room.roundNumber,
+        ['Странные свитки', 'Ценности купца'],
+        'Потайной отсек и кузов повозки осмотрены и опустошены'
+      );
+    }
+    room.searchedObjectsRegistry = this.searchedObjects.findByRoomId(room.id);
 
     // Handle Rejected Action
     if (dmResult.rejectedAction) {
@@ -1443,6 +1495,8 @@ export class GameSessionService {
         sceneNPCs: finalNPCs,
         loreJournal: room.loreJournal,
         worldQuests: questRes.allQuests,
+        worldNPCRegistry: this.worldNPCs.findByRoomId(room.id),
+        searchedObjectsRegistry: room.searchedObjectsRegistry || [],
         activePlayerUserId: nextActiveUserId,
         pendingReactions: [],
       });
@@ -1470,6 +1524,8 @@ export class GameSessionService {
         sceneNPCs: finalNPCs,
         loreJournal: room.loreJournal,
         worldQuests: questRes.allQuests,
+        worldNPCRegistry: this.worldNPCs.findByRoomId(room.id),
+        searchedObjectsRegistry: room.searchedObjectsRegistry || [],
         activePlayerUserId: order[0] || undefined,
         pendingReactions: [],
       });
@@ -1504,9 +1560,10 @@ export class GameSessionService {
     const simEnemies = (room.activeEnemies || []).map(e => ({ ...e }));
     const simNPCs = (room.sceneNPCs || []).map(n => ({ ...n }));
 
+    const roomSearched = this.searchedObjects.findByRoomId(room.id);
     for (const action of currentRoundActions) {
       const char = activeCharacters.find(c => c.id === action.characterId || c.name.toLowerCase() === action.characterName.toLowerCase());
-      const res = mechanicalArbiter.evaluateAction(action, char, simEnemies, simNPCs, room.targetDC || 12);
+      const res = mechanicalArbiter.evaluateAction(action, char, simEnemies, simNPCs, room.targetDC || 12, roomSearched);
       mechanicalResolutions.push(res);
       mechanicalDirectives[action.id] = res.promptDirective;
 
@@ -1653,6 +1710,8 @@ export class GameSessionService {
       availableLoot: room.availableLoot || [],
       activeQuests,
       completedQuests,
+      searchedObjects: this.searchedObjects.findByRoomId(room.id),
+      worldNPCRegistry: this.worldNPCs.findByRoomId(room.id),
     };
 
     try {
@@ -1671,6 +1730,34 @@ export class GameSessionService {
     if (questRes.sanitizedSituation) {
       dmResult.currentSituation = questRes.sanitizedSituation;
     }
+
+    // Process AI or procedural searched object updates
+    if (dmResult.searchedObjectUpdates && dmResult.searchedObjectUpdates.length > 0) {
+      for (const update of dmResult.searchedObjectUpdates) {
+        if (!update || !update.targetName) continue;
+        this.searchedObjects.recordSearch(
+          room.id,
+          update.targetName,
+          update.targetType || 'other',
+          room.roundNumber,
+          update.extractedItems || [],
+          update.narrativeNote
+        );
+      }
+    }
+
+    const allActionText = currentRoundActions.map(a => a.actionText || '').join(' ').toLowerCase();
+    if (/(потайной\s+отсек|тайник|сундук|кузов|повозк|телег)/i.test(allActionText) && /(обыск|поиск|искать|ищу|обшар|переры|вскры|лут)/i.test(allActionText)) {
+      this.searchedObjects.recordSearch(
+        room.id,
+        'Повозка купца Бальтазара (потайной отсек и кузов)',
+        'vehicle',
+        room.roundNumber,
+        ['Странные свитки', 'Ценности купца'],
+        'Потайной отсек и кузов повозки осмотрены и опустошены'
+      );
+    }
+    room.searchedObjectsRegistry = this.searchedObjects.findByRoomId(room.id);
 
     // Handle Rejected Action if player's submission was critical absurdity
     if (dmResult.rejectedAction) {
@@ -2445,6 +2532,8 @@ export class GameSessionService {
       sceneNPCs: finalNPCs,
       loreJournal: room.loreJournal,
       worldQuests: questRes.allQuests,
+      worldNPCRegistry: this.worldNPCs.findByRoomId(room.id),
+      searchedObjectsRegistry: room.searchedObjectsRegistry || [],
       pendingReactions: [],
     });
     this.rooms.resetPlayersTurn(room.id);
@@ -2694,9 +2783,24 @@ export class GameSessionService {
     narrative?: string
   ): RoomNPC[] {
     const npcMap = new Map<string, RoomNPC>();
+    const narrativeText = narrative || '';
+    const isLocationTransition = /(влетает\s+в|въезжа|прибыва|вош|добра|город(?:е|а)?\s+[А-Яа-яЁё]+|ворота\s+город|в\s+город|на\s+постоял|в\s+таверн)/i.test(narrativeText);
+    const leftBehindRegex = /(остал(?:ся|ась|ись)|позади|на\s+развилк|в\s+лагер|на\s+мест|у\s+повозк|далек[оа]\s+позади|не\s+последовал|отстал|бросил\s+преследован)/i;
 
-    // 1. Seed with existing persistent NPCs so they never despawn unexpectedly between rounds
+    // 1. Seed with existing persistent NPCs so they never despawn unexpectedly between rounds,
+    // BUT do NOT re-seed NPCs who were left behind or if party moved to a new location and they didn't follow!
     (currentNPCs || []).forEach(n => {
+      if (leftBehindRegex.test(n.status || '') || n.combatRole === 'fled') {
+        return; // Left behind or fled, do not re-seed
+      }
+      if (isLocationTransition) {
+        const isMentionedInAi = Array.isArray(aiNPCs) && aiNPCs.some(ai =>
+          ai.name && (ai.name.toLowerCase().includes(n.name.toLowerCase()) || n.name.toLowerCase().includes(ai.name.toLowerCase()))
+        );
+        if (!isMentionedInAi && n.combatRole !== 'ally_combatant') {
+          return; // Left behind at old location
+        }
+      }
       npcMap.set(n.id, { ...n });
     });
 
@@ -3109,11 +3213,28 @@ export class GameSessionService {
     enemies: RoomEnemy[],
     dmResult: AIDMResponse
   ): { activeNPCs: RoomNPC[]; activeEnemies: RoomEnemy[]; departedCount: number } {
-    const isDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; status?: string; combatRole?: string }): { departed: boolean; reason: 'fled' | 'departed' | 'defeated' | 'unconscious' } => {
+    const isDepartedOrDefeated = (e: { name?: string; isDead?: boolean; hpCurrent?: number; status?: string; combatRole?: string }): { departed: boolean; reason: 'fled' | 'departed' | 'defeated' | 'unconscious' | 'left_behind' | 'location_transition'; note?: string } => {
+      const eName = (e.name || '').toLowerCase().trim();
+      const status = (e.status || '').toLowerCase();
+
+      // 1. Explicit AI departure from dmResult.departedNPCs
+      if (dmResult.departedNPCs && dmResult.departedNPCs.length > 0 && eName) {
+        const match = dmResult.departedNPCs.find(d => {
+          const dName = (d.name || '').toLowerCase().trim();
+          return dName && (eName.includes(dName) || dName.includes(eName));
+        });
+        if (match) {
+          return {
+            departed: true,
+            reason: (match.reason as any) || 'left_behind',
+            note: match.narrativeNote || e.status,
+          };
+        }
+      }
+
+      // 2. Dead or unconscious
       if (e.isDead) return { departed: true, reason: 'defeated' };
       if (e.hpCurrent !== undefined && e.hpCurrent <= 0) return { departed: true, reason: 'unconscious' };
-
-      const status = (e.status || '').toLowerCase();
       if (/(повержен|не подает признаков|мертв|убит|погиб)/i.test(status)) {
         return { departed: true, reason: 'defeated' };
       }
@@ -3121,7 +3242,29 @@ export class GameSessionService {
         return { departed: true, reason: 'unconscious' };
       }
 
-      // CRITICAL: Hiding in bushes, under carts, behind trees/rocks is IN THE SCENE, NOT DEPARTED!
+      // 3. Status indicates left behind (e.g. at crossroads, in camp, didn't follow)
+      const leftBehindRegex = /(остал(?:ся|ась|ись)|позади|на\s+развилк|в\s+лагер|на\s+мест|у\s+повозк|далек[оа]\s+позади|не\s+последовал|отстал|бросил\s+преследован)/i;
+      if (leftBehindRegex.test(status)) {
+        return { departed: true, reason: 'left_behind', note: e.status };
+      }
+
+      // 4. Party location transition (e.g. party reached town / new location)
+      const fullNarrative = `${dmResult.narrative || ''} ${dmResult.currentSituation || ''}`;
+      const isLocationTransition = /(влетает\s+в|въезжа|прибыва|вош|добра|город(?:е|а)?\s+[А-Яа-яЁё]+|ворота\s+город|в\s+город|на\s+постоял|в\s+таверн)/i.test(fullNarrative);
+      if (isLocationTransition && eName) {
+        const isPresentInAi = (dmResult.sceneNPCs || []).some(n =>
+          n.name && (eName.includes(n.name.toLowerCase().trim()) || n.name.toLowerCase().trim().includes(eName))
+        );
+        if (!isPresentInAi && e.combatRole !== 'ally_combatant') {
+          return {
+            departed: true,
+            reason: 'location_transition',
+            note: 'Остался на предыдущей локации при перемещении отряда',
+          };
+        }
+      }
+
+      // 5. CRITICAL: Hiding in bushes, under carts, behind trees/rocks is IN THE SCENE, NOT DEPARTED!
       if (e.combatRole === 'hiding') {
         return { departed: false, reason: 'departed' };
       }
@@ -3129,7 +3272,7 @@ export class GameSessionService {
         return { departed: false, reason: 'departed' };
       }
 
-      // Only archive as departed if EXPLICITLY moved to another location / traveled far away
+      // 6. Only archive as departed if EXPLICITLY moved to another location / traveled far away
       if (/(покинул\s+локацию|ушел\s+в\s+(?:город|деревню|лагерь|горы|другую\s+локацию)|уехал\s+вдаль|скрылся\s+за\s+горизонтом|ушел\s+прочь\s+по\s+тракту|удалился\s+из\s+этих\s+мест)/i.test(status)) {
         return { departed: true, reason: 'departed' };
       }
@@ -3150,7 +3293,7 @@ export class GameSessionService {
       const check = isDepartedOrDefeated(npc);
       if (check.departed) {
         departedCount++;
-        this.worldNPCs.archiveNPC(room.id, npc, check.reason, room.roundNumber);
+        this.worldNPCs.archiveNPC(room.id, npc, check.reason, room.roundNumber, check.note);
 
         // Procedural narrative log milestone
         room.loreJournal = room.loreJournal || [];
@@ -3158,6 +3301,10 @@ export class GameSessionService {
           ? `Персонаж «${npc.name}» в страхе покинул поле боя и скрылся из виду. Он пропадает с радара внимания отряда.`
           : check.reason === 'defeated' || check.reason === 'unconscious'
           ? `Персонаж «${npc.name}» повержен (${npc.status || 'без сознания'}). Отряд завершил с ним активное взаимодействие.`
+          : check.reason === 'left_behind'
+          ? `Персонаж «${npc.name}» остался позади (${check.note || npc.status || 'на развилке'}). Занесён в архив мира.`
+          : check.reason === 'location_transition'
+          ? `Отряд сменил локацию. Персонаж «${npc.name}» остался на прежнем месте и занесён в архив мира.`
           : `Персонаж «${npc.name}» покинул сцену. События запечатлены в хронике живого мира.`;
 
         room.loreJournal.push({
@@ -3176,7 +3323,7 @@ export class GameSessionService {
       const check = isDepartedOrDefeated(enemy);
       if (check.departed) {
         departedCount++;
-        this.worldNPCs.archiveNPC(room.id, enemy, check.reason, room.roundNumber);
+        this.worldNPCs.archiveNPC(room.id, enemy, check.reason, room.roundNumber, check.note);
 
         room.loreJournal = room.loreJournal || [];
         room.loreJournal.push({

@@ -1,5 +1,5 @@
-import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem, CharacterReactionRequest, QuestEntity } from '../db';
-export { CharacterReactionRequest, QuestEntity };
+import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem, CharacterReactionRequest, QuestEntity, WorldNPCEntry, SearchedObjectEntry, SearchedObjectType } from '../db';
+export { CharacterReactionRequest, QuestEntity, WorldNPCEntry, SearchedObjectEntry, SearchedObjectType };
 
 export interface CampaignMapNode {
   id: string;
@@ -142,6 +142,21 @@ export interface AIDMContext {
   mechanicalDirectives?: Record<string, string>;
   activeQuests?: QuestEntity[];
   completedQuests?: QuestEntity[];
+  searchedObjects?: SearchedObjectEntry[];
+  worldNPCRegistry?: WorldNPCEntry[];
+}
+
+export interface DepartedNPCEntry {
+  name: string;
+  reason: 'left_behind' | 'departed' | 'fled' | 'defeated' | 'location_transition' | string;
+  narrativeNote?: string;
+}
+
+export interface SearchedObjectUpdate {
+  targetName: string;
+  targetType: SearchedObjectType;
+  extractedItems?: string[];
+  narrativeNote?: string;
 }
 
 export interface PlayerHpUpdate {
@@ -160,6 +175,8 @@ export interface AIDMResponse {
   enemiesStatus?: string;
   activeEnemies?: RoomEnemy[];
   sceneNPCs?: RoomNPC[];
+  departedNPCs?: DepartedNPCEntry[];
+  searchedObjectUpdates?: SearchedObjectUpdate[];
   inventoryUpdates?: InventoryUpdate[];
   conditionUpdates?: ConditionUpdate[];
   questUpdates?: QuestUpdate[];

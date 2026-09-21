@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition } from '../../db';
+import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition, SearchedObjectEntry } from '../../db';
 import { calculateModifier } from '../dndRules';
 import { itemLedgerRepository } from '../../repositories/ItemLedgerRepository';
 
@@ -99,9 +99,17 @@ export class MechanicalArbiter {
     character: CharacterEntity | undefined,
     currentEnemies: RoomEnemy[],
     currentNPCs: RoomNPC[],
-    roomDC: number = 12
+    roomDC: number = 12,
+    searchedObjects: SearchedObjectEntry[] = []
   ): MechanicalResolution {
     const actionText = action.actionText || '';
+
+    // Anti-infinite loot: Check if the action is attempting to search an already exhausted/searched object
+    const matchingSearched = this.findMatchingSearchedObject(actionText, searchedObjects);
+    if (matchingSearched) {
+      return this.resolveExhaustedSearchAction(action, matchingSearched);
+    }
+
     const intent = this.classifyIntent(actionText, action.actionType);
 
     switch (intent) {
@@ -506,7 +514,7 @@ export class MechanicalArbiter {
     const targetInfo = this.findTarget(action, currentEnemies, currentNPCs);
     const target = targetInfo?.target || currentEnemies.find(e => !e.isDead && e.hpCurrent > 0) || null;
 
-    const leverage = this.evaluateLeverage(action.actionText, character, target);
+    const leverage = this.evaluateLeverage(action?.actionText || '', character, target);
     const d20Roll = action.diceRolls && action.diceRolls.length > 0 ? action.diceRolls[0] : null;
     const baseRollTotal = d20Roll?.total ?? 10;
     const isCritSuccess = !!d20Roll?.isCriticalSuccess;
@@ -793,8 +801,8 @@ export class MechanicalArbiter {
     currentEnemies: RoomEnemy[],
     currentNPCs: RoomNPC[]
   ): MechanicalResolution {
-    const actionLower = action.actionText.toLowerCase();
-    const speech = this.extractSpeechAndAction(action.actionText);
+    const actionLower = (action?.actionText || '').toLowerCase();
+    const speech = this.extractSpeechAndAction(action?.actionText || '');
 
     // 1. Resolve Target (speech address, 2nd-person pronouns, explicit target or keywords)
     let targetName = character?.name || action.characterName;
@@ -964,7 +972,7 @@ export class MechanicalArbiter {
     let targetType = targetInfo?.type || 'enemy';
 
     if (!target) {
-      const actionLower = action.actionText.toLowerCase();
+      const actionLower = (action?.actionText || '').toLowerCase();
       let derivedName = action.targetEnemyName || 'Противник';
       let derivedHp = 20;
       let derivedAc = 13;
@@ -1039,7 +1047,7 @@ export class MechanicalArbiter {
     }
 
     // Attack HIT! Procedural weapon damage
-    const { damageTotal, formula, rolls } = this.calculateWeaponDamage(character, action.actionText, isCritSuccess);
+    const { damageTotal, formula, rolls } = this.calculateWeaponDamage(character, action?.actionText || '', isCritSuccess);
 
     const hpBefore = target.hpCurrent;
     const hpAfter = Math.max(0, hpBefore - damageTotal);
@@ -1246,7 +1254,8 @@ export class MechanicalArbiter {
     }
 
     // Check extracted speech address (e.g. «бальтазар, ...»)
-    const speech = this.extractSpeechAndAction(action.actionText);
+    const actText = (action?.actionText || '');
+    const speech = this.extractSpeechAndAction(actText);
     if (speech.addressedTargetName) {
       const addrLower = speech.addressedTargetName.toLowerCase();
       const e = enemies.find(x => x.name.toLowerCase().includes(addrLower) || addrLower.includes(x.name.toLowerCase()));
@@ -1255,7 +1264,7 @@ export class MechanicalArbiter {
       if (n) return { target: n, type: 'npc' };
     }
 
-    const actLower = action.actionText.toLowerCase();
+    const actLower = actText.toLowerCase();
     for (const e of enemies) {
       if (!e.isDead && e.hpCurrent > 0) {
         const eName = e.name.toLowerCase();
@@ -1381,6 +1390,78 @@ ${!isDisengage && oppAttackHit ? `- ⚠️ Однако без действия 
       failureConsequence,
       promptDirective,
       auditNotes,
+    };
+  }
+
+  /**
+   * Checks if action text targets an already searched/exhausted object, vehicle, room, or container.
+   */
+  private findMatchingSearchedObject(
+    actionText: string,
+    searchedObjects: SearchedObjectEntry[]
+  ): SearchedObjectEntry | undefined {
+    if (!searchedObjects || searchedObjects.length === 0) return undefined;
+    const textLower = (actionText || '').toLowerCase();
+
+    // Check if the action conveys search / investigation / looting / unlocking intent
+    const isSearchIntent = /(обыск|поиск|искать|ищу|обшар|переры(ть|л|ваю)|вскры(ть|л|ваю)|провер(ить|яю|ка)|осмотр|исследовать|лут|loot|search|investigat)/i.test(textLower);
+    if (!isSearchIntent) return undefined;
+
+    return searchedObjects.find(obj => {
+      const objNameLower = (obj.targetName || '').toLowerCase();
+      // 1. Direct substring match
+      if (textLower.includes(objNameLower)) return true;
+
+      // 2. Word stems match (handles Russian inflections: повозка -> повозку/повозке, сундук -> сундука, etc.)
+      const words = objNameLower.split(/[\s,()]+/).filter(w => w.length >= 3);
+      for (const w of words) {
+        const stem = w.replace(/[аяоеуыиью]+$/i, '');
+        if (stem.length >= 3 && textLower.includes(stem)) {
+          return true;
+        }
+      }
+
+      // 3. Target type synonyms
+      if (obj.targetType === 'vehicle' && /(повозк|телег|фургон|арб[аеыу]|wagon|cart)/i.test(textLower)) {
+        return true;
+      }
+      if (obj.targetType === 'room' && /(комнат|помещени|зал|трактир|хижин|подвал|комнату|room)/i.test(textLower)) {
+        return true;
+      }
+      if (obj.targetType === 'container' && /(сундук|ящик|шкаф|сейф|бочк|короб|chest|box)/i.test(textLower)) {
+        return true;
+      }
+
+      return false;
+    });
+  }
+
+  /**
+   * Produces a strict mechanical resolution blocking duplicate loot generation.
+   */
+  private resolveExhaustedSearchAction(
+    action: TurnActionEntity,
+    searchedObj: SearchedObjectEntry
+  ): MechanicalResolution {
+    const extractedStr = searchedObj.extractedItems && searchedObj.extractedItems.length > 0
+      ? searchedObj.extractedItems.join(', ')
+      : 'все ценные вещи';
+
+    const promptDirective = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР (ОБЪЕКТ УЖЕ ОБЫЩЕН И ОПУСТОШЁН):
+- Объект «${searchedObj.targetName}» уже получил статус «ОБЫЩЕНО» в раунде ${searchedObj.searchedInRound}!
+- Ранее извлечено: ${extractedStr}.
+- 🛑 КАТЕГОРИЧЕСКИЙ ЗАПРЕТ ВЫДАЧИ ЛУТА:
+  1. Объект абсолютно пуст! Строго ЗАПРЕЩЕНО добавлять новые предметы, оружие или золото в "inventoryUpdates" или "droppedLoot"!
+  2. В "narrative" опиши, что герой внимательно перерывает пустые углы, доски, солому или отсеки, но убеждается, что всё ценное уже было забрано ранее.`;
+
+    return {
+      actionId: action.id,
+      characterId: action.characterId,
+      characterName: action.characterName,
+      actionType: 'search_exhausted',
+      consumedItems: [],
+      promptDirective,
+      auditNotes: `Повторный обыск пустого объекта: «${searchedObj.targetName}» (обыщен в раунде ${searchedObj.searchedInRound}). Лут заблокирован.`,
     };
   }
 }

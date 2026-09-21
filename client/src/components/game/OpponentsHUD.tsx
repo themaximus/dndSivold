@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RoomEnemy, RoomNPC, NPCDisposition, NPCCombatRole, QuestEntity } from '../../types';
+import { RoomEnemy, RoomNPC, NPCDisposition, NPCCombatRole, QuestEntity, WorldNPCEntry, SearchedObjectEntry } from '../../types';
 import {
   Skull,
   Shield,
@@ -16,6 +16,8 @@ import {
   Frown,
   AlertTriangle,
   Compass,
+  History,
+  Archive,
 } from 'lucide-react';
 
 interface OpponentsHUDProps {
@@ -23,6 +25,8 @@ interface OpponentsHUDProps {
   enemiesStatus?: string;
   sceneNPCs?: RoomNPC[];
   quests?: QuestEntity[];
+  worldNPCRegistry?: WorldNPCEntry[];
+  searchedObjects?: SearchedObjectEntry[];
 }
 
 const CONDITION_BADGES: Record<string, { label: string; color: string; desc: string }> = {
@@ -98,16 +102,21 @@ const isEntityDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; s
   const s = (e.status || '').toLowerCase();
   if (/(повержен|без сознания|не подает признаков|мертв|убит|погиб)/i.test(s)) return true;
 
-  // 2. Hiding in bushes, under carts, behind trees/rocks is IN THE SCENE, NOT DEPARTED!
+  // 2. Left behind / stayed back at crossroads / previous location
+  if (/(остал(?:ся|ась|ись)|позади|на\s+развилк|в\s+лагер|на\s+мест|у\s+повозк|далек[оа]\s+позади|не\s+последовал|отстал|бросил\s+преследован)/i.test(s)) {
+    return true;
+  }
+
+  // 3. Hiding in bushes, under carts, behind trees/rocks is IN THE SCENE, NOT DEPARTED!
   if (e.combatRole === 'hiding') return false;
   if (/(в куст|в заросл|под повозк|под телег|за дерев|за кам|в укрыти|в тен|спрятался|затаился|укрылся)/i.test(s)) return false;
 
-  // 3. Only departed if EXPLICITLY moved to another location / traveled far away
+  // 4. Only departed if EXPLICITLY moved to another location / traveled far away
   if (/(покинул\s+локацию|ушел\s+в\s+(?:город|деревню|лагерь|горы|другую\s+локацию)|уехал\s+вдаль|скрылся\s+за\s+горизонтом|ушел\s+прочь\s+по\s+тракту|удалился\s+из\s+этих\s+мест)/i.test(s)) {
     return true;
   }
 
-  // 4. Combat fled role only if actually escaped out of the entire area
+  // 5. Combat fled role only if actually escaped out of the entire area
   if (e.combatRole === 'fled' && /(скрылся\s+вдалеке|убежал\s+прочь|покинул\s+локацию|ушел\s+за\s+горизонт)/i.test(s)) {
     return true;
   }
@@ -132,13 +141,25 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   enemiesStatus,
   sceneNPCs = [],
   quests = [],
+  worldNPCRegistry = [],
+  searchedObjects = [],
 }) => {
   const activeEnemies = enemies.filter(e => !isEntityDepartedOrDefeated(e));
   const defeatedEnemies = enemies.filter(e => isEntityDepartedOrDefeated(e));
 
-  // Exclude NPCs who are already present as active enemies in combat (prevents clone / dual existence)
+  // Exclude NPCs who are already present as active enemies in combat, or archived in world history
+  const isArchivedInWorld = (name?: string) => {
+    if (!name) return false;
+    const clean = name.toLowerCase().trim();
+    return worldNPCRegistry.some(w => {
+      const wClean = (w.name || '').toLowerCase().trim();
+      return wClean && (clean.includes(wClean) || wClean.includes(clean));
+    });
+  };
+
   const livingNPCs = sceneNPCs.filter(n =>
     !isEntityDepartedOrDefeated(n) &&
+    !isArchivedInWorld(n.name) &&
     !activeEnemies.some(e => isSameEntityName(e.name, n.name))
   );
   const fallenNPCs = sceneNPCs.filter(n =>
@@ -150,19 +171,19 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   const activeQuests = quests.filter(q => q.status === 'active');
   const completedQuests = quests.filter(q => q.status === 'completed');
 
-  // Read initial tab from URL ?hud=threats|npcs|quests|all if provided
-  const [activeTab, setActiveTab] = useState<'threats' | 'npcs' | 'quests' | 'all'>(() => {
+  // Read initial tab from URL ?hud=threats|npcs|quests|history|all if provided
+  const [activeTab, setActiveTab] = useState<'threats' | 'npcs' | 'quests' | 'history' | 'all'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const hud = params.get('hud');
-      if (hud === 'threats' || hud === 'npcs' || hud === 'quests' || hud === 'all') return hud;
+      if (hud === 'threats' || hud === 'npcs' || hud === 'quests' || hud === 'history' || hud === 'all') return hud as any;
     }
     return 'threats';
   });
 
   const [userManuallySelectedTab, setUserManuallySelectedTab] = useState(false);
 
-  const handleTabChange = (tab: 'threats' | 'npcs' | 'quests' | 'all') => {
+  const handleTabChange = (tab: 'threats' | 'npcs' | 'quests' | 'history' | 'all') => {
     setActiveTab(tab);
     setUserManuallySelectedTab(true);
     if (typeof window !== 'undefined') {
@@ -194,6 +215,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   const showThreats = activeTab === 'threats' || activeTab === 'all';
   const showNPCs = activeTab === 'npcs' || activeTab === 'all';
   const showQuests = activeTab === 'quests' || activeTab === 'all';
+  const showHistory = activeTab === 'history' || activeTab === 'all';
 
   return (
     <div className="bg-fantasy-panel border border-fantasy-border rounded-2xl p-4 shadow-xl flex flex-col min-h-0 h-full overflow-hidden">
@@ -242,11 +264,11 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
       </div>
 
       {/* Tabs Filter */}
-      <div className="grid grid-cols-4 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 mb-3 text-[11px]">
+      <div className="grid grid-cols-5 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 mb-3 text-[11px]">
         <button
           type="button"
           onClick={() => handleTabChange('threats')}
-          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
             activeTab === 'threats'
               ? 'bg-red-950/70 text-red-200 border border-red-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -254,7 +276,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
           title="Враги и угрозы на поле боя"
         >
           <Skull className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">Угрозы</span>
+          <span className="truncate">Враги</span>
           {activeEnemies.length > 0 && (
             <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-red-800 text-red-100 font-mono">
               {activeEnemies.length}
@@ -265,15 +287,15 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
         <button
           type="button"
           onClick={() => handleTabChange('npcs')}
-          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
             activeTab === 'npcs'
               ? 'bg-emerald-950/70 text-emerald-200 border border-emerald-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
-          title="Нейтральные персонажи и союзники сцены"
+          title="Нейтральные персонажи и спутники сцены"
         >
           <Users className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">Спутники</span>
+          <span className="truncate">Сцена</span>
           {livingNPCs.length > 0 && (
             <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono ${
               allyCombatants.length > 0
@@ -288,7 +310,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
         <button
           type="button"
           onClick={() => handleTabChange('quests')}
-          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
             activeTab === 'quests'
               ? 'bg-amber-950/70 text-amber-200 border border-amber-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -296,7 +318,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
           title="Задачи, квесты и цели отряда"
         >
           <Compass className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-          <span className="truncate">Задачи</span>
+          <span className="truncate">Квесты</span>
           {activeQuests.length > 0 ? (
             <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-800 text-amber-100 font-mono">
               {activeQuests.length}
@@ -310,8 +332,27 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
 
         <button
           type="button"
+          onClick={() => handleTabChange('history')}
+          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
+            activeTab === 'history'
+              ? 'bg-purple-950/70 text-purple-200 border border-purple-600/50 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+          }`}
+          title="Архив мира и история обысков"
+        >
+          <History className="w-3.5 h-3.5 shrink-0 text-purple-400" />
+          <span className="truncate">Архив</span>
+          {(worldNPCRegistry.length > 0 || searchedObjects.length > 0) && (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-purple-900/80 text-purple-200 font-mono">
+              {worldNPCRegistry.length + searchedObjects.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
           onClick={() => handleTabChange('all')}
-          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
+          className={`flex items-center justify-center gap-1 py-1 px-1 rounded-lg font-bold transition-all ${
             activeTab === 'all'
               ? 'bg-indigo-950/70 text-indigo-200 border border-indigo-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -781,6 +822,106 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 5. WORLD HISTORY & SEARCHED OBJECTS (when showHistory is true) */}
+            {showHistory && (
+              <div className={`${activeTab === 'all' ? 'pt-3 border-t border-slate-800/80' : ''} space-y-3`}>
+                {/* World NPC Archive (Departed NPCs) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-bold font-rpg uppercase text-purple-300 flex items-center gap-1.5">
+                      <Archive className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      Архив мира / История ({worldNPCRegistry.length})
+                    </span>
+                  </div>
+
+                  {worldNPCRegistry.length === 0 ? (
+                    <div className="p-3 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border text-xs">
+                      <p className="text-slate-300 font-semibold mb-0.5">Архив персонажей пуст</p>
+                      <p className="text-[10px] text-slate-500">Все встреченные персонажи находятся в текущей сцене.</p>
+                    </div>
+                  ) : (
+                    worldNPCRegistry.map((wn) => (
+                      <div
+                        key={wn.id}
+                        className="bg-slate-900/80 border border-purple-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-1.5">
+                          <span className="font-bold text-purple-200 text-xs flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            {wn.name} <span className="text-[10px] text-slate-400 font-normal">({wn.role})</span>
+                          </span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-950/70 text-purple-300 border border-purple-800/50 shrink-0">
+                            Р{wn.departureRound} • {
+                              wn.departureReason === 'left_behind' ? 'Остался позади' :
+                              wn.departureReason === 'location_transition' ? 'Смена локации' :
+                              wn.departureReason === 'fled' ? 'В бегстве' :
+                              wn.departureReason === 'defeated' ? 'Повержен' : 'Вне сцены'
+                            }
+                          </span>
+                        </div>
+                        {wn.narrativeNote && (
+                          <p className="text-[10px] text-slate-300 italic pl-5 leading-tight">
+                            {wn.narrativeNote}
+                          </p>
+                        )}
+                        {wn.potentialHooks && wn.potentialHooks.length > 0 && (
+                          <div className="text-[9px] text-amber-300/80 pl-5 flex items-center gap-1">
+                            <span className="text-amber-500">✦</span>
+                            <span>{wn.potentialHooks[0]}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Searched & Exhausted Objects Registry */}
+                <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-bold font-rpg uppercase text-cyan-300 flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      Обысканные объекты ({searchedObjects.length})
+                    </span>
+                  </div>
+
+                  {searchedObjects.length === 0 ? (
+                    <div className="p-3 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border text-xs">
+                      <p className="text-slate-300 font-semibold mb-0.5">Нет обысканных объектов</p>
+                      <p className="text-[10px] text-slate-500">Повозки, сундуки и помещения ещё не подвергались обыску.</p>
+                    </div>
+                  ) : (
+                    searchedObjects.map((obj) => (
+                      <div
+                        key={obj.id}
+                        className="bg-slate-900/80 border border-cyan-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-1.5">
+                          <span className="font-bold text-cyan-200 text-xs flex items-center gap-1.5">
+                            <Package className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                            {obj.targetName}
+                          </span>
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 shrink-0">
+                            ОБЫЩЕНО • Р{obj.searchedInRound}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 pl-5">
+                          <span className="text-slate-500">Извлечено: </span>
+                          <span className="text-amber-300 font-semibold">
+                            {obj.extractedItems && obj.extractedItems.length > 0 ? obj.extractedItems.join(', ') : 'Все ценные вещи'}
+                          </span>
+                        </div>
+                        {obj.narrativeNote && (
+                          <p className="text-[10px] text-slate-400 italic pl-5 leading-tight">
+                            {obj.narrativeNote}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </>

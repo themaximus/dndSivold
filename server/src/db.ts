@@ -167,6 +167,7 @@ export interface WorldNPCEntry {
   departureRound: number;
   departureReason: string;
   lastKnownLocation?: string;
+  narrativeNote?: string;
   potentialHooks: string[];
   returnedInRound?: number;
 }
@@ -187,7 +188,7 @@ export interface CharacterReactionRequest {
   createdAt: string;
 }
 
-export type QuestStatus = 'active' | 'completed' | 'failed' | 'abandoned';
+export type QuestStatus = 'active' | 'completed' | 'failed';
 export type QuestCategory = 'main' | 'side' | 'task' | 'repair' | 'investigation' | 'social';
 
 export interface QuestEntity {
@@ -197,13 +198,29 @@ export interface QuestEntity {
   description: string;
   category: QuestCategory;
   status: QuestStatus;
-  giverName?: string;
-  targetName?: string;
   roundCreated: number;
   roundCompleted?: number;
+  giverName?: string;
+  targetName?: string;
   resolutionNote?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type SearchedObjectType = 'vehicle' | 'container' | 'room' | 'corpse' | 'cache' | 'environment' | 'other';
+
+export interface SearchedObjectEntry {
+  id: string;
+  roomId: string;
+  targetKey: string;
+  targetName: string;
+  targetType: SearchedObjectType;
+  status: 'searched' | 'exhausted' | 'empty';
+  searchedInRound: number;
+  searchedByCharacterName?: string;
+  extractedItems: string[];
+  narrativeNote?: string;
+  timestamp: string;
 }
 
 export interface RoomEntity {
@@ -230,6 +247,7 @@ export interface RoomEntity {
   itemLedger?: ItemLedgerEntry[];
   worldNPCRegistry?: WorldNPCEntry[];
   worldQuests?: QuestEntity[];
+  searchedObjectsRegistry?: SearchedObjectEntry[];
   genre?: string;
   campaignDuration?: 'short' | 'medium' | 'long';
   campaignMap?: any;
@@ -305,6 +323,7 @@ interface DatabaseSchema {
   itemLedgers: ItemLedgerEntry[];
   worldNPCs: WorldNPCEntry[];
   worldQuests: QuestEntity[];
+  searchedObjects: SearchedObjectEntry[];
 }
 
 class Database {
@@ -319,6 +338,7 @@ class Database {
     itemLedgers: [],
     worldNPCs: [],
     worldQuests: [],
+    searchedObjects: [],
   };
 
   constructor() {
@@ -343,6 +363,7 @@ class Database {
         this.data.itemLedgers = this.data.itemLedgers || [];
         this.data.worldNPCs = this.data.worldNPCs || [];
         this.data.worldQuests = this.data.worldQuests || [];
+        this.data.searchedObjects = this.data.searchedObjects || [];
       } catch (err) {
         console.error('Failed to parse database.json, initializing empty db', err);
         this.save();
@@ -356,6 +377,7 @@ class Database {
           this.data.itemLedgers = this.data.itemLedgers || [];
           this.data.worldNPCs = this.data.worldNPCs || [];
           this.data.worldQuests = this.data.worldQuests || [];
+          this.data.searchedObjects = this.data.searchedObjects || [];
         } catch (err) {
           console.error('Failed to initialize from database.default.json, creating empty db', err);
           this.save();
@@ -625,6 +647,44 @@ class Database {
         return target;
       }
       return null;
+    },
+  };
+
+  // Searched & Looted Objects Registry
+  public searchedObjects = {
+    findByRoomId: (roomId: string) => (this.data.searchedObjects || []).filter(s => s.roomId === roomId),
+    findMatching: (roomId: string, query: string) => {
+      const q = query.toLowerCase().trim();
+      return (this.data.searchedObjects || []).find(s =>
+        s.roomId === roomId && (
+          s.targetKey === q ||
+          s.targetName.toLowerCase().includes(q) ||
+          q.includes(s.targetName.toLowerCase()) ||
+          (q.includes('повозк') && s.targetKey.includes('повозк')) ||
+          (q.includes('телег') && s.targetKey.includes('повозк')) ||
+          (q.includes('отсек') && (s.targetKey.includes('отсек') || s.targetName.toLowerCase().includes('отсек')))
+        )
+      );
+    },
+    record: (entry: SearchedObjectEntry) => {
+      if (!this.data.searchedObjects) this.data.searchedObjects = [];
+      const existingIdx = this.data.searchedObjects.findIndex(
+        s => s.roomId === entry.roomId && (s.id === entry.id || s.targetKey === entry.targetKey)
+      );
+      if (existingIdx !== -1) {
+        const prev = this.data.searchedObjects[existingIdx];
+        const mergedItems = Array.from(new Set([...(prev.extractedItems || []), ...(entry.extractedItems || [])]));
+        this.data.searchedObjects[existingIdx] = {
+          ...prev,
+          ...entry,
+          extractedItems: mergedItems,
+        };
+        this.save();
+        return this.data.searchedObjects[existingIdx];
+      }
+      this.data.searchedObjects.push(entry);
+      this.save();
+      return entry;
     },
   };
 }

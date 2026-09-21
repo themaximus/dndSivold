@@ -8,7 +8,8 @@ export interface IWorldNPCRepository extends IRepository<WorldNPCEntry> {
     roomId: string,
     npc: RoomNPC | RoomEnemy,
     departureReason: string,
-    roundNumber: number
+    roundNumber: number,
+    narrativeNote?: string
   ): WorldNPCEntry;
   findCandidateForReEncounter(
     roomId: string,
@@ -37,7 +38,8 @@ export class WorldNPCRepository implements IWorldNPCRepository {
     roomId: string,
     npc: RoomNPC | RoomEnemy,
     departureReason: string,
-    roundNumber: number
+    roundNumber: number,
+    narrativeNote?: string
   ): WorldNPCEntry {
     const isNPC = 'role' in npc;
     const existing = db.worldNPCs.findByRoomId(roomId).find(
@@ -74,6 +76,7 @@ export class WorldNPCRepository implements IWorldNPCRepository {
       notes,
       departureRound: roundNumber,
       departureReason,
+      narrativeNote: narrativeNote || existing?.narrativeNote,
       potentialHooks,
     };
 

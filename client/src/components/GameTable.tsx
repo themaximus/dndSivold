@@ -289,6 +289,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
             enemies={room.activeEnemies || []}
             sceneNPCs={room.sceneNPCs || []}
             quests={room.worldQuests || []}
+            worldNPCRegistry={room.worldNPCRegistry || []}
+            searchedObjects={room.searchedObjectsRegistry || []}
           />
         </div>
       </div>
