@@ -130,7 +130,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4.5rem)] max-w-[1720px] w-full mx-auto px-2 sm:px-4">
+    <div className="flex flex-col h-[calc(100vh-5rem)] max-w-7xl mx-auto px-2 sm:px-4">
       {/* Table Header with Quick Access to Inventory, Talents, Lore Journal */}
       <GameTableHeader
         room={room}
@@ -153,23 +153,20 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         onLeave={onLeave}
       />
 
-      {/* Sir Brante Two-Page Spread: Left Page (Hero & Threats) + Right Page (The Grand Chronicle & Decisions) */}
+      {/* Main Grid: Party HUD (Left) + Chronicle & Action Console (Center) + Opponents HUD (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
-        {/* Left Folio Page: Party Dossier & Active Threats */}
-        <div className="lg:col-span-4 xl:col-span-3.5 flex flex-col gap-3 min-h-0 overflow-y-auto custom-scrollbar">
+        {/* Party HUD Column */}
+        <div className="lg:col-span-3 flex flex-col min-h-0">
           <PartyHUD
             players={players}
             currentUserId={user?.id}
             activePlayerUserId={room.activePlayerUserId}
             turnMode={room.turnMode}
           />
-          <OpponentsHUD
-            enemies={room.activeEnemies || []}
-          />
         </div>
 
-        {/* Right Folio Page: The Grand Chronicle of Events & The Book of Decisions */}
-        <div className="lg:col-span-8 xl:col-span-8.5 flex flex-col min-h-0 bg-[#13161f] border border-[#3b3425] rounded-xl shadow-2xl overflow-hidden">
+        {/* DM Chronicle + Action Console Column */}
+        <div className="lg:col-span-6 flex flex-col min-h-0 bg-[#13161d] border border-[#2a303d] rounded-xl shadow-2xl overflow-hidden">
           {/* Battlefield Loot Drops if any items dropped */}
           <LootDropsBar
             loot={room.availableLoot || []}
@@ -209,6 +206,13 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             onOpenDiceModal={handleOpenDiceModal}
             onSubmit={handleSubmitAction}
             onRollDeathSave={rollDeathSave}
+          />
+        </div>
+
+        {/* Opponents & Threats Column */}
+        <div className="lg:col-span-3 flex flex-col min-h-0">
+          <OpponentsHUD
+            enemies={room.activeEnemies || []}
           />
         </div>
       </div>

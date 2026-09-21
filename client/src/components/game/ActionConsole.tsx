@@ -234,78 +234,66 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       )}
 
       {/* Decision Header: Challenge DC & Stat requirement */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#28251e] pb-2.5">
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-rpg text-[#ded7c8]">
-          <span className="text-[#facc15] font-extrabold tracking-wide flex items-center gap-1.5">
-            <span className="text-base">🎯</span>
-            <span>ИСПЫТАНИЕ РАУНДА:</span>
-          </span>
-          <span className="px-2.5 py-0.5 rounded bg-[#1f1a12] border-2 border-[#f59e0b] text-[#fef08a] font-mono font-extrabold text-xs shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242935] pb-2">
+        <div className="flex items-center gap-2 text-xs font-serif text-[#ded7c8]">
+          <span className="text-[#c5a059] font-bold tracking-wide">Испытание раунда:</span>
+          <span className="px-2 py-0.5 rounded bg-[#181c25] border border-[#4a3e26] text-[#e2c26a] font-mono font-bold text-[11px]">
             СЛ {targetDC} [{statShort}]
           </span>
           {dcReason && (
-            <span className="text-[#c5a059] italic font-serif hidden sm:inline">
+            <span className="text-[#968e7f] italic hidden sm:inline">
               — {dcReason}
             </span>
           )}
         </div>
-        <div className="text-xs font-serif text-[#968e7f] flex items-center gap-1">
-          {d20Roll ? (
-            <span className="text-[#86efac] font-bold">✓ Шаг 2: Подтверждение хода</span>
-          ) : (
-            <span className="text-[#facc15]">Шаг 1: Выберите намерение и бросьте d20</span>
-          )}
+        <div className="text-[11px] font-serif text-[#968e7f]">
+          {d20Roll ? 'Шаг II: Подтверждение хода' : 'Шаг I: Описание действия и бросок'}
         </div>
       </div>
 
-      {/* Video Game Action Choices with intuitive colors and emojis */}
+      {/* Literary Action Suggestions (Sir Brante decision choices) */}
       {!d20Roll && (
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5 text-xs font-rpg text-[#c5a059] font-bold uppercase tracking-wider">
-            <span>⚔️ Возможные действия героя:</span>
+        <div className="space-y-1">
+          <div className="flex items-center gap-1 text-[11px] font-serif text-[#968e7f]">
+            <span>Возможные намерения героя:</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-serif">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-serif">
             {livingEnemies.length === 0 ? (
               <>
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Вступаю в разговор и расспрашиваю')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#17253d] to-[#0f192b] hover:from-[#23385c] hover:to-[#17263e] text-[#93c5fd] hover:text-white border border-[#3b82f6]/60 hover:border-[#60a5fa] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
                 >
-                  <span className="text-sm">💬</span>
-                  <span>I. Диалог и расспрос</span>
+                  <span className="text-[#c5a059] mr-1">I.</span> Диалог и расспрос
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Внимательно осматриваю местность и ищу зацепки')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#2d2212] to-[#1e160a] hover:from-[#42321a] hover:to-[#2b1f0e] text-[#fde047] hover:text-white border border-[#eab308]/60 hover:border-[#facc15] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
                 >
-                  <span className="text-sm">👁️</span>
-                  <span>II. Осмотр местности</span>
+                  <span className="text-[#c5a059] mr-1">II.</span> Осмотр местности
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Предлагаю помощь или торговлю')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#14291c] to-[#0c1c12] hover:from-[#1e3d2a] hover:to-[#132d1d] text-[#86efac] hover:text-white border border-[#22c55e]/60 hover:border-[#4ade80] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
                 >
-                  <span className="text-sm">🤝</span>
-                  <span>III. Помощь или сделка</span>
+                  <span className="text-[#c5a059] mr-1">III.</span> Помощь или сделка
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Использую заклинание или трюк')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#251533] to-[#190c24] hover:from-[#3a204f] hover:to-[#261338] text-[#d8b4fe] hover:text-white border border-[#a855f7]/60 hover:border-[#c084fc] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
                 >
-                  <span className="text-sm">✨</span>
-                  <span>IV. Магический трюк</span>
+                  <span className="text-[#c5a059] mr-1">IV.</span> Магический трюк
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Продолжаем путь по тракту')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#1e2330] to-[#121620] hover:from-[#2c3345] hover:to-[#1c2230] text-[#ded7c8] hover:text-white border border-[#64748b]/60 hover:border-[#94a3b8] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] hover:border-[#4a3e26] transition-colors"
                 >
-                  <span className="text-sm">🏃</span>
-                  <span>V. Следовать в путь</span>
+                  <span className="text-[#c5a059] mr-1">V.</span> Следовать в путь
                 </button>
               </>
             ) : (
@@ -314,35 +302,34 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSuggestionClick(`Атакую ${primaryEnemy.name}`)}
-                    className="px-3.5 py-1.5 rounded-lg bg-gradient-to-b from-[#3b1217] to-[#26090d] hover:from-[#521920] hover:to-[#380e14] text-[#fca5a5] hover:text-white border-2 border-[#ef4444]/70 hover:border-[#f87171] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                    className="px-2.5 py-1 rounded bg-[#261518] hover:bg-[#381a20] text-[#fca5a5] hover:text-white border border-[#59262b] hover:border-[#8b353d] transition-colors flex items-center gap-1"
                   >
-                    <span className="text-sm">⚔️</span>
+                    <Swords className="w-3 h-3 text-[#f87171]" />
                     <span>Атаковать ({primaryEnemy.name})</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Ищу надежное укрытие от вражеских атак')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#17253d] to-[#0f192b] hover:from-[#23385c] hover:to-[#17263e] text-[#93c5fd] hover:text-white border border-[#3b82f6]/60 hover:border-[#60a5fa] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] transition-colors flex items-center gap-1"
                 >
-                  <span className="text-sm">🛡️</span>
-                  <span>Укрыться в оборону</span>
+                  <Shield className="w-3 h-3 text-[#968e7f]" />
+                  <span>Укрыться</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Сотворяю боевое заклинание')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#251533] to-[#190c24] hover:from-[#3a204f] hover:to-[#261338] text-[#d8b4fe] hover:text-white border border-[#a855f7]/60 hover:border-[#c084fc] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] transition-colors flex items-center gap-1"
                 >
-                  <span className="text-sm">✨</span>
-                  <span>Боевое заклинание</span>
+                  <Sparkles className="w-3 h-3 text-[#c084fc]" />
+                  <span>Заклинание</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSuggestionClick('Использую элементы окружения и импровизирую')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-b from-[#2d2212] to-[#1e160a] hover:from-[#42321a] hover:to-[#2b1f0e] text-[#fde047] hover:text-white border border-[#eab308]/60 hover:border-[#facc15] font-bold transition-all shadow-md flex items-center gap-1.5 active:translate-y-0.5"
+                  className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] text-[#ded7c8] hover:text-[#e2c26a] border border-[#2e3544] transition-colors"
                 >
-                  <span className="text-sm">🎯</span>
-                  <span>Окружение и трюк</span>
+                  Окружение и трюк
                 </button>
               </>
             )}
@@ -359,30 +346,36 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
 
         return (
           <div
-            className={`p-3 rounded-xl border-2 text-sm font-serif flex items-center justify-between gap-3 shadow-lg animate-in fade-in ${
+            className={`p-2.5 rounded-lg border text-xs font-serif flex items-center justify-between gap-3 animate-in fade-in ${
               isCritSuccess
-                ? 'bg-gradient-to-r from-[#3d2c14] to-[#251b0a] border-[#f59e0b] text-[#fef08a]'
+                ? 'bg-[#2b2213] border-[#785e2b] text-[#e2c26a]'
                 : isCritFail
-                ? 'bg-gradient-to-r from-[#3d1217] to-[#260a0e] border-[#ef4444] text-[#fca5a5]'
+                ? 'bg-[#2b1316] border-[#782b32] text-[#fca5a5]'
                 : isSuccess
-                ? 'bg-gradient-to-r from-[#143320] to-[#0c2114] border-[#22c55e] text-[#86efac]'
-                : 'bg-gradient-to-r from-[#351419] to-[#210c0f] border-[#f43f5e] text-[#fca5a5]'
+                ? 'bg-[#152a1e] border-[#29563d] text-[#86efac]'
+                : 'bg-[#2b1619] border-[#6b252c] text-[#fca5a5]'
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              <span className="text-xl">
-                {isCritSuccess ? '🌟' : isCritFail ? '☠️' : isSuccess ? '✅' : '❌'}
-              </span>
+            <div className="flex items-center gap-2">
+              {isCritSuccess ? (
+                <Sparkles className="w-4 h-4 text-[#e2c26a] shrink-0" />
+              ) : isCritFail ? (
+                <ShieldAlert className="w-4 h-4 text-[#f87171] shrink-0" />
+              ) : isSuccess ? (
+                <CheckCircle2 className="w-4 h-4 text-[#86efac] shrink-0" />
+              ) : (
+                <span className="w-4 h-4 text-[#f87171] font-bold text-center shrink-0">✗</span>
+              )}
               <div>
-                <span className="font-extrabold font-rpg tracking-wide text-base">
-                  {isCritSuccess ? 'ТРИУМФ (КРИТ. УСПЕХ)' : isCritFail ? 'РОКОВОЙ ПРОВАЛ' : isSuccess ? 'УСПЕШНОЕ ДЕЙСТВИЕ' : 'НЕУДАЧА'}
+                <span className="font-bold tracking-wide">
+                  {isCritSuccess ? '★ КРИТИЧЕСКИЙ УСПЕХ' : isCritFail ? '☠ КРИТИЧЕСКИЙ ПРОВАЛ' : isSuccess ? '★ УСПЕХ' : '✗ ПРОВАЛ'}
                 </span>
-                <span className="ml-2.5 font-mono text-xs font-bold opacity-90">
+                <span className="ml-2 font-mono text-[11px] opacity-90">
                   (Итог: {d20Roll.total} против СЛ {targetDC})
                 </span>
               </div>
             </div>
-            <div className="text-xs font-mono font-bold text-right opacity-90 hidden sm:block">
+            <div className="text-[11px] font-mono text-right opacity-80 hidden sm:block">
               d20 [{rawDie}] {d20Roll.modifier !== undefined ? (d20Roll.modifier >= 0 ? `+ ${d20Roll.modifier}` : `- ${Math.abs(d20Roll.modifier)}`) : ''}
             </div>
           </div>
@@ -391,7 +384,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
 
       {/* Main Console Form */}
       <form onSubmit={handleSubmit} className="space-y-2.5">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           {/* Action Input Field */}
           <div className="flex-1 relative">
             <input
@@ -408,14 +401,14 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
                   ? "Опишите задуманное действие героя (атака, укрытие, магия, трюк)..."
                   : "Опишите задуманное действие героя (диалог, осмотр, сделка, помощь, путь)..."
               }
-              className={`w-full py-3 px-4 border-2 rounded-xl text-sm sm:text-base font-serif transition-all ${
+              className={`w-full py-2.5 px-3.5 border rounded-lg text-xs sm:text-sm font-serif transition-all ${
                 d20Roll
-                  ? 'bg-[#0b0d13] border-[#785e2b] text-[#fef08a] cursor-not-allowed pl-10 shadow-inner'
-                  : 'bg-[#090b10] border-[#3a3528] text-[#fef8ed] placeholder-[#787163] focus:outline-none focus:border-[#facc15] shadow-inner'
+                  ? 'bg-[#0f1117] border-[#4a3e26] text-[#e2c26a] cursor-not-allowed pl-9 shadow-inner'
+                  : 'bg-[#0c0d11] border-[#2e3544] text-[#ded7c8] placeholder-[#736c5f] focus:outline-none focus:border-[#c5a059]'
               }`}
             />
             {d20Roll && (
-              <Lock className="w-4 h-4 text-[#facc15] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Lock className="w-4 h-4 text-[#c5a059] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             )}
           </div>
 
@@ -424,21 +417,21 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
             <button
               type="button"
               onClick={handleOpenDice}
-              className="game-btn-gold px-6 py-3 rounded-xl text-sm font-rpg font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shrink-0 shadow-lg"
+              className="px-5 py-2.5 bg-[#2b2213] hover:bg-[#3d301a] text-[#e2c26a] hover:text-white border border-[#785e2b] hover:border-[#c5a059] font-rpg text-xs sm:text-sm font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 active:scale-98"
               title="Бросить кубик d20 для проверки задуманного действия"
             >
-              <span className="text-base">🎲</span>
-              <span>БРОСИТЬ КУБИК D20</span>
+              <Dices className="w-4 h-4 text-[#c5a059]" />
+              <span>Бросить кубик d20</span>
             </button>
           ) : (
             <button
               type="submit"
               disabled={!actionText.trim()}
-              className="game-btn-emerald px-6 py-3 rounded-xl text-sm font-rpg font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 shrink-0 shadow-lg animate-pulse"
+              className="px-5 py-2.5 bg-[#1b3d2b] hover:bg-[#25523a] text-[#a7f3d0] hover:text-white border border-[#3b7857] hover:border-[#4ade80] font-rpg text-xs sm:text-sm font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 animate-pulse active:scale-98"
               title="Отправить готовый ход Мастеру Подземелий"
             >
-              <span className="text-base">📜</span>
-              <span>СДЕЛАТЬ ХОД</span>
+              <Send className="w-4 h-4" />
+              <span>Сделать ход</span>
             </button>
           )}
         </div>

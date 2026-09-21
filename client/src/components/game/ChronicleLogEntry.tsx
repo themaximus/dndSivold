@@ -69,24 +69,18 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
   }, [log.narrativeText, log.currentSituation, log.choiceDilemma]);
 
   return (
-    <div className="bg-[#12151f] border-2 border-[#3d3422] rounded-xl p-4 sm:p-6 shadow-2xl relative transition-all font-serif space-y-4">
-      {/* Video Game Quest Log Header */}
-      <div className="flex items-center justify-between border-b border-[#28251e] pb-3">
+    <div className="bg-[#141720] border border-[#2a303d] rounded-xl p-4 sm:p-5 shadow-md relative transition-all font-serif space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-[#242935] pb-2.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-base">👑</span>
-          <h4 className="font-extrabold font-rpg text-base sm:text-lg text-[#facc15] tracking-wide flex items-center gap-1.5">
-            <span>ГОЛОС МАСТЕРА</span>
-            <span className="text-xs font-mono font-normal text-[#c5a059] px-2 py-0.5 rounded bg-[#1f1a12] border border-[#524126]">
-              {title}
-            </span>
+          <span className="text-[#c5a059] text-xs">✦</span>
+          <h4 className="font-bold font-rpg text-base text-[#e2c26a] tracking-wide">
+            {title}
           </h4>
           {log.targetDC && (
-            <span className="ml-1 px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-[#1f1a12] border border-[#f59e0b]/60 text-[#fef08a] flex items-center gap-1 shadow-sm">
-              <span className="text-sm">🎯</span>
-              <span>СЛ {log.targetDC}</span>
-              {log.requiredCheckStat && (
-                <span className="text-[#f59e0b] ml-0.5">[{log.requiredCheckStat.toUpperCase()}]</span>
-              )}
+            <span className="ml-1 px-2 py-0.5 rounded text-[11px] font-mono bg-[#1c1913] border border-[#4a3e26] text-[#e2c26a] font-bold flex items-center gap-1">
+              <ShieldAlert className="w-3 h-3 text-[#c5a059]" />
+              СЛ {log.targetDC} {log.requiredCheckStat ? `[${log.requiredCheckStat.toUpperCase()}]` : ''}
             </span>
           )}
         </div>
@@ -98,8 +92,8 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
         />
       </div>
 
-      {/* Story text - LARGE, IMMERSIVE, HIGH CONTRAST */}
-      <div className="text-base sm:text-[18px] text-[#fbf8f0] leading-[1.85] whitespace-pre-line font-serif drop-shadow-sm tracking-wide">
+      {/* Story text */}
+      <div className="text-[15px] sm:text-base text-[#ded7c8] leading-[1.75] whitespace-pre-line font-serif">
         {displayNarrative}
       </div>
 

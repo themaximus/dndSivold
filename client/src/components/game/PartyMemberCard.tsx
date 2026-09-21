@@ -55,13 +55,13 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
       )}
 
       {/* Character Identity */}
-      <div className="flex items-center justify-between gap-2.5 mb-2.5">
+      <div className="flex items-center justify-between gap-2 mb-2">
         <div
           onClick={onInspect}
-          className="flex items-center gap-3 min-w-0 cursor-pointer group/char flex-1"
-          title="Нажмите, чтобы открыть полное досье героя"
+          className="flex items-center gap-2.5 min-w-0 cursor-pointer group/char flex-1"
+          title="Нажмите, чтобы просмотреть полное досье персонажа"
         >
-          <div className="w-12 h-12 rounded-lg bg-[#1c1813] border-2 border-[#facc15] shadow-md flex items-center justify-center font-bold text-[#facc15] text-lg overflow-hidden flex-shrink-0 group-hover/char:scale-105 transition-transform">
+          <div className="w-9 h-9 rounded bg-[#1c1813] border border-[#4a3e26] flex items-center justify-center font-bold text-[#c5a059] text-sm overflow-hidden flex-shrink-0 group-hover/char:scale-105 transition-transform">
             {char.avatarUrl ? (
               <img src={char.avatarUrl} alt={char.name} className="w-full h-full object-cover" />
             ) : (
@@ -69,80 +69,80 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="font-extrabold font-rpg text-[#fef08a] text-sm sm:text-base truncate flex items-center gap-1.5 group-hover/char:text-[#fde047] transition-colors">
-              <span>{char.name}</span>
+            <h4 className="font-bold text-[#ded7c8] text-xs truncate flex items-center gap-1 group-hover/char:text-[#e2c26a] transition-colors">
+              {char.name}
               {isCurrentUser && (
-                <span className="text-[10px] text-[#facc15] font-bold px-1.5 py-0.2 rounded bg-[#2b2213] border border-[#785e2b]">(Вы)</span>
+                <span className="text-[10px] text-[#c5a059] font-normal">(Вы)</span>
               )}
             </h4>
-            <p className="text-xs text-[#c5a059] font-medium truncate">
-              {char.race} {char.characterClass} • {char.level} ур.
+            <p className="text-[10px] text-[#968e7f] truncate">
+              {char.race} {char.characterClass}, {char.level} ур.
             </p>
           </div>
         </div>
 
         {/* Turn / Life Status & Inspect Button */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1">
           {onInspect && (
             <button
               type="button"
               onClick={onInspect}
-              className="p-1.5 rounded-lg bg-[#141824] hover:bg-[#1e2538] text-[#c5a059] hover:text-[#facc15] border border-[#3b3425] hover:border-[#facc15] transition-colors shadow-sm"
+              className="p-1 rounded bg-[#0c0d11] hover:bg-[#1f2430] text-[#968e7f] hover:text-[#e2c26a] border border-[#252a36] hover:border-[#4a3e26] transition-colors"
               title="Открыть досье персонажа"
             >
-              <Eye className="w-4 h-4" />
+              <Eye className="w-3.5 h-3.5" />
             </button>
           )}
 
           {isDead ? (
-            <span className="px-2 py-0.5 rounded text-xs font-bold bg-[#281316] text-[#fca5a5] border border-[#6b252c]">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#281316] text-[#fca5a5] border border-[#6b252c]">
               ☠ Погиб
             </span>
           ) : isDowned ? (
-            <span className="px-2 py-0.5 rounded text-xs font-bold bg-[#281316] text-[#fca5a5] border border-[#8b262a] animate-pulse">
-              ⚠️ 0 HP
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#281316] text-[#fca5a5] border border-[#8b262a]">
+              При смерти
             </span>
           ) : player.hasActedThisRound ? (
             <span
-              className="px-2 py-0.5 rounded bg-[#122319] text-[#86efac] border border-[#29563d] flex items-center gap-1 text-xs font-bold font-serif"
+              className="p-1 rounded bg-[#122319] text-[#86efac] border border-[#29563d] flex items-center"
               title="Действие заявлено"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Ход сделан
+              <CheckCircle2 className="w-3.5 h-3.5" />
             </span>
           ) : (
             <span
-              className="px-2 py-0.5 rounded bg-[#1f1a12] text-[#fde047] border border-[#785e2b] flex items-center gap-1 text-xs font-bold font-serif"
+              className="p-1 rounded bg-[#0c0d11] text-[#968e7f] border border-[#222733] flex items-center"
               title={isActiveTurn ? "Совершает ход..." : "Ожидает очереди"}
             >
-              <Clock className="w-3.5 h-3.5 animate-spin text-[#facc15]" /> Ожидание
+              <Clock className="w-3.5 h-3.5 animate-spin text-[#c5a059]" />
             </span>
           )}
         </div>
       </div>
 
-      {/* HP Bar & Death Saves - Video Game RPG Health Gauge */}
-      <div className="mb-2.5 bg-[#090b10] p-2 rounded-lg border border-[#252a36]">
-        <div className="flex items-center justify-between text-xs font-bold mb-1 font-mono">
-          <span className="text-[#e2c26a] flex items-center gap-1">
-            <span className="text-sm">❤️</span> HP:
+      {/* HP Bar & Death Saves */}
+      <div className="mb-2">
+        <div className="flex items-center justify-between text-[11px] font-semibold mb-1">
+          <span className="text-[#968e7f] flex items-center gap-1">
+            <Heart className={`w-3 h-3 ${isDead || isDowned ? 'text-[#f87171]' : 'text-[#c5a059]'}`} /> HP:
           </span>
-          <span className={isDead ? 'text-[#f87171]' : isDowned ? 'text-[#f87171] animate-pulse' : char.hpCurrent <= 4 ? 'text-[#f87171]' : 'text-[#86efac]'}>
-            {isDead ? '0 / ' + char.hpMax + ' (МЕРТВ)' : isDowned ? '0 / ' + char.hpMax + ' (ПРИ СМЕРТИ)' : `${char.hpCurrent} / ${char.hpMax}`}
+          <span className={isDead ? 'text-[#f87171] font-bold' : isDowned ? 'text-[#f87171] font-bold animate-pulse' : char.hpCurrent <= 4 ? 'text-[#f87171] font-bold' : 'text-[#ded7c8]'}>
+            {isDead ? '0 / ' + char.hpMax + ' (МЕРТВ)' : isDowned ? '0 / ' + char.hpMax + ' (0 HP)' : `${char.hpCurrent} / ${char.hpMax}`}
           </span>
         </div>
-        <div className="w-full bg-[#181113] h-2.5 rounded-full overflow-hidden border border-[#3b1c20] shadow-inner">
+        <div className="w-full bg-[#0c0d11] h-1.5 rounded overflow-hidden border border-[#222733]">
           <div
-            className={`h-full transition-all duration-500 rounded-full shadow-md ${
-              isDead ? 'bg-[#5c1c20]' : isDowned ? 'bg-[#8b262a]' : hpPercent > 50 ? 'bg-gradient-to-r from-[#10b981] to-[#059669]' : hpPercent > 25 ? 'bg-gradient-to-r from-[#f59e0b] to-[#d97706]' : 'bg-gradient-to-r from-[#ef4444] to-[#b91c1c]'
+            className={`h-full transition-all duration-500 ${
+              isDead ? 'bg-[#5c1c20]' : isDowned ? 'bg-[#8b262a]' : hpPercent > 50 ? 'bg-[#29563d]' : hpPercent > 25 ? 'bg-[#785e2b]' : 'bg-[#6b252c]'
             }`}
             style={{ width: `${hpPercent}%` }}
           />
         </div>
 
         {isDowned && char.deathSaves && (
-          <div className="mt-1.5 flex items-center justify-between text-xs font-mono font-bold px-1">
-            <span className="text-[#86efac]">✓ Успехи: {char.deathSaves.successes}/3</span>
-            <span className="text-[#fca5a5]">✗ Провалы: {char.deathSaves.failures}/3</span>
+          <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono px-1">
+            <span className="text-[#86efac]">Успехи: {char.deathSaves.successes}/3</span>
+            <span className="text-[#fca5a5]">Провалы: {char.deathSaves.failures}/3</span>
           </div>
         )}
       </div>
@@ -159,7 +159,7 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
             return (
               <span
                 key={cond}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${badge.color}`}
                 title={badge.desc}
               >
                 {badge.label}
@@ -169,27 +169,23 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
         </div>
       )}
 
-      {/* Stats, Hit Dice & Spell Slots snippet - Crisp Video Game RPG Badges */}
+      {/* Stats, Hit Dice & Spell Slots snippet */}
       <div
         onClick={onInspect}
-        className="grid grid-cols-4 gap-1.5 text-center cursor-pointer font-serif"
+        className="grid grid-cols-4 gap-1 text-center bg-[#0c0d11] p-1 rounded border border-[#222733] text-[10px] text-[#968e7f] cursor-pointer hover:border-[#3d3424] transition-colors"
         title="Нажмите для подробного листа персонажа"
       >
-        <div className="bg-[#101826] border border-[#25426b] p-1.5 rounded-lg text-xs">
-          <span className="text-[10px] text-[#93c5fd] font-bold block">🛡️ КБ</span>
-          <strong className="text-sm font-mono text-[#bfdbfe]">{char.ac}</strong>
+        <div>
+          КБ: <strong className="text-[#93c5fd]">{char.ac}</strong>
         </div>
-        <div className="bg-[#241c10] border border-[#6b4e1e] p-1.5 rounded-lg text-xs">
-          <span className="text-[10px] text-[#fde047] font-bold block">💪 СИЛ</span>
-          <strong className="text-sm font-mono text-[#fef08a]">{char.stats.str}</strong>
+        <div>
+          СИЛ: <strong className="text-[#e2c26a]">{char.stats.str}</strong>
         </div>
-        <div className="bg-[#122319] border border-[#225737] p-1.5 rounded-lg text-xs">
-          <span className="text-[10px] text-[#86efac] font-bold block">🎯 ЛОВ</span>
-          <strong className="text-sm font-mono text-[#bbf7d0]">{char.stats.dex}</strong>
+        <div>
+          ЛОВ: <strong className="text-[#e2c26a]">{char.stats.dex}</strong>
         </div>
-        <div className="bg-[#1a1426] border border-[#482c6b] p-1.5 rounded-lg text-xs" title="Кости хитов для короткого отдыха">
-          <span className="text-[10px] text-[#d8b4fe] font-bold block">🎲 КХ</span>
-          <strong className="text-sm font-mono text-[#e9d5ff]">{char.hitDiceCurrent ?? (char.level || 1)}/{char.hitDiceMax ?? (char.level || 1)}</strong>
+        <div title="Кости хитов для короткого отдыха">
+          КХ: <strong className="text-[#86efac]">{char.hitDiceCurrent ?? (char.level || 1)}/{char.hitDiceMax ?? (char.level || 1)}</strong>
         </div>
       </div>
 

@@ -94,18 +94,18 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
         </div>
 
         {/* Right: Primary Hero Dossiers & Books */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Quick launcher: Inventory */}
           {onOpenInventory && (
             <button
               onClick={onOpenInventory}
-              className="px-3 py-1.5 bg-gradient-to-b from-[#231e15] to-[#17140e] hover:from-[#352c1e] hover:to-[#221c13] border border-[#c5a059]/70 hover:border-[#facc15] rounded-lg text-[#fef08a] text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-md active:translate-y-0.5"
+              className="px-2.5 sm:px-3 py-1.5 bg-[#181c25] hover:bg-[#1f2430] border border-[#2e3544] hover:border-[#c5a059]/60 rounded-lg text-[#ded7c8] hover:text-[#e2c26a] text-xs font-serif font-semibold transition-all flex items-center gap-1.5 shadow-sm"
               title="Инвентарь и снаряжение"
             >
-              <span className="text-sm">🎒</span>
+              <Package className="w-3.5 h-3.5 text-[#c5a059]" />
               <span>Инвентарь</span>
               {inventoryCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-[#0c0d11] text-[10px] text-[#facc15] rounded font-mono font-bold border border-[#c5a059]">
+                <span className="px-1.5 py-0.2 bg-[#0c0d11] text-[10px] text-[#c5a059] rounded font-mono border border-[#3a3224]">
                   {inventoryCount}
                 </span>
               )}
@@ -116,22 +116,22 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           {onOpenTalents && (
             <button
               onClick={onOpenTalents}
-              className={`px-3 py-1.5 rounded-lg text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-md active:translate-y-0.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 border rounded-lg text-xs font-serif font-semibold transition-all flex items-center gap-1.5 shadow-sm ${
                 skillPoints > 0
-                  ? 'bg-gradient-to-b from-[#b45309] to-[#78350f] border-2 border-[#f59e0b] text-white animate-pulse'
-                  : 'bg-gradient-to-b from-[#221c13] to-[#15120c] hover:from-[#332a1d] hover:to-[#1e1911] border border-[#785e2b] text-[#fef08a]'
+                  ? 'bg-[#2b2213] border-[#785e2b] text-[#e2c26a] animate-pulse hover:bg-[#3d301a]'
+                  : 'bg-[#181c25] hover:bg-[#1f2430] border-[#2e3544] hover:border-[#c5a059]/60 text-[#ded7c8] hover:text-[#e2c26a]'
               }`}
               title="Древо талантов персонажа"
             >
-              <span className="text-sm">⚡</span>
+              <Award className="w-3.5 h-3.5 text-[#c5a059]" />
               <span>Таланты</span>
               {characterLevel ? (
-                <span className="px-1.5 py-0.2 bg-[#0c0d11] text-[10px] text-[#facc15] rounded font-mono font-bold border border-[#785e2b]">
+                <span className="px-1.5 py-0.2 bg-[#0c0d11] text-[10px] text-[#c5a059] rounded font-mono border border-[#3a3224]">
                   {characterLevel} ур.
                 </span>
               ) : null}
               {skillPoints > 0 && (
-                <span className="px-1.5 py-0.2 bg-[#facc15] text-black font-bold text-[10px] rounded-full">
+                <span className="px-1.5 py-0.2 bg-[#c5a059] text-black font-bold text-[10px] rounded-full">
                   +{skillPoints}
                 </span>
               )}
@@ -142,13 +142,13 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           {onOpenJournal && (
             <button
               onClick={onOpenJournal}
-              className="px-3 py-1.5 bg-gradient-to-b from-[#1e1528] to-[#120d1a] hover:from-[#2d203d] hover:to-[#1a1324] border border-[#7c3aed]/60 hover:border-[#a78bfa] rounded-lg text-[#e9d5ff] text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-md active:translate-y-0.5"
+              className="px-2.5 sm:px-3 py-1.5 bg-[#181c25] hover:bg-[#1f2430] border border-[#2e3544] hover:border-[#8b5cf6]/50 rounded-lg text-[#ded7c8] hover:text-[#c4b5fd] text-xs font-serif font-semibold transition-all flex items-center gap-1.5 shadow-sm"
               title="Летопись и хроника кампании"
             >
-              <span className="text-sm">📜</span>
+              <BookMarked className="w-3.5 h-3.5 text-[#a78bfa]" />
               <span>Летопись</span>
               {milestonesCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-[#0c0d11] text-[10px] text-[#c084fc] rounded font-mono font-bold border border-[#7c3aed]/50">
+                <span className="px-1.5 py-0.2 bg-[#0c0d11] text-[10px] text-[#c4b5fd] rounded font-mono border border-[#372d54]">
                   {milestonesCount}
                 </span>
               )}
@@ -159,10 +159,10 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           {onOpenRest && (
             <button
               onClick={onOpenRest}
-              className="px-3 py-1.5 bg-gradient-to-b from-[#241712] to-[#170e0b] hover:from-[#38241d] hover:to-[#221510] border border-[#ea580c]/60 hover:border-[#fb923c] rounded-lg text-[#fed7aa] text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-md active:translate-y-0.5"
+              className="px-2.5 sm:px-3 py-1.5 bg-[#181c25] hover:bg-[#1f2430] border border-[#2e3544] hover:border-[#c5a059]/60 rounded-lg text-[#ded7c8] hover:text-[#e2c26a] text-xs font-serif font-semibold transition-all flex items-center gap-1.5 shadow-sm"
               title="Привал: короткий или продолжительный отдых"
             >
-              <span className="text-sm">⛺</span>
+              <Flame className="w-3.5 h-3.5 text-[#d97706]" />
               <span>Привал</span>
             </button>
           )}
@@ -170,10 +170,9 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           {/* Invite Link Button */}
           <button
             onClick={handleCopyInvite}
-            className="px-3 py-1.5 bg-gradient-to-b from-[#16221a] to-[#0e1711] hover:from-[#203326] hover:to-[#14221a] border border-[#10b981]/60 hover:border-[#34d399] rounded-lg text-[#a7f3d0] text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-md active:translate-y-0.5"
+            className="px-2.5 sm:px-3 py-1.5 bg-[#1c1813] hover:bg-[#2b2217] border border-[#4a3a24] hover:border-[#c5a059] rounded-lg text-[#e2c26a] hover:text-white text-xs font-serif font-semibold transition-all flex items-center gap-1.5 shadow-sm"
             title="Скопировать ссылку для приглашения друзей"
           >
-            <span className="text-sm">🔗</span>
             <span>Пригласить</span>
           </button>
         </div>
@@ -184,18 +183,18 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
         {/* Left: Setting description & Badges */}
         <div className="flex items-center gap-3 flex-wrap min-w-0 flex-1">
           {room.genre && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#162033] text-[#93c5fd] border border-[#233555] shrink-0 font-bold">
-              🎭 {GENRE_SHORT_LABELS[room.genre] || room.genre}
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#162033] text-[#93c5fd] border border-[#233555] shrink-0">
+              {GENRE_SHORT_LABELS[room.genre] || room.genre}
             </span>
           )}
           {room.campaignDuration && (
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#221833] text-[#c084fc] border border-[#3d265a] shrink-0 font-bold">
-              ⏳ {DURATION_SHORT_LABELS[room.campaignDuration] || room.campaignDuration}
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#221833] text-[#c084fc] border border-[#3d265a] shrink-0">
+              {DURATION_SHORT_LABELS[room.campaignDuration] || room.campaignDuration}
             </span>
           )}
           {room.setting && (
-            <p className="text-[13px] text-[#ded7c8] font-serif leading-relaxed line-clamp-1 max-w-2xl" title={room.setting}>
-              📖 {room.setting}
+            <p className="text-[12px] text-[#968e7f] font-serif leading-relaxed line-clamp-1 max-w-2xl" title={room.setting}>
+              {room.setting}
             </p>
           )}
         </div>
@@ -206,41 +205,42 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           {isHost && onToggleTurnMode ? (
             <button
               onClick={() => onToggleTurnMode(room.turnMode === 'turn_by_turn' ? 'simultaneous' : 'turn_by_turn')}
-              className={`px-3 py-1 border rounded-lg text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-sm active:translate-y-0.5 ${
+              className={`px-2.5 py-1 border rounded-lg text-xs font-serif font-medium transition-all flex items-center gap-1.5 shadow-sm ${
                 room.turnMode === 'turn_by_turn'
-                  ? 'bg-gradient-to-b from-[#2a1d3d] to-[#181124] border-[#8b5cf6] text-[#e9d5ff]'
-                  : 'bg-gradient-to-b from-[#1c2230] to-[#121620] border-[#38bdf8]/60 text-[#bae6fd]'
+                  ? 'bg-[#221833] border-[#4a2e72] text-[#d8b4fe] hover:bg-[#2c1d42]'
+                  : 'bg-[#181c25] hover:bg-[#1f2430] border-[#2e3544] text-[#ded7c8] hover:text-[#e2c26a]'
               }`}
-              title={`Режим ходов: ${room.turnMode === 'turn_by_turn' ? 'По очереди' : 'Общий ход'}`}
+              title={`Режим ходов: ${room.turnMode === 'turn_by_turn' ? 'По очереди (нажмите для переключения на общий ход)' : 'Общий ход (нажмите для переключения на поочередный)'}`}
             >
               {room.turnMode === 'turn_by_turn' ? (
                 <>
-                  <span className="text-sm">🔄</span>
+                  <ListOrdered className="w-3.5 h-3.5 text-[#c084fc]" />
                   <span>По очереди</span>
                 </>
               ) : (
                 <>
-                  <span className="text-sm">👥</span>
+                  <Users className="w-3.5 h-3.5 text-[#c5a059]" />
                   <span>Общий ход</span>
                 </>
               )}
             </button>
           ) : (
             <div
-              className={`px-2.5 py-1 border rounded-lg text-xs font-rpg font-bold flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 border rounded-lg text-xs font-serif font-medium flex items-center gap-1.5 ${
                 room.turnMode === 'turn_by_turn'
                   ? 'bg-[#221833] border-[#4a2e72] text-[#d8b4fe]'
                   : 'bg-[#181c25] border-[#2e3544] text-[#ded7c8]'
               }`}
+              title={`Режим ходов: ${room.turnMode === 'turn_by_turn' ? 'По очереди' : 'Общий ход'}`}
             >
               {room.turnMode === 'turn_by_turn' ? (
                 <>
-                  <span className="text-sm">🔄</span>
+                  <ListOrdered className="w-3.5 h-3.5 text-[#c084fc]" />
                   <span>По очереди</span>
                 </>
               ) : (
                 <>
-                  <span className="text-sm">👥</span>
+                  <Users className="w-3.5 h-3.5 text-[#c5a059]" />
                   <span>Общий ход</span>
                 </>
               )}
@@ -251,10 +251,10 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           {onOpenGuide && (
             <button
               onClick={onOpenGuide}
-              className="px-3 py-1 bg-gradient-to-b from-[#1e2330] to-[#131720] hover:from-[#293042] hover:to-[#1a1f2b] border border-[#475569] hover:border-[#94a3b8] rounded-lg text-[#e2e8f0] text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-sm active:translate-y-0.5"
-              title="О D&D 5e: 3-шаговый цикл, характеристики, правила"
+              className="px-2.5 py-1 bg-[#181c25] hover:bg-[#1f2430] border border-[#2e3544] hover:border-[#c5a059]/60 rounded-lg text-[#ded7c8] hover:text-[#e2c26a] text-xs font-serif font-medium transition-all flex items-center gap-1.5 shadow-sm"
+              title="О D&D 5e: 3-шаговый цикл, характеристики, отсутствие рельсов"
             >
-              <span className="text-sm">📖</span>
+              <BookOpen className="w-3.5 h-3.5 text-[#c5a059]" />
               <span>О D&D</span>
             </button>
           )}
@@ -263,10 +263,10 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           {isHost && onOpenFinishModal && (
             <button
               onClick={onOpenFinishModal}
-              className="px-3 py-1 bg-gradient-to-b from-[#2d1420] to-[#1c0c14] hover:from-[#3f1c2d] hover:to-[#28111d] border border-[#ec4899]/60 hover:border-[#f472b6] rounded-lg text-[#fbcfe8] text-xs font-rpg font-bold transition-all flex items-center gap-1.5 shadow-sm active:translate-y-0.5"
+              className="px-2.5 py-1 bg-[#23151f] hover:bg-[#331c2c] border border-[#522944] hover:border-[#7c3d66] rounded-lg text-[#f49db2] hover:text-white text-xs font-serif font-medium transition-all flex items-center gap-1.5 shadow-sm"
               title="Завершить сессию на клиффхэнгере или объявить победу в модуле"
             >
-              <span className="text-sm">🏁</span>
+              <Flag className="w-3.5 h-3.5 text-[#f472b6]" />
               <span>Финал сессии</span>
             </button>
           )}
@@ -276,11 +276,11 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
             <button
               onClick={onForceResolve}
               disabled={isDMThinking}
-              className="game-btn-gold px-3.5 py-1 rounded-lg text-xs font-rpg font-extrabold uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50"
+              className="px-3 py-1 bg-[#2b2213] hover:bg-[#3d301a] text-[#e2c26a] hover:text-white border border-[#785e2b] hover:border-[#c5a059] rounded-lg text-xs font-bold font-rpg tracking-wider uppercase transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
               title="Завершить раунд и запустить ход Мастера"
             >
-              <Zap className="w-3.5 h-3.5 text-black fill-current" />
-              <span>ХОД МАСТЕРА</span>
+              <Zap className="w-3.5 h-3.5 text-[#e2c26a] fill-current" />
+              <span>Ход Мастера</span>
             </button>
           )}
         </div>

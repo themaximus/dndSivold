@@ -59,56 +59,53 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
             <>
               <button
                 onClick={() => setCurrentView('characters')}
-                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-rpg font-bold transition-all flex items-center gap-1.5 shadow-sm active:translate-y-0.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-serif font-medium transition-all ${
                   currentView === 'characters'
-                    ? 'bg-gradient-to-b from-[#2a2214] to-[#17130a] text-[#fef08a] border-2 border-[#f59e0b]'
-                    : 'text-[#ded7c8] hover:text-[#fef08a] hover:bg-[#181c25] border border-transparent'
+                    ? 'bg-[#181c25] text-[#e2c26a] border border-[#4a3e26]'
+                    : 'text-[#ded7c8] hover:text-[#e2c26a] hover:bg-[#181c25]'
                 }`}
               >
-                <span className="text-sm">👤</span>
-                <span>Герои</span>
+                Герои
               </button>
 
               <button
                 onClick={() => setCurrentView('campaigns')}
-                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-rpg font-bold transition-all flex items-center gap-1.5 shadow-sm active:translate-y-0.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-serif font-medium transition-all flex items-center gap-1.5 ${
                   currentView === 'campaigns'
-                    ? 'bg-gradient-to-b from-[#2a2214] to-[#17130a] text-[#fef08a] border-2 border-[#f59e0b]'
-                    : 'text-[#ded7c8] hover:text-[#fef08a] hover:bg-[#181c25] border border-transparent'
+                    ? 'bg-[#181c25] text-[#e2c26a] border border-[#4a3e26]'
+                    : 'text-[#ded7c8] hover:text-[#e2c26a] hover:bg-[#181c25]'
                 }`}
               >
-                <span className="text-sm">🗺️</span>
+                <Compass className="w-4 h-4 text-[#c5a059]" />
                 <span className="hidden sm:inline">Мои кампании</span>
               </button>
 
               <button
                 onClick={() => setCurrentView('create-room')}
-                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-rpg font-bold transition-all flex items-center gap-1.5 shadow-sm active:translate-y-0.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-serif font-medium transition-all flex items-center gap-1.5 ${
                   currentView === 'create-room'
-                    ? 'bg-gradient-to-b from-[#2a2214] to-[#17130a] text-[#fef08a] border-2 border-[#f59e0b]'
-                    : 'text-[#ded7c8] hover:text-[#fef08a] hover:bg-[#181c25] border border-transparent'
+                    ? 'bg-[#181c25] text-[#e2c26a] border border-[#4a3e26]'
+                    : 'text-[#ded7c8] hover:text-[#e2c26a] hover:bg-[#181c25]'
                 }`}
               >
-                <span className="text-sm">⚔️</span>
-                <span className="hidden sm:inline">Создать игру</span>
+                <PlusCircle className="w-4 h-4 text-[#c5a059]" />
+                <span className="hidden sm:inline">Создать комнату</span>
               </button>
 
               <div className="h-5 w-px bg-[#242935] mx-1"></div>
 
               {/* User badge */}
-              <div className="flex items-center gap-2 text-[#fef08a] text-xs sm:text-sm bg-gradient-to-b from-[#1c1812] to-[#0e0c08] px-3 py-1.5 rounded-lg border border-[#785e2b] shadow-sm">
-                <span className="text-sm">👑</span>
-                <span className="font-extrabold font-rpg text-[#fde047]">{user.username}</span>
+              <div className="flex items-center gap-2 text-[#ded7c8] text-xs sm:text-sm bg-[#13161d] px-2.5 py-1.5 rounded-lg border border-[#2a303d]">
+                <User className="w-3.5 h-3.5 text-[#c5a059]" />
+                <span className="font-semibold text-[#ded7c8]">{user.username}</span>
+                <button
+                  onClick={logout}
+                  title="Выйти"
+                  className="ml-1 text-[#968e7f] hover:text-[#f87171] transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               </div>
-
-              {/* Logout button */}
-              <button
-                onClick={logout}
-                className="p-1.5 rounded-lg bg-[#181c25] hover:bg-[#281316] text-[#968e7f] hover:text-[#fca5a5] border border-[#2e3544] hover:border-[#6b252c] transition-colors shadow-sm"
-                title="Выйти из аккаунта"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
             </>
           )}
         </div>
