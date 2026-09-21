@@ -4,3 +4,5 @@ export * from './CharacterRepository';
 export * from './RoomRepository';
 export * from './TurnActionRepository';
 export * from './GameLogRepository';
+export * from './ItemLedgerRepository';
+export * from './WorldNPCRepository';

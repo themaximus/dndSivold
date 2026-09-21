@@ -233,7 +233,38 @@ export interface Room {
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   pendingReactions?: CharacterReactionRequest[];
+  itemLedger?: ItemLedgerEntry[];
+  worldNPCRegistry?: WorldNPCEntry[];
   createdAt: string;
+}
+
+export type ItemLifecycleStatus = 'in_inventory' | 'broken' | 'consumed' | 'dropped';
+
+export interface ItemLedgerEntry {
+  id: string;
+  characterId: string;
+  itemId: string;
+  itemName: string;
+  status: ItemLifecycleStatus;
+  statusReason?: string;
+  roundChanged?: number;
+  timestamp: string;
+}
+
+export interface WorldNPCEntry {
+  id: string;
+  roomId: string;
+  name: string;
+  role: string;
+  originalType: 'npc' | 'enemy';
+  departureReason: 'fled' | 'departed' | 'defeated' | 'unconscious';
+  departureRound: number;
+  finalStatus?: string;
+  affinity: number;
+  disposition?: NPCDisposition;
+  notes: string[];
+  reinstated?: boolean;
+  reinstatedRound?: number;
 }
 
 export interface UserRoomSummary {

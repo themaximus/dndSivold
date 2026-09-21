@@ -126,6 +126,51 @@ export interface RoomNPC {
   willpowerMax?: number;  // 100%
 }
 
+export type ItemLifecycleStatus =
+  | 'in_inventory'
+  | 'equipped'
+  | 'dropped_on_ground'
+  | 'consumed'
+  | 'broken'
+  | 'destroyed'
+  | 'lost'
+  | 'transferred';
+
+export interface ItemLedgerEntry {
+  id: string;
+  roomId?: string;
+  characterId?: string;
+  characterName?: string;
+  itemId: string;
+  itemName: string;
+  itemType: 'weapon' | 'armor' | 'potion' | 'scroll' | 'food' | 'misc';
+  status: ItemLifecycleStatus;
+  quantity: number;
+  lastRound: number;
+  reason: string;
+  timestamp: string;
+}
+
+export interface WorldNPCEntry {
+  id: string;
+  roomId: string;
+  name: string;
+  role: string;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  disposition: NPCDisposition;
+  affinity: number; // -100 .. +100
+  status: string;
+  combatRole: NPCCombatRole;
+  notes: string[];
+  departureRound: number;
+  departureReason: string;
+  lastKnownLocation?: string;
+  potentialHooks: string[];
+  returnedInRound?: number;
+}
+
 export interface CharacterReactionRequest {
   id: string;
   initiatorUserId: string;
@@ -163,6 +208,8 @@ export interface RoomEntity {
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   pendingReactions?: CharacterReactionRequest[];
+  itemLedger?: ItemLedgerEntry[];
+  worldNPCRegistry?: WorldNPCEntry[];
   genre?: string;
   campaignDuration?: 'short' | 'medium' | 'long';
   campaignMap?: any;
@@ -224,6 +271,7 @@ export interface GameLogEntity {
   }[];
   currentSituation?: string;
   choiceDilemma?: string;
+  mood?: string;
   createdAt: string;
 }
 
@@ -234,6 +282,8 @@ interface DatabaseSchema {
   roomPlayers: RoomPlayerEntity[];
   turnActions: TurnActionEntity[];
   gameLogs: GameLogEntity[];
+  itemLedgers: ItemLedgerEntry[];
+  worldNPCs: WorldNPCEntry[];
 }
 
 class Database {
@@ -245,6 +295,8 @@ class Database {
     roomPlayers: [],
     turnActions: [],
     gameLogs: [],
+    itemLedgers: [],
+    worldNPCs: [],
   };
 
   constructor() {
@@ -266,6 +318,8 @@ class Database {
       try {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         this.data = JSON.parse(raw);
+        this.data.itemLedgers = this.data.itemLedgers || [];
+        this.data.worldNPCs = this.data.worldNPCs || [];
       } catch (err) {
         console.error('Failed to parse database.json, initializing empty db', err);
         this.save();
@@ -276,6 +330,8 @@ class Database {
           fs.copyFileSync(defaultPath, this.filePath);
           const raw = fs.readFileSync(this.filePath, 'utf-8');
           this.data = JSON.parse(raw);
+          this.data.itemLedgers = this.data.itemLedgers || [];
+          this.data.worldNPCs = this.data.worldNPCs || [];
         } catch (err) {
           console.error('Failed to initialize from database.default.json, creating empty db', err);
           this.save();
@@ -426,6 +482,56 @@ class Database {
       this.save();
       return log;
     }
+  };
+
+  // Item Ledgers (procedural item tracking)
+  public itemLedgers = {
+    findByRoomId: (roomId: string) => (this.data.itemLedgers || []).filter(il => il.roomId === roomId),
+    findByCharacterId: (charId: string) => (this.data.itemLedgers || []).filter(il => il.characterId === charId),
+    create: (entry: ItemLedgerEntry) => {
+      if (!this.data.itemLedgers) this.data.itemLedgers = [];
+      this.data.itemLedgers.push(entry);
+      this.save();
+      return entry;
+    },
+    update: (id: string, updates: Partial<ItemLedgerEntry>) => {
+      if (!this.data.itemLedgers) this.data.itemLedgers = [];
+      const idx = this.data.itemLedgers.findIndex(il => il.id === id);
+      if (idx !== -1) {
+        this.data.itemLedgers[idx] = { ...this.data.itemLedgers[idx], ...updates };
+        this.save();
+        return this.data.itemLedgers[idx];
+      }
+      return null;
+    },
+  };
+
+  // World NPCs (departed characters registry)
+  public worldNPCs = {
+    findByRoomId: (roomId: string) => (this.data.worldNPCs || []).filter(wn => wn.roomId === roomId),
+    create: (entry: WorldNPCEntry) => {
+      if (!this.data.worldNPCs) this.data.worldNPCs = [];
+      // replace if already present by ID or exact name
+      this.data.worldNPCs = this.data.worldNPCs.filter(wn => !(wn.roomId === entry.roomId && (wn.id === entry.id || wn.name.toLowerCase() === entry.name.toLowerCase())));
+      this.data.worldNPCs.push(entry);
+      this.save();
+      return entry;
+    },
+    update: (id: string, updates: Partial<WorldNPCEntry>, roomId?: string) => {
+      if (!this.data.worldNPCs) this.data.worldNPCs = [];
+      const idx = this.data.worldNPCs.findIndex(wn => wn.id === id && (!roomId || wn.roomId === roomId));
+      if (idx !== -1) {
+        this.data.worldNPCs[idx] = { ...this.data.worldNPCs[idx], ...updates };
+        this.save();
+        return this.data.worldNPCs[idx];
+      }
+      return null;
+    },
+    remove: (roomId: string, id: string) => {
+      if (!this.data.worldNPCs) return;
+      this.data.worldNPCs = this.data.worldNPCs.filter(wn => !(wn.roomId === roomId && (wn.id === id || wn.name.toLowerCase() === id.toLowerCase())));
+      this.save();
+    },
   };
 }
 

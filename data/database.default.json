@@ -1,8 +1,642 @@
 {
-  "users": [],
-  "characters": [],
+  "users": [
+    {
+      "id": "44a95f00-1f7b-4a6d-ad03-6b908e593fa4",
+      "username": "Kakashka",
+      "passwordHash": "$2a$10$Ando.dIV7iWe5EotUKPqC.MjHOmJpmEhVO7HPneuEyKptzQI17EeG",
+      "createdAt": "2026-09-20T13:59:57.296Z"
+    }
+  ],
+  "characters": [
+    {
+      "id": "cd4c9298-03da-420f-bbe5-6058e6ba3867",
+      "userId": "44a95f00-1f7b-4a6d-ad03-6b908e593fa4",
+      "name": "Кирильчик",
+      "race": "Дворф",
+      "characterClass": "Варвар",
+      "level": 1,
+      "hpCurrent": 16,
+      "hpMax": 17,
+      "ac": 15,
+      "stats": {
+        "str": 20,
+        "dex": 20,
+        "con": 20,
+        "int": 20,
+        "wis": 20,
+        "cha": 12
+      },
+      "skills": [
+        "Сила",
+        "Телосложение"
+      ],
+      "abilities": [
+        {
+          "id": "rage",
+          "name": "Ярость",
+          "type": "bonus",
+          "description": "Преимущество на проверки Силы, сопротивление дробящему/колющему/рубящему урону, +2 к урону в ближнем бою."
+        },
+        {
+          "id": "reckless_attack",
+          "name": "Безрассудная атака",
+          "type": "action",
+          "description": "Атака с преимуществом, но враги также получают преимущество на атаки по вам.",
+          "damage": "1d12 + СИЛ",
+          "range": "Ближний бой"
+        }
+      ],
+      "inventory": [
+        {
+          "id": "greataxe",
+          "name": "Секира предков",
+          "type": "weapon",
+          "description": "Громадный топор разрушительной силы",
+          "quantity": 1,
+          "damage": "1d12"
+        },
+        {
+          "id": "handaxe",
+          "name": "Ручной топор",
+          "type": "weapon",
+          "description": "Топор для рубки или метания",
+          "quantity": 2,
+          "damage": "1d6"
+        },
+        {
+          "id": "potion_heal",
+          "name": "Зелье лечения",
+          "type": "potion",
+          "description": "Восстанавливает 2d4+2 HP",
+          "quantity": 1
+        }
+      ],
+      "bio": "Пукает и матюкается из Днепролендиума, с Розовыми волосами и очень толстый.",
+      "avatarUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=300&q=80",
+      "createdAt": "2026-09-20T14:02:50.260Z"
+    },
+    {
+      "id": "char_kirilchik",
+      "userId": "user_1",
+      "name": "Кирильчик",
+      "characterClass": "Воин",
+      "race": "Дворф",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 20,
+      "ac": 16,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 10,
+        "cha": 8
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [],
+      "createdAt": "2026-09-21T21:18:33.548Z"
+    },
+    {
+      "id": "char_kirilchik",
+      "userId": "user_1",
+      "name": "Кирильчик",
+      "characterClass": "Воин",
+      "race": "Дворф",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 20,
+      "ac": 16,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 10,
+        "cha": 8
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [],
+      "createdAt": "2026-09-21T21:18:47.261Z"
+    },
+    {
+      "id": "char_boogi",
+      "userId": "user_2",
+      "name": "Буги",
+      "characterClass": "Плут",
+      "race": "Эльф",
+      "level": 2,
+      "hpCurrent": 8,
+      "hpMax": 16,
+      "ac": 14,
+      "stats": {
+        "str": 10,
+        "dex": 16,
+        "con": 12,
+        "int": 12,
+        "wis": 14,
+        "cha": 10
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [
+        {
+          "id": "item_potion_1",
+          "name": "Зелье исцеления",
+          "type": "potion",
+          "description": "Малое зелье лечения",
+          "quantity": 1,
+          "healAmount": 6
+        }
+      ],
+      "createdAt": "2026-09-21T21:18:47.266Z"
+    },
+    {
+      "id": "char_kirilchik",
+      "userId": "user_1",
+      "name": "Кирильчик",
+      "characterClass": "Воин",
+      "race": "Дворф",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 20,
+      "ac": 16,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 10,
+        "cha": 8
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [],
+      "createdAt": "2026-09-21T21:19:09.903Z"
+    },
+    {
+      "id": "char_boogi",
+      "userId": "user_2",
+      "name": "Буги",
+      "characterClass": "Плут",
+      "race": "Эльф",
+      "level": 2,
+      "hpCurrent": 8,
+      "hpMax": 16,
+      "ac": 14,
+      "stats": {
+        "str": 10,
+        "dex": 16,
+        "con": 12,
+        "int": 12,
+        "wis": 14,
+        "cha": 10
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [
+        {
+          "id": "item_potion_1",
+          "name": "Зелье исцеления",
+          "type": "potion",
+          "description": "Малое зелье лечения",
+          "quantity": 1,
+          "healAmount": 6
+        }
+      ],
+      "createdAt": "2026-09-21T21:19:09.908Z"
+    },
+    {
+      "id": "char_kirilchik",
+      "userId": "user_1",
+      "name": "Кирильчик",
+      "characterClass": "Воин",
+      "race": "Дворф",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 20,
+      "ac": 16,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 10,
+        "cha": 8
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [],
+      "createdAt": "2026-09-21T21:19:30.858Z"
+    },
+    {
+      "id": "char_boogi_1790025570863",
+      "userId": "user_2",
+      "name": "Буги",
+      "characterClass": "Плут",
+      "race": "Эльф",
+      "level": 2,
+      "hpCurrent": 8,
+      "hpMax": 16,
+      "ac": 14,
+      "stats": {
+        "str": 10,
+        "dex": 16,
+        "con": 12,
+        "int": 12,
+        "wis": 14,
+        "cha": 10
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [
+        {
+          "id": "potion_1790025570863",
+          "name": "Зелье исцеления",
+          "type": "potion",
+          "description": "Малое зелье лечения",
+          "quantity": 1,
+          "healAmount": 6
+        }
+      ],
+      "createdAt": "2026-09-21T21:19:30.863Z"
+    },
+    {
+      "id": "char_kirilchik",
+      "userId": "user_1",
+      "name": "Кирильчик",
+      "characterClass": "Воин",
+      "race": "Дворф",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 20,
+      "ac": 16,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 10,
+        "cha": 8
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [],
+      "createdAt": "2026-09-21T21:19:50.605Z"
+    },
+    {
+      "id": "char_boogi_1790025590610",
+      "userId": "user_2",
+      "name": "Буги",
+      "characterClass": "Плут",
+      "race": "Эльф",
+      "level": 2,
+      "hpCurrent": 8,
+      "hpMax": 16,
+      "ac": 14,
+      "stats": {
+        "str": 10,
+        "dex": 16,
+        "con": 12,
+        "int": 12,
+        "wis": 14,
+        "cha": 10
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [
+        {
+          "id": "potion_1790025590610",
+          "name": "Зелье исцеления",
+          "type": "potion",
+          "description": "Малое зелье лечения",
+          "quantity": 1,
+          "healAmount": 6
+        }
+      ],
+      "createdAt": "2026-09-21T21:19:50.610Z"
+    },
+    {
+      "id": "char_kirilchik",
+      "userId": "user_1",
+      "name": "Кирильчик",
+      "characterClass": "Воин",
+      "race": "Дворф",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 20,
+      "ac": 16,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 14,
+        "int": 10,
+        "wis": 10,
+        "cha": 8
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [],
+      "createdAt": "2026-09-21T21:26:28.300Z"
+    },
+    {
+      "id": "char_boogi_1790025988308",
+      "userId": "user_2",
+      "name": "Буги",
+      "characterClass": "Плут",
+      "race": "Эльф",
+      "level": 2,
+      "hpCurrent": 8,
+      "hpMax": 16,
+      "ac": 14,
+      "stats": {
+        "str": 10,
+        "dex": 16,
+        "con": 12,
+        "int": 12,
+        "wis": 14,
+        "cha": 10
+      },
+      "skills": [],
+      "abilities": [],
+      "bio": "",
+      "avatarUrl": "",
+      "inventory": [
+        {
+          "id": "potion_1790025988308",
+          "name": "Зелье исцеления",
+          "type": "potion",
+          "description": "Малое зелье лечения",
+          "quantity": 1,
+          "healAmount": 6
+        }
+      ],
+      "createdAt": "2026-09-21T21:26:28.308Z"
+    }
+  ],
   "rooms": [],
   "roomPlayers": [],
   "turnActions": [],
-  "gameLogs": []
+  "gameLogs": [],
+  "itemLedgers": [
+    {
+      "id": "acba06da-d963-43ad-96c9-ceff7a9c39af",
+      "roomId": "room_test",
+      "characterId": "char_boogi",
+      "characterName": "Буги",
+      "itemId": "item_potion_1",
+      "itemName": "Зелье исцеления",
+      "itemType": "potion",
+      "status": "destroyed",
+      "quantity": 1,
+      "lastRound": 1,
+      "reason": "Раскололось при падении ничком",
+      "timestamp": "2026-09-21T21:18:47.283Z"
+    },
+    {
+      "id": "70b3b8c0-ba1d-4c16-81e3-ee15e1f521dc",
+      "roomId": "room_test",
+      "characterId": "char_boogi_1790025570863",
+      "characterName": "Буги",
+      "itemId": "potion_1790025570863",
+      "itemName": "Зелье исцеления",
+      "itemType": "potion",
+      "status": "destroyed",
+      "quantity": 1,
+      "lastRound": 1,
+      "reason": "Раскололось при падении ничком",
+      "timestamp": "2026-09-21T21:19:30.879Z"
+    },
+    {
+      "id": "4625fb7a-a8b0-425c-a219-45aed8569951",
+      "roomId": "room_test",
+      "characterId": "char_boogi_1790025590610",
+      "characterName": "Буги",
+      "itemId": "potion_1790025590610",
+      "itemName": "Зелье исцеления",
+      "itemType": "potion",
+      "status": "destroyed",
+      "quantity": 1,
+      "lastRound": 1,
+      "reason": "Раскололось при падении ничком",
+      "timestamp": "2026-09-21T21:19:50.628Z"
+    },
+    {
+      "id": "71f4c61c-6153-4ff0-a3f0-0f121440264a",
+      "roomId": "room_test",
+      "characterId": "char_boogi_1790025988308",
+      "characterName": "Буги",
+      "itemId": "potion_1790025988308",
+      "itemName": "Зелье исцеления",
+      "itemType": "potion",
+      "status": "destroyed",
+      "quantity": 1,
+      "lastRound": 1,
+      "reason": "Раскололось при падении ничком",
+      "timestamp": "2026-09-21T21:26:28.324Z"
+    }
+  ],
+  "worldNPCs": [
+    {
+      "id": "npc_balthazar",
+      "roomId": "room_test_1790025570883",
+      "name": "Бальтазар",
+      "role": "Торговец",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "ac": 10,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "Вернулся в сцену в раунде 5",
+      "combatRole": "fled",
+      "notes": [
+        "Раунд 2: fled (статус: Бежал в панике)"
+      ],
+      "departureRound": 2,
+      "departureReason": "fled",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам"
+      ],
+      "returnedInRound": 5
+    },
+    {
+      "id": "npc_balthazar",
+      "roomId": "room_test_1790025590645",
+      "name": "Бальтазар",
+      "role": "Торговец",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "ac": 10,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: fled",
+      "combatRole": "fled",
+      "notes": [
+        "Раунд 2: fled (статус: Бежал в панике)"
+      ],
+      "departureRound": 2,
+      "departureReason": "fled",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "balthazar_1",
+      "roomId": "test_debug_1790025598615",
+      "name": "Бальтазар",
+      "role": "Торговец",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "Вернулся в сцену в раунде 5",
+      "notes": [
+        "Раунд 2: fled (статус: Бежал)"
+      ],
+      "departureRound": 2,
+      "departureReason": "fled",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам"
+      ],
+      "returnedInRound": 5
+    },
+    {
+      "id": "balthazar_1",
+      "roomId": "test_debug_1790025610015",
+      "name": "Бальтазар",
+      "role": "Торговец",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: fled",
+      "notes": [
+        "Раунд 2: fled (статус: Бежал)"
+      ],
+      "departureRound": 2,
+      "departureReason": "fled",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "npc_1",
+      "roomId": "test_1790025628510",
+      "name": "Balthazar",
+      "role": "Trader",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "Вернулся в сцену в раунде 5",
+      "combatRole": "fled",
+      "notes": [],
+      "departureRound": 1,
+      "departureReason": "fled",
+      "potentialHooks": [],
+      "returnedInRound": 5
+    },
+    {
+      "id": "npc_1",
+      "roomId": "test_1790025637138",
+      "name": "Бальтазар",
+      "role": "Торговец",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: fled",
+      "notes": [
+        "Раунд 2: fled (статус: Бежал)"
+      ],
+      "departureRound": 2,
+      "departureReason": "fled",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "npc_1",
+      "roomId": "test_1790025646887",
+      "name": "Бальтазар",
+      "role": "Торговец",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: fled",
+      "notes": [
+        "Раунд 2: fled (статус: Бежал)"
+      ],
+      "departureRound": 2,
+      "departureReason": "fled",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "npc_1",
+      "roomId": "test_1790025662852",
+      "name": "Balthazar",
+      "role": "Trader",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "fled",
+      "combatRole": "fled",
+      "notes": [],
+      "departureRound": 1,
+      "departureReason": "fled",
+      "potentialHooks": []
+    },
+    {
+      "id": "npc_balthazar",
+      "roomId": "room_test_1790025988340",
+      "name": "Бальтазар",
+      "role": "Торговец",
+      "hpCurrent": 10,
+      "hpMax": 10,
+      "ac": 10,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "Вернулся в сцену в раунде 5",
+      "combatRole": "fled",
+      "notes": [
+        "Раунд 2: fled (статус: Бежал в панике)"
+      ],
+      "departureRound": 2,
+      "departureReason": "fled",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам"
+      ],
+      "returnedInRound": 5
+    }
+  ]
 }

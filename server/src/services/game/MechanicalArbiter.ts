@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition } from '../../db';
 import { calculateModifier } from '../dndRules';
+import { itemLedgerRepository } from '../../repositories/ItemLedgerRepository';
 
 export type ThreatLevel = 'low' | 'moderate' | 'high' | 'deadly';
 
@@ -74,10 +75,10 @@ export interface MechanicalResolution {
   actionId: string;
   characterId: string;
   characterName: string;
-  actionType: 'attack' | 'heal' | 'check' | 'save' | 'improvise' | 'pacify' | 'social' | 'defense';
+  actionType: 'attack' | 'check' | 'heal' | 'pacify' | 'defense' | string;
   isHit?: boolean;
-  damageRolled?: number;
   damageFormula?: string;
+  damageRolled?: number;
   damageRolls?: number[];
   healRolled?: number;
   targetUpdate?: MechanicalTargetUpdate;
@@ -90,11 +91,8 @@ export interface MechanicalResolution {
 
 export class MechanicalArbiter {
   /**
-   * Main entry point: Procedural evaluation and classification of player turn actions.
-   * 1. Multi-factor intent classification (prevents mistaking peaceful/pacification actions for attacks).
-   * 2. Willpower & leverage anti-IMBA checks for beasts and NPCs.
-   * 3. Procedural failure consequence engine (varying outcomes: damage, prone, dropped gear, or clean dodge).
-   * 4. Strict mechanical directives generation for AI Dungeon Master.
+   * Main entry point: evaluates player action against enemies and scene NPCs,
+   * returning deterministic math, damage rolls, and strict prompt directives.
    */
   public evaluateAction(
     action: TurnActionEntity,
@@ -143,14 +141,84 @@ export class MechanicalArbiter {
   }
 
   /**
-   * Multi-factor intent classification with robust negation safeguards.
-   * Prevents phrases like "не атаковать", "мирный", "убедить ящера" from being treated as melee attacks!
+   * Extracts dialogue / spoken text from physical narrative action.
+   * Separates what characters say (inside quotes or after speech verbs)
+   * from what physical actions they perform (drinking potions, swinging axes, moving).
+   */
+  public extractSpeechAndAction(text: string): {
+    spokenDialogue: string[];
+    physicalAction: string;
+    isPureSpeech: boolean;
+    hasSecondPersonAddress: boolean;
+    addressedTargetName?: string;
+  } {
+    const raw = (text || '').trim();
+    const spokenDialogue: string[] = [];
+    const quoteRegex = /(?:«([^»]+)»|"([^"]+)"|“([^”]+)”)/g;
+    let match: RegExpExecArray | null;
+    let cleanPhysical = raw;
+
+    while ((match = quoteRegex.exec(raw)) !== null) {
+      const quoteText = match[1] || match[2] || match[3];
+      if (quoteText && quoteText.trim()) {
+        spokenDialogue.push(quoteText.trim());
+      }
+    }
+
+    if (spokenDialogue.length > 0) {
+      cleanPhysical = raw.replace(quoteRegex, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    const isSpeechVerbOnly = /^(говор(ю|ит)|крич(у|ит)|шепч(у|ет)|восклица(ю|ет)|обраща(юсь|ется)|обратившись|произнош(у|ит)|заявля(ю|ет))(\s.*)?$/i.test(cleanPhysical);
+    const isPureSpeech = spokenDialogue.length > 0 && (cleanPhysical.length === 0 || isSpeechVerbOnly);
+    const hasSecondPersonAddress = /(?:^|[^\p{L}\p{N}_])(теб[яе]|тобой|ты|вас|вам|вами|вы)(?:$|[^\p{L}\p{N}_])/iu.test(raw);
+
+    let addressedTargetName: string | undefined;
+    const nameAddressMatch = raw.match(/^(?:«|")?([А-Яа-яЁёA-Za-z]+)[,!:]/);
+    if (nameAddressMatch && nameAddressMatch[1]) {
+      const candidate = nameAddressMatch[1].trim();
+      if (!/^(я|мы|он|она|они|вы|ты|что|как|стой|стойте|эй|но|а|о)$/i.test(candidate)) {
+        addressedTargetName = candidate;
+      }
+    }
+
+    return {
+      spokenDialogue,
+      physicalAction: cleanPhysical,
+      isPureSpeech,
+      hasSecondPersonAddress,
+      addressedTargetName,
+    };
+  }
+
+  /**
+   * Multi-factor intent classification with robust negation and dialogue safeguards.
+   * Prevents spoken dialogue like "ТЕБЯ НУЖНО ВЫЛЕЧИТЬ!" from triggering physical item consumption,
+   * and prevents phrases like "не атаковать", "мирный", "убедить ящера" from being treated as melee attacks!
    */
   public classifyIntent(actionText: string, explicitType?: string): ActionIntentType {
     const text = (actionText || '').toLowerCase().trim();
+    const speech = this.extractSpeechAndAction(actionText);
+
+    // Safeguard: If action is pure spoken dialogue in quotes (e.g. «бальтазар, ты одержим демоном... ТЕБЯ НУЖНО ВЫЛЕЧИТЬ!»)
+    // Spoken dialogue is a social argument / persuasion / RP, NEVER physical item consumption!
+    if (speech.isPureSpeech) {
+      if (/(ящер|волк|медвед|звер|пес|собак|лошад|хищник)/i.test(text)) {
+        return 'pacify_animal';
+      }
+      if (/(убью|разорву|смерть|дрожи|уничтож|порешу)/i.test(text) && !/(не|мир)/i.test(text)) {
+        return 'intimidation_repel';
+      }
+      return 'persuasion_negotiate';
+    }
 
     // 1. Healing / potions / bandaging
-    if (/(выпи(л|ть|ваю)|исцел(ил|ить|яю)|поит|леч(у|ил|ить)|попо(ил|ить)|перевяз|наложил повязку|зелье лечения|исцеляющ)/i.test(text)) {
+    // Requires physical consumption verbs (drinking, pouring, administering, wrapping bandages)
+    // Spoken dialogue alone without physical consumption verbs does NOT trigger heal!
+    const hasPhysicalHealVerb = /(выпи(л|ть|ваю)|пь(ет|ю|ем)|глота(ет|ю|ть)|пои(т|ть|л)\s+(зельем|водой|снадобь)|наложи(л|ть|ваю)\s+повязк|перевяз(ал|ать|ываю)|влива(ет|ю|ть)\s+в\s+рот)/i.test(speech.physicalAction || text);
+    const mentionsPotionItemExplicitly = /(зель[ея]\s+лечения|лечебн(ое|ым|ого)\s+зель|исцеляющ(ее|им)\s+зель|склянк(а|у)\s+с\s+зельем)/i.test(speech.physicalAction || text);
+
+    if (hasPhysicalHealVerb || (mentionsPotionItemExplicitly && !speech.isPureSpeech)) {
       return 'heal';
     }
 
@@ -179,7 +247,7 @@ export class MechanicalArbiter {
     }
 
     // 6. Social persuasion / negotiation
-    if (/(убежд(аю|ать)|уговар(иваю|ивать)|договор(иться|имся)|переговор(ы|ить)|предлож(ить|ение)|миром|сдавай(тесь|ся)|слож(ите|и) оружие|пощад(и|ить)|отпусти(те)?|подкуп(ить)?|заплат(ить|им)|убед(ить|и))/i.test(text)) {
+    if (/(убежд(аю|ать)|уговар(иваю|ивать)|договор(иться|имся)|переговор(ы|ить)|предлож(ить|ение)|миром|сдавай(тесь|ся)|слож(ите|и) оружие|пощад(и|ить)|отпусти(те)?|подкуп(ить)?|заплат(ить|им)|убед(ить|и)|одержим|демон|приди в себя|вразуми)/i.test(text)) {
       return 'persuasion_negotiate';
     }
 
@@ -713,6 +781,10 @@ export class MechanicalArbiter {
   /**
    * Resolves healing action (potion / bandage / spell)
    */
+  /**
+   * Resolves healing action (potion / bandage / spell).
+   * Validates speech vs action, inventory & item ledger availability, and prevents phantom healing.
+   */
   private resolveHealingAction(
     action: TurnActionEntity,
     character: CharacterEntity | undefined,
@@ -720,12 +792,111 @@ export class MechanicalArbiter {
     currentNPCs: RoomNPC[]
   ): MechanicalResolution {
     const actionLower = action.actionText.toLowerCase();
+    const speech = this.extractSpeechAndAction(action.actionText);
 
-    const potion = (character?.inventory || []).find(i =>
-      i && (i.type === 'potion' || i.name.toLowerCase().includes('зелье') || (i.healAmount && i.healAmount > 0))
-    );
+    // 1. Resolve Target (speech address, 2nd-person pronouns, explicit target or keywords)
+    let targetName = character?.name || action.characterName;
+    let targetType: 'self' | 'npc' | 'enemy' = 'self';
+    let targetEntity: RoomNPC | RoomEnemy | undefined;
 
-    let healAmount = potion?.healAmount || 0;
+    // Check if target was found via findTarget (which handles addressed names & ids)
+    const foundTarget = this.findTarget(action, currentEnemies, currentNPCs);
+    if (foundTarget) {
+      targetName = foundTarget.target.name;
+      targetType = foundTarget.type;
+      targetEntity = foundTarget.target;
+    } else if (speech.hasSecondPersonAddress) {
+      // Addressed in 2nd person ("ТЕБЯ", "ВАС", "ТЫ") -> target is not self!
+      if (speech.addressedTargetName) {
+        const addr = speech.addressedTargetName.toLowerCase();
+        const e = currentEnemies.find(x => x.name.toLowerCase().includes(addr) || addr.includes(x.name.toLowerCase()));
+        if (e) {
+          targetName = e.name;
+          targetType = 'enemy';
+          targetEntity = e;
+        } else {
+          const n = currentNPCs.find(x => x.name.toLowerCase().includes(addr) || addr.includes(x.name.toLowerCase()));
+          if (n) {
+            targetName = n.name;
+            targetType = 'npc';
+            targetEntity = n;
+          }
+        }
+      }
+      // If still not identified but there are NPCs/enemies present, choose the first prominent NPC/enemy
+      if (!targetEntity) {
+        if (currentNPCs.length > 0) {
+          targetName = currentNPCs[0].name;
+          targetType = 'npc';
+          targetEntity = currentNPCs[0];
+        } else if (currentEnemies.length > 0) {
+          targetName = currentEnemies[0].name;
+          targetType = 'enemy';
+          targetEntity = currentEnemies[0];
+        }
+      }
+    } else {
+      // Keyword matching across NPCs and Enemies
+      for (const npc of currentNPCs) {
+        const nLower = (npc.name || '').toLowerCase();
+        const rLower = (npc.role || '').toLowerCase();
+        if (
+          (nLower && actionLower.includes(nLower)) ||
+          (rLower.length > 3 && actionLower.includes(rLower)) ||
+          actionLower.includes('ранен') ||
+          actionLower.includes('гонц') ||
+          actionLower.includes('купц') ||
+          actionLower.includes('союзник')
+        ) {
+          targetName = npc.name;
+          targetType = 'npc';
+          targetEntity = npc;
+          break;
+        }
+      }
+      if (!targetEntity) {
+        for (const e of currentEnemies) {
+          const eLower = (e.name || '').toLowerCase();
+          if (eLower && actionLower.includes(eLower)) {
+            targetName = e.name;
+            targetType = 'enemy';
+            targetEntity = e;
+            break;
+          }
+        }
+      }
+    }
+
+    // 2. Item & Ledger Verification (Catches phantom potions)
+    const availablePotions = (character?.inventory || []).filter(i => {
+      if (!i) return false;
+      const isPotionType = i.type === 'potion' || i.name.toLowerCase().includes('зелье') || ((i.healAmount || 0) > 0);
+      if (!isPotionType) return false;
+      if (character && itemLedgerRepository) {
+        return itemLedgerRepository.isItemAvailable(character.id, i.id);
+      }
+      return true;
+    });
+
+    const potion = availablePotions[0];
+
+    // If character does NOT have an available potion
+    if (!potion) {
+      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: У персонажа ${character?.name || action.characterName} НЕТ доступного зелья исцеления (оно разбито, израсходовано или отсутствует в рюкзаке). Предмет НЕ МОЖЕТ быть применено! Исцеление не состоялось (+0 HP). Персонаж лишь обнаруживает пустой подсумок, осколки склянки или тратит время впустую.`;
+      return {
+        actionId: action.id,
+        characterId: character?.id || action.characterId,
+        characterName: character?.name || action.characterName,
+        actionType: 'heal',
+        healRolled: 0,
+        consumedItems: [],
+        promptDirective: directive,
+        auditNotes: `Попытка исцеления без доступного зелья: предмет отсутствует в инвентаре или разбит/израсходован в ItemLedger. +0 HP.`,
+      };
+    }
+
+    // 3. Roll healing amount
+    let healAmount = potion.healAmount || 0;
     let healFormula = '2d4 + 2';
     if (!healAmount || healAmount <= 0) {
       const d1 = crypto.randomInt(1, 5);
@@ -733,66 +904,44 @@ export class MechanicalArbiter {
       healAmount = d1 + d2 + 2;
     }
 
-    let targetName = character?.name || action.characterName;
-    let targetType: 'self' | 'npc' = 'self';
-    let targetNPC: RoomNPC | undefined;
-
-    for (const npc of currentNPCs) {
-      const nLower = (npc.name || '').toLowerCase();
-      const rLower = (npc.role || '').toLowerCase();
-      if (
-        (nLower && actionLower.includes(nLower)) ||
-        (rLower.length > 3 && actionLower.includes(rLower)) ||
-        actionLower.includes('ранен') ||
-        actionLower.includes('гонц') ||
-        actionLower.includes('купц') ||
-        actionLower.includes('союзник')
-      ) {
-        targetName = npc.name;
-        targetType = 'npc';
-        targetNPC = npc;
-        break;
-      }
-    }
-
-    const consumedItems: ConsumedItemRecord[] = [];
-    if (potion) {
-      consumedItems.push({
-        itemId: potion.id,
-        itemName: potion.name,
-        quantity: 1,
-        reason: `Использовано для исцеления (${targetName})`,
-      });
-    }
+    const consumedItems: ConsumedItemRecord[] = [{
+      itemId: potion.id,
+      itemName: potion.name,
+      quantity: 1,
+      reason: `Использовано для исцеления (${targetName})`,
+    }];
 
     let targetUpdate: MechanicalTargetUpdate | undefined;
-    if (targetType === 'npc' && targetNPC) {
-      const hpBefore = targetNPC.hpCurrent;
-      const hpAfter = Math.min(targetNPC.hpMax, hpBefore + healAmount);
+    if ((targetType === 'npc' || targetType === 'enemy') && targetEntity) {
+      const hpBefore = targetEntity.hpCurrent;
+      const hpAfter = Math.min(targetEntity.hpMax, hpBefore + healAmount);
       targetUpdate = {
-        targetId: targetNPC.id,
-        targetName: targetNPC.name,
-        targetType: 'npc',
+        targetId: targetEntity.id,
+        targetName: targetEntity.name,
+        targetType,
         hpBefore,
         hpAfter,
         damage: 0,
         isDead: false,
-        newStatus: `Восстановил силы благодаря зелью (+${healAmount} HP). Отношение: союзник.`,
+        newStatus: `Восстановил силы благодаря зелью (+${healAmount} HP). Отношение улучшено.`,
       };
     }
 
-    const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Применено исцеление (${potion ? `«${potion.name}»` : 'зелье / помощь'}). Восстановлено +${healAmount} HP для ${targetName}. Раны затягиваются, силы возвращаются.`;
+    const isSelfHeal = targetType === 'self';
+    const effectiveSelfHeal = isSelfHeal ? healAmount : 0;
+
+    const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Применено зелье «${potion.name}». Восстановлено +${healAmount} HP для ${targetName}. ${isSelfHeal ? 'Раны персонажа затягиваются.' : `Зелье передано / влито ${targetName}, его состояние стабилизируется.`} Предмет «${potion.name}» израсходован из рюкзака.`;
 
     return {
       actionId: action.id,
       characterId: character?.id || action.characterId,
       characterName: character?.name || action.characterName,
       actionType: 'heal',
-      healRolled: healAmount,
+      healRolled: effectiveSelfHeal,
       targetUpdate,
       consumedItems,
       promptDirective: directive,
-      auditNotes: `Исцеление: ${targetName} получил +${healAmount} HP (${healFormula}). Предмет: ${potion?.name || 'зелье'}.`,
+      auditNotes: `Исцеление: ${targetName} получил +${healAmount} HP (${healFormula}). Предмет: ${potion.name}. Инициатор получил: +${effectiveSelfHeal} HP.`,
     };
   }
 
@@ -1091,6 +1240,16 @@ export class MechanicalArbiter {
       const e = enemies.find(x => x.name.toLowerCase().includes(nameLower) || nameLower.includes(x.name.toLowerCase()));
       if (e) return { target: e, type: 'enemy' };
       const n = npcs.find(x => x.name.toLowerCase().includes(nameLower) || nameLower.includes(x.name.toLowerCase()));
+      if (n) return { target: n, type: 'npc' };
+    }
+
+    // Check extracted speech address (e.g. «бальтазар, ...»)
+    const speech = this.extractSpeechAndAction(action.actionText);
+    if (speech.addressedTargetName) {
+      const addrLower = speech.addressedTargetName.toLowerCase();
+      const e = enemies.find(x => x.name.toLowerCase().includes(addrLower) || addrLower.includes(x.name.toLowerCase()));
+      if (e) return { target: e, type: 'enemy' };
+      const n = npcs.find(x => x.name.toLowerCase().includes(addrLower) || addrLower.includes(x.name.toLowerCase()));
       if (n) return { target: n, type: 'npc' };
     }
 

@@ -90,16 +90,23 @@ const COMBAT_ROLE_CONFIG: Record<NPCCombatRole, { label: string; color: string; 
   },
 };
 
+const isEntityDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; status?: string; combatRole?: string }) => {
+  if (e.isDead || (e.hpCurrent !== undefined && e.hpCurrent <= 0)) return true;
+  if (e.combatRole === 'fled') return true;
+  const s = (e.status || '').toLowerCase();
+  return /(повержен|без сознания|не подает признаков|мертв|убит|погиб|покинул|ушел|уехал|скрылся|убежал|сбежал|исчез|отступил|в бегстве|в панике бежит|забился под)/i.test(s);
+};
+
 export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   enemies = [],
   enemiesStatus,
   sceneNPCs = [],
 }) => {
-  const activeEnemies = enemies.filter(e => !e.isDead && e.hpCurrent > 0);
-  const defeatedEnemies = enemies.filter(e => e.isDead || e.hpCurrent <= 0);
+  const activeEnemies = enemies.filter(e => !isEntityDepartedOrDefeated(e));
+  const defeatedEnemies = enemies.filter(e => isEntityDepartedOrDefeated(e));
 
-  const livingNPCs = sceneNPCs.filter(n => !n.isDead && n.hpCurrent > 0);
-  const fallenNPCs = sceneNPCs.filter(n => n.isDead || n.hpCurrent <= 0);
+  const livingNPCs = sceneNPCs.filter(n => !isEntityDepartedOrDefeated(n));
+  const fallenNPCs = sceneNPCs.filter(n => isEntityDepartedOrDefeated(n));
   const allyCombatants = livingNPCs.filter(n => n.combatRole === 'ally_combatant');
 
   // Read initial tab from URL ?hud=threats|npcs|all if provided
@@ -587,7 +594,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
             {(defeatedEnemies.length > 0 || fallenNPCs.length > 0) && (
               <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
                 <p className="text-[10px] font-mono uppercase text-slate-500 px-1">
-                  Повержены / погибли ({defeatedEnemies.length + fallenNPCs.length}):
+                  Покинули сцену / повержены ({defeatedEnemies.length + fallenNPCs.length}):
                 </p>
                 {defeatedEnemies.map((enemy) => (
                   <div
@@ -601,7 +608,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                       </span>
                     </div>
                     <span className="text-[10px] font-mono text-slate-500 italic">
-                      {enemy.status || 'Пал в бою'}
+                      {enemy.status || 'Повержен / скрылся'}
                     </span>
                   </div>
                 ))}
@@ -617,7 +624,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                       </span>
                     </div>
                     <span className="text-[10px] font-mono text-red-400 italic">
-                      Погиб в схватке
+                      {npc.status || 'Покинул сцену'}
                     </span>
                   </div>
                 ))}

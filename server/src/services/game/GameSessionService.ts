@@ -8,6 +8,10 @@ import {
   turnActionRepository,
   IGameLogRepository,
   gameLogRepository,
+  IItemLedgerRepository,
+  itemLedgerRepository,
+  IWorldNPCRepository,
+  worldNPCRepository,
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
@@ -75,6 +79,8 @@ export class GameSessionService {
   private gameLogs: IGameLogRepository;
   private aiFactory: AIProviderFactory;
   private tts: ITTSService;
+  private itemLedgers: IItemLedgerRepository;
+  private worldNPCs: IWorldNPCRepository;
 
   constructor(
     rooms: IRoomRepository = roomRepository,
@@ -82,7 +88,9 @@ export class GameSessionService {
     turnActions: ITurnActionRepository = turnActionRepository,
     gameLogs: IGameLogRepository = gameLogRepository,
     aiFactory: AIProviderFactory = aiProviderFactory,
-    tts: ITTSService = ttsService
+    tts: ITTSService = ttsService,
+    itemLedgers: IItemLedgerRepository = itemLedgerRepository,
+    worldNPCs: IWorldNPCRepository = worldNPCRepository
   ) {
     this.rooms = rooms;
     this.characters = characters;
@@ -90,6 +98,8 @@ export class GameSessionService {
     this.gameLogs = gameLogs;
     this.aiFactory = aiFactory;
     this.tts = tts;
+    this.itemLedgers = itemLedgers;
+    this.worldNPCs = worldNPCs;
   }
 
   public reconcileCharacterConditions(characterId: string, roomId?: string): CharacterEntity | null {
@@ -771,6 +781,7 @@ export class GameSessionService {
           if (!alreadyRemoved) {
             const reason = fc.description || 'Оружие выскользнуло из рук в грязь';
             this.characters.removeItemFromInventory(actingChar.id, weapon.name, 1, reason);
+            this.itemLedgers.markItemDropped(actingChar.id, weapon.id || weapon.name, 1, reason, room.roundNumber, room.id);
             const droppedLootItem: RoomLootItem = {
               id: weapon.id || crypto.randomUUID(),
               name: weapon.name,
@@ -839,9 +850,18 @@ export class GameSessionService {
               timestamp: new Date().toISOString(),
             });
 
-            // Ground loot tracking: if dropped/slipped/lost, save into room.availableLoot
+            // Ground loot tracking & ItemLedger: if dropped/slipped/lost, save into room.availableLoot
             const isConsumed = /выпи|съел|исцел|использ|потрач|potion|зель/i.test(reason) || (existingItem && (existingItem.type === 'potion' || existingItem.type === 'food' || existingItem.type === 'scroll'));
             const isDestroyed = /расколол|сломал|вдребезги|уничтож|сгорел/i.test(reason);
+            const itemId = existingItem?.id || cleanItemName;
+            if (isDestroyed) {
+              this.itemLedgers.markItemDestroyed(target.id, itemId, reason, room.roundNumber, room.id);
+            } else if (isConsumed) {
+              this.itemLedgers.markItemConsumed(target.id, itemId, invUpdate.item.quantity || 1, reason, room.roundNumber, room.id);
+            } else {
+              this.itemLedgers.markItemDropped(target.id, itemId, invUpdate.item.quantity || 1, reason, room.roundNumber, room.id);
+            }
+
             if (!isConsumed && !isDestroyed && (existingItem || invUpdate.item.type === 'weapon' || /выби|вырон|грязь|земл|упал|скольз|роня|выскольз|утрат/i.test(reason))) {
               const droppedLootItem: RoomLootItem = {
                 id: (existingItem && existingItem.id) || crypto.randomUUID(),
@@ -881,6 +901,8 @@ export class GameSessionService {
               healAmount: invUpdate.item.healAmount || matchedLoot?.healAmount,
             }, reason);
 
+            this.itemLedgers.markItemRecovered(target.id, { ...invUpdate.item, id: matchedLoot?.id || cleanItemName, name: cleanItemName }, reason, room.roundNumber, room.id);
+
             // Auto-equip weapon if character is unarmed
             const freshChar = this.characters.findById(target.id);
             if (freshChar && (invUpdate.item.type === 'weapon' || matchedLoot?.type === 'weapon') && !freshChar.activeWeaponId) {
@@ -906,77 +928,85 @@ export class GameSessionService {
       });
     }
 
-    // Fallback heuristic for acting player
+    // Fallback heuristic for acting player (speech stripped, ledger verified)
     if (actingChar && actingChar.inventory) {
-      const actionLower = actingAction.actionText.toLowerCase();
-      const narrativeLower = (dmResult.narrative || '').toLowerCase();
-      const consumeRegex = /(выпи(л|ть|ваю)|исцел(ил|ить|яю)|поит|леч(у|ил|ить)|передал|отдал|поделился|скормил|использ(овал|ую)|бросаю|метнул|зажёг)/i;
-      const breakRegex = /(сломал(ся|ась)?|разбил(ся|ась)?|расколол(ся|ась)?|уничтожен|похищен|украл(и)?|среза(л|ли)|отобрал(и)?)/i;
+      const speech = mechanicalArbiter.extractSpeechAndAction(actingAction.actionText);
+      if (!speech.isPureSpeech && speech.physicalAction) {
+        const actionLower = speech.physicalAction.toLowerCase();
+        const narrativeLower = (dmResult.narrative || '').toLowerCase();
+        const consumeRegex = /(выпи(л|ть|ваю)|пь(ет|ю|ем)|глота(ет|ю|ть)|поит|пои(т|ть)\s+(зельем|водой|снадобь)|наложи(л|ть|ваю)\s+повязк|перевяз(ал|ать|ываю)|влива(ет|ю|ть)\s+в\s+рот|скормил|использ(овал|ую)\s+зелье|бросаю|метнул|зажёг)/i;
+        const breakRegex = /(сломал(ся|ась)?|разбил(ся|ась)?|расколол(ся|ась)?|уничтожен|похищен|украл(и)?|среза(л|ли)|отобрал(и)?)/i;
 
-      actingChar.inventory.forEach(item => {
-        if (!item || !item.name) return;
-        const itemNameLower = item.name.toLowerCase().trim();
-        if (itemNameLower.length < 3) return;
+        actingChar.inventory.forEach(item => {
+          if (!item || !item.name) return;
+          const itemNameLower = item.name.toLowerCase().trim();
+          if (itemNameLower.length < 3) return;
 
-        const mentionedInAction = actionLower.includes(itemNameLower);
-        const mentionedInNarrative = narrativeLower.includes(itemNameLower);
+          const mentionedInAction = actionLower.includes(itemNameLower);
+          const mentionedInNarrative = narrativeLower.includes(itemNameLower);
 
-        const alreadyProcessed = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(u =>
-          (u.characterId === actingChar.id || (u.characterName && u.characterName.toLowerCase() === actingChar.name.toLowerCase())) &&
-          u.item && u.item.name.toLowerCase().includes(itemNameLower)
-        );
+          const alreadyProcessed = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(u =>
+            (u.characterId === actingChar.id || (u.characterName && u.characterName.toLowerCase() === actingChar.name.toLowerCase())) &&
+            u.item && u.item.name.toLowerCase().includes(itemNameLower)
+          );
 
-        if (!alreadyProcessed) {
-          if (mentionedInAction && consumeRegex.test(actionLower) && (item.type === 'potion' || item.type === 'scroll' || item.type === 'food' || (item.healAmount && item.healAmount > 0))) {
-            const reason = `Израсходовано в ходе заявки: «${item.name}»`;
-            this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
-            if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
-            itemActivitiesByCharacter[actingChar.id].push(`Использовано: «${item.name}» (${reason})`);
-            inventoryNotifications.push({
-              id: crypto.randomUUID(),
-              characterId: actingChar.id,
-              characterName: actingChar.name,
-              action: 'remove',
-              itemName: item.name,
-              quantity: 1,
-              reason,
-              timestamp: new Date().toISOString(),
-            });
-          } else if ((mentionedInAction || mentionedInNarrative) && (breakRegex.test(actionLower) || breakRegex.test(narrativeLower))) {
-            const reason = `Сломано или утрачено в ходе событий раунда ${room.roundNumber}`;
-            this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
-            if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
-            itemActivitiesByCharacter[actingChar.id].push(`Сломано/утрачено: «${item.name}» (${reason})`);
-            inventoryNotifications.push({
-              id: crypto.randomUUID(),
-              characterId: actingChar.id,
-              characterName: actingChar.name,
-              action: 'remove',
-              itemName: item.name,
-              quantity: 1,
-              reason,
-              timestamp: new Date().toISOString(),
-            });
+          if (!alreadyProcessed) {
+            const isAvailable = this.itemLedgers.isItemAvailable(actingChar.id, item.id);
+            if (!isAvailable) return;
 
-            // If dropped/slipped rather than smashed to powder, add to room loot
-            if (!/расколол|вдребезги|уничтожен/i.test(narrativeLower)) {
-              const droppedLootItem: RoomLootItem = {
-                id: item.id || crypto.randomUUID(),
-                name: item.name,
-                type: (item.type === 'weapon' || item.type === 'armor' || item.type === 'potion') ? item.type : 'misc',
-                description: item.description || `Утраченный предмет: ${item.name}`,
+            if (mentionedInAction && consumeRegex.test(actionLower) && (item.type === 'potion' || item.type === 'scroll' || item.type === 'food' || (item.healAmount && item.healAmount > 0))) {
+              const reason = `Израсходовано в ходе заявки: «${item.name}»`;
+              this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
+              this.itemLedgers.markItemConsumed(actingChar.id, item.id, 1, reason, room.roundNumber, room.id);
+              if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
+              itemActivitiesByCharacter[actingChar.id].push(`Использовано: «${item.name}» (${reason})`);
+              inventoryNotifications.push({
+                id: crypto.randomUUID(),
+                characterId: actingChar.id,
+                characterName: actingChar.name,
+                action: 'remove',
+                itemName: item.name,
                 quantity: 1,
-                damage: item.damage,
-                ac_bonus: item.ac_bonus,
-                healAmount: item.healAmount,
-                roundDropped: room.roundNumber,
-              };
-              this.rooms.addLoot(room.id, [droppedLootItem]);
-              room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+                reason,
+                timestamp: new Date().toISOString(),
+              });
+            } else if ((mentionedInAction || mentionedInNarrative) && (breakRegex.test(actionLower) || breakRegex.test(narrativeLower))) {
+              const reason = `Сломано или утрачено в ходе событий раунда ${room.roundNumber}`;
+              this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
+              this.itemLedgers.markItemDestroyed(actingChar.id, item.id, reason, room.roundNumber, room.id);
+              if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
+              itemActivitiesByCharacter[actingChar.id].push(`Сломано/утрачено: «${item.name}» (${reason})`);
+              inventoryNotifications.push({
+                id: crypto.randomUUID(),
+                characterId: actingChar.id,
+                characterName: actingChar.name,
+                action: 'remove',
+                itemName: item.name,
+                quantity: 1,
+                reason,
+                timestamp: new Date().toISOString(),
+              });
+
+              // If dropped/slipped rather than smashed to powder, add to room loot
+              if (!/расколол|вдребезги|уничтожен/i.test(narrativeLower)) {
+                const droppedLootItem: RoomLootItem = {
+                  id: item.id || crypto.randomUUID(),
+                  name: item.name,
+                  type: (item.type === 'weapon' || item.type === 'armor' || item.type === 'potion') ? item.type : 'misc',
+                  description: item.description || `Утраченный предмет: ${item.name}`,
+                  quantity: 1,
+                  damage: item.damage,
+                  ac_bonus: item.ac_bonus,
+                  healAmount: item.healAmount,
+                  roundDropped: room.roundNumber,
+                };
+                this.rooms.addLoot(room.id, [droppedLootItem]);
+                room.availableLoot = [...(room.availableLoot || []), droppedLootItem];
+              }
             }
           }
-        }
-      });
+        });
+      }
     }
 
     // Procedural Recovery Heuristic: ensure picked-up dropped items or ground weapons are restored even if AI DM forgot
@@ -1229,6 +1259,14 @@ export class GameSessionService {
       }
     }
 
+    // Process NPC/Enemy departures & archive into WorldNPCRegistry (prunes from active radar)
+    const departureRes = this.handleNPCDepartures(room, updatedNPCs, updatedEnemies, dmResult);
+    const finalNPCs = departureRes.activeNPCs;
+    const finalEnemies = departureRes.activeEnemies;
+
+    // Check procedural re-encounters for future turns
+    this.checkProceduralReEncounters(room, finalEnemies, finalNPCs);
+
     // Comprehensive Forensic Turn Audit Logging to disk (asynchronous)
     sessionAuditLogger.logTurn({
       id: crypto.randomUUID(),
@@ -1280,8 +1318,8 @@ export class GameSessionService {
           auditNotes: mechanicalRes.auditNotes,
         },
       }],
-      enemiesAfter: updatedEnemies.map(e => ({ ...e })),
-      sceneNPCsAfter: updatedNPCs.map(n => ({ ...n })),
+      enemiesAfter: finalEnemies.map(e => ({ ...e })),
+      sceneNPCsAfter: finalNPCs.map(n => ({ ...n })),
       socialResolutions: socialResults.map(s => ({
         npcName: s.npcName,
         actionType: s.actionType,
@@ -1308,24 +1346,18 @@ export class GameSessionService {
         nextRoundDC: dmResult.nextRoundDC,
         ruleViolations: dmResult.ruleViolations,
       },
-    }).catch(err => console.warn('[GameSessionService] Audit log error:', err?.message || err));
+    });
 
-    // Save Game Log
-    const cleanRoundNarrative = sanitizeNarrativeText(dmResult.narrative);
     const newLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: room.roundNumber,
       turnPlayerName: actingAction.characterName,
-      narrativeText: cleanRoundNarrative,
+      narrativeText: sanitizeNarrativeText(dmResult.narrative),
       actionsSummary: formattedActionsSummary,
-      currentSituation: dmResult.currentSituation,
       choiceDilemma: dmResult.choiceDilemma,
-      targetDC: dmResult.nextRoundDC || room.targetDC,
-      dcReason: dmResult.nextRoundDCReason || room.dcReason,
-      requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
-      droppedLoot: droppedLootItems.length > 0 ? droppedLootItems : undefined,
-      playerUpdates: dmResult.playerUpdates?.map(u => {
+      mood: dmResult.mood,
+      playerUpdates: (dmResult.playerUpdates || []).map(u => {
         const c = this.characters.findById(u.characterId) ||
           activeCharacters.find(ch => ch.name.toLowerCase().trim() === (u.characterName || u.characterId || '').toLowerCase().trim());
         return {
@@ -1359,8 +1391,9 @@ export class GameSessionService {
         targetDC: dmResult.nextRoundDC || room.targetDC,
         dcReason: dmResult.nextRoundDCReason || room.dcReason,
         requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
-        activeEnemies: updatedEnemies,
-        sceneNPCs: updatedNPCs,
+        activeEnemies: finalEnemies,
+        sceneNPCs: finalNPCs,
+        loreJournal: room.loreJournal,
         activePlayerUserId: nextActiveUserId,
         pendingReactions: [],
       });
@@ -1384,8 +1417,9 @@ export class GameSessionService {
         targetDC: dmResult.nextRoundDC || room.targetDC,
         dcReason: dmResult.nextRoundDCReason || room.dcReason,
         requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
-        activeEnemies: updatedEnemies,
-        sceneNPCs: updatedNPCs,
+        activeEnemies: finalEnemies,
+        sceneNPCs: finalNPCs,
+        loreJournal: room.loreJournal,
         activePlayerUserId: order[0] || undefined,
         pendingReactions: [],
       });
@@ -1662,6 +1696,7 @@ export class GameSessionService {
               if (!alreadyRemoved) {
                 const reason = fc.description || 'Оружие выскользнуло из рук в грязь';
                 this.characters.removeItemFromInventory(char.id, weapon.name, 1, reason);
+                this.itemLedgers.markItemDropped(char.id, weapon.id || weapon.name, 1, reason, room.roundNumber, room.id);
                 const droppedLootItem: RoomLootItem = {
                   id: weapon.id || crypto.randomUUID(),
                   name: weapon.name,
@@ -1734,9 +1769,18 @@ export class GameSessionService {
               timestamp: new Date().toISOString(),
             });
 
-            // Ground loot tracking: if dropped/slipped/lost, save into room.availableLoot
+            // Ground loot tracking & ItemLedger: if dropped/slipped/lost, save into room.availableLoot
             const isConsumed = /выпи|съел|исцел|использ|потрач|potion|зель/i.test(reason) || (existingItem && (existingItem.type === 'potion' || existingItem.type === 'food' || existingItem.type === 'scroll'));
             const isDestroyed = /расколол|сломал|вдребезги|уничтож|сгорел/i.test(reason);
+            const itemId = existingItem?.id || cleanItemName;
+            if (isDestroyed) {
+              this.itemLedgers.markItemDestroyed(target.id, itemId, reason, room.roundNumber, room.id);
+            } else if (isConsumed) {
+              this.itemLedgers.markItemConsumed(target.id, itemId, invUpdate.item.quantity || 1, reason, room.roundNumber, room.id);
+            } else {
+              this.itemLedgers.markItemDropped(target.id, itemId, invUpdate.item.quantity || 1, reason, room.roundNumber, room.id);
+            }
+
             if (!isConsumed && !isDestroyed && (existingItem || invUpdate.item.type === 'weapon' || /выби|вырон|грязь|земл|упал|скольз|роня|выскольз|утрат/i.test(reason))) {
               const droppedLootItem: RoomLootItem = {
                 id: (existingItem && existingItem.id) || crypto.randomUUID(),
@@ -1776,6 +1820,8 @@ export class GameSessionService {
               healAmount: invUpdate.item.healAmount || matchedLoot?.healAmount,
             }, reason);
 
+            this.itemLedgers.markItemRecovered(target.id, { ...invUpdate.item, id: matchedLoot?.id || cleanItemName, name: cleanItemName }, reason, room.roundNumber, room.id);
+
             // Auto-equip weapon if character is unarmed
             const freshChar = this.characters.findById(target.id);
             if (freshChar && (invUpdate.item.type === 'weapon' || matchedLoot?.type === 'weapon') && !freshChar.activeWeaponId) {
@@ -1806,11 +1852,14 @@ export class GameSessionService {
       const char = activeCharacters.find(c => c.id === a.characterId || c.name.toLowerCase().trim() === a.characterName.toLowerCase().trim());
       if (!char || !char.inventory) return;
 
-      const actionLower = a.actionText.toLowerCase();
+      const speech = mechanicalArbiter.extractSpeechAndAction(a.actionText);
+      if (speech.isPureSpeech || !speech.physicalAction) return;
+
+      const actionLower = speech.physicalAction.toLowerCase();
       const narrativeLower = (dmResult.narrative || '').toLowerCase();
 
       // Check for consumable usage (healing potion, scroll, bread/food)
-      const consumeRegex = /(выпи(л|ть|ваю)|исцел(ил|ить|яю)|поит|леч(у|ил|ить)|передал|отдал|поделился|скормил|использ(овал|ую)|бросаю|метнул|зажёг)/i;
+      const consumeRegex = /(выпи(л|ть|ваю)|пь(ет|ю|ем)|глота(ет|ю|ть)|поит|пои(т|ть)\s+(зельем|водой|снадобь)|наложи(л|ть|ваю)\s+повязк|перевяз(ал|ать|ываю)|влива(ет|ю|ть)\s+в\s+рот|скормил|использ(овал|ую)\s+зелье|бросаю|метнул|зажёг)/i;
       // Check for broken item or theft
       const breakRegex = /(сломал(ся|ась)?|разбил(ся|ась)?|расколол(ся|ась)?|уничтожен|похищен|украл(и)?|среза(л|ли)|отобрал(и)?)/i;
 
@@ -1829,9 +1878,13 @@ export class GameSessionService {
         );
 
         if (!alreadyProcessed) {
+          const isAvailable = this.itemLedgers.isItemAvailable(char.id, item.id);
+          if (!isAvailable) return;
+
           if (mentionedInAction && consumeRegex.test(actionLower) && (item.type === 'potion' || item.type === 'scroll' || item.type === 'food' || (item.healAmount && item.healAmount > 0))) {
             const reason = `Израсходовано в ходе заявки: «${item.name}»`;
             this.characters.removeItemFromInventory(char.id, item.id, 1, reason);
+            this.itemLedgers.markItemConsumed(char.id, item.id, 1, reason, room.roundNumber, room.id);
             if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
             itemActivitiesByCharacter[char.id].push(`Использовано: «${item.name}» (${reason})`);
             inventoryNotifications.push({
@@ -1847,6 +1900,7 @@ export class GameSessionService {
           } else if ((mentionedInAction || mentionedInNarrative) && (breakRegex.test(actionLower) || breakRegex.test(narrativeLower))) {
             const reason = `Сломано или утрачено в ходе событий раунда ${room.roundNumber}`;
             this.characters.removeItemFromInventory(char.id, item.id, 1, reason);
+            this.itemLedgers.markItemDestroyed(char.id, item.id, reason, room.roundNumber, room.id);
             if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
             itemActivitiesByCharacter[char.id].push(`Сломано/утрачено: «${item.name}» (${reason})`);
             inventoryNotifications.push({
@@ -2168,6 +2222,7 @@ export class GameSessionService {
           for (const ci of res.consumedItems) {
             if (!inventoryNotifications.some(n => n.characterId === actingChar.id && n.itemName.toLowerCase() === ci.itemName.toLowerCase())) {
               this.characters.removeItemFromInventory(actingChar.id, ci.itemId || ci.itemName, ci.quantity, ci.reason);
+              this.itemLedgers.markItemConsumed(actingChar.id, ci.itemId || ci.itemName, ci.quantity, ci.reason, room.roundNumber, room.id);
               inventoryNotifications.push({
                 id: crypto.randomUUID(),
                 characterId: actingChar.id,
@@ -2191,6 +2246,14 @@ export class GameSessionService {
         }
       }
     }
+
+    // Process NPC/Enemy departures & archive into WorldNPCRegistry (prunes from active radar)
+    const departureRes = this.handleNPCDepartures(room, updatedNPCs, updatedEnemies, dmResult);
+    const finalNPCs = departureRes.activeNPCs;
+    const finalEnemies = departureRes.activeEnemies;
+
+    // Check procedural re-encounters for future turns
+    this.checkProceduralReEncounters(room, finalEnemies, finalNPCs);
 
     // Comprehensive Forensic Turn Audit Logging to disk (asynchronous)
     sessionAuditLogger.logTurn({
@@ -2245,8 +2308,8 @@ export class GameSessionService {
           },
         };
       }),
-      enemiesAfter: updatedEnemies.map(e => ({ ...e })),
-      sceneNPCsAfter: updatedNPCs.map(n => ({ ...n })),
+      enemiesAfter: finalEnemies.map(e => ({ ...e })),
+      sceneNPCsAfter: finalNPCs.map(n => ({ ...n })),
       socialResolutions: socialResults.map(s => ({
         npcName: s.npcName,
         actionType: s.actionType,
@@ -2289,7 +2352,7 @@ export class GameSessionService {
       }
     );
 
-    // Keep activeCharacters array in sync with fresh database state
+    // Refresh character conditions in memory
     activeCharacters.forEach(c => {
       const refreshed = this.characters.findById(c.id);
       if (refreshed) {
@@ -2308,8 +2371,9 @@ export class GameSessionService {
       requiredCheckStat: nextCheckStat,
       activePlayerUserId: firstActiveUserId,
       campaignPlot: dmResult.campaignPlot || room.campaignPlot,
-      activeEnemies: updatedEnemies,
-      sceneNPCs: updatedNPCs,
+      activeEnemies: finalEnemies,
+      sceneNPCs: finalNPCs,
+      loreJournal: room.loreJournal,
       pendingReactions: [],
     });
     this.rooms.resetPlayersTurn(room.id);
@@ -2653,6 +2717,7 @@ export class GameSessionService {
         };
 
         this.characters.addItemToInventory(char.id, newInvItem, reason);
+        this.itemLedgers.markItemRecovered(char.id, newInvItem, reason, room.roundNumber, room.id);
         this.rooms.removeLoot(room.id, loot.id);
         room.availableLoot = (room.availableLoot || []).filter(l => l.id !== loot.id);
 
@@ -2712,6 +2777,7 @@ export class GameSessionService {
               damage: isWeapon ? damage : undefined,
               history: [reason],
             }, reason);
+            this.itemLedgers.markItemRecovered(char.id, { id: restoredId, name: lostName, type: isWeapon ? 'weapon' : 'misc', quantity: 1 }, reason, room.roundNumber, room.id);
 
             if (isWeapon) {
               const charAfter = this.characters.findById(char.id);
@@ -2866,6 +2932,148 @@ export class GameSessionService {
         }
       }
     }
+  }
+
+  /**
+   * Procedural Departure & World Registry Archival:
+   * Identifies NPCs and Enemies that have fled, departed, or were defeated,
+   * removes them from active radar, records them in worldNPCRegistry,
+   * and creates a world event LoreMilestone in the room.
+   */
+  private handleNPCDepartures(
+    room: RoomEntity,
+    npcs: RoomNPC[],
+    enemies: RoomEnemy[],
+    dmResult: AIDMResponse
+  ): { activeNPCs: RoomNPC[]; activeEnemies: RoomEnemy[]; departedCount: number } {
+    const isDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; status?: string; combatRole?: string }): { departed: boolean; reason: 'fled' | 'departed' | 'defeated' | 'unconscious' } => {
+      if (e.isDead) return { departed: true, reason: 'defeated' };
+      if (e.hpCurrent !== undefined && e.hpCurrent <= 0) return { departed: true, reason: 'unconscious' };
+      if (e.combatRole === 'fled') return { departed: true, reason: 'fled' };
+
+      const status = (e.status || '').toLowerCase();
+      if (/(повержен|не подает признаков|мертв|убит|погиб)/i.test(status)) {
+        return { departed: true, reason: 'defeated' };
+      }
+      if (/(без сознания|лежит без чувств|в глубоком обмороке|в отключке)/i.test(status)) {
+        return { departed: true, reason: 'unconscious' };
+      }
+      if (/(в бегстве|в панике бежит|сбежал|убежал|дал стрекача)/i.test(status)) {
+        return { departed: true, reason: 'fled' };
+      }
+      if (/(покинул|ушел|уехал|скрылся|исчез|отступил|забился под)/i.test(status)) {
+        return { departed: true, reason: 'departed' };
+      }
+
+      return { departed: false, reason: 'departed' };
+    };
+
+    let departedCount = 0;
+    const remainingNPCs: RoomNPC[] = [];
+    const remainingEnemies: RoomEnemy[] = [];
+
+    // Check NPCs
+    for (const npc of npcs) {
+      const check = isDepartedOrDefeated(npc);
+      if (check.departed) {
+        departedCount++;
+        this.worldNPCs.archiveNPC(room.id, npc, check.reason, room.roundNumber);
+
+        // Procedural narrative log milestone
+        room.loreJournal = room.loreJournal || [];
+        const milestoneDesc = check.reason === 'fled'
+          ? `Персонаж «${npc.name}» в страхе покинул поле боя и скрылся из виду. Он пропадает с радара внимания отряда.`
+          : check.reason === 'defeated' || check.reason === 'unconscious'
+          ? `Персонаж «${npc.name}» повержен (${npc.status || 'без сознания'}). Отряд завершил с ним активное взаимодействие.`
+          : `Персонаж «${npc.name}» покинул сцену. События запечатлены в хронике живого мира.`;
+
+        room.loreJournal.push({
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `🚶 [Хроника мира]: ${npc.name} покидает сцену. ${milestoneDesc}`,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        remainingNPCs.push(npc);
+      }
+    }
+
+    // Check Enemies
+    for (const enemy of enemies) {
+      const check = isDepartedOrDefeated(enemy);
+      if (check.departed) {
+        departedCount++;
+        this.worldNPCs.archiveNPC(room.id, enemy, check.reason, room.roundNumber);
+
+        room.loreJournal = room.loreJournal || [];
+        room.loreJournal.push({
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `⚔️ [Хроника боя]: ${enemy.name} выбывает из противостояния. Противник «${enemy.name}» (${enemy.status || check.reason}) более не представляет непосредственной угрозы на текущем радаре.`,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        remainingEnemies.push(enemy);
+      }
+    }
+
+    return {
+      activeNPCs: remainingNPCs,
+      activeEnemies: remainingEnemies,
+      departedCount,
+    };
+  }
+
+  /**
+   * Checks if a previously departed NPC is eligible to reappear procedurally
+   * as a random world encounter enriching players' future turns.
+   */
+  private checkProceduralReEncounters(
+    room: RoomEntity,
+    currentEnemies: RoomEnemy[],
+    currentNPCs: RoomNPC[]
+  ): { reinstatedCandidate?: RoomNPC; promptDirective?: string } {
+    // Only trigger re-encounters when scene is relatively calm (no active combat)
+    if (currentEnemies.length > 0) return {};
+
+    // Check world registry for eligible departed NPCs (at least 2 rounds ago)
+    const candidate = this.worldNPCs.findCandidateForReEncounter(room.id, room.roundNumber, 2);
+    if (!candidate) return {};
+
+    // Procedural random trigger roll (approx 35% chance in calm rounds)
+    const roll = crypto.randomInt(1, 101);
+    if (roll > 35) return {};
+
+    this.worldNPCs.markNPCReinstated(room.id, candidate.id, room.roundNumber);
+
+    const reinstatedNPC: RoomNPC = {
+      id: candidate.id,
+      name: candidate.name,
+      role: candidate.role,
+      hpCurrent: 14,
+      hpMax: 14,
+      ac: 12,
+      disposition: candidate.disposition || (candidate.affinity > 20 ? 'friendly' : candidate.affinity < -20 ? 'hostile' : 'neutral'),
+      combatRole: candidate.affinity > 25 ? 'ally_combatant' : 'neutral_observer',
+      status: `Снова встречен в пути. Помнит прошлые события (Отношение: ${candidate.affinity >= 0 ? '+' : ''}${candidate.affinity}).`,
+      isDead: false,
+      affinity: candidate.affinity,
+      trustNotes: candidate.notes,
+    };
+
+    currentNPCs.push(reinstatedNPC);
+
+    room.loreJournal = room.loreJournal || [];
+    room.loreJournal.push({
+      id: crypto.randomUUID(),
+      round: room.roundNumber,
+      milestone: `🤝 [Случайная встреча]: Возвращение «${candidate.name}» (${candidate.role}). Прошлое знакомство не забыто (Отношение: ${candidate.affinity >= 0 ? '+' : ''}${candidate.affinity}).`,
+      timestamp: new Date().toISOString(),
+    });
+
+    const directive = `🌍 СОБЫТИЕ ЖИВОГО МИРА: Персонаж «${candidate.name}» (${candidate.role}) снова появляется в сцене как случайная встреча! Опиши его появление с учётом прошлого опыта общения с отрядом: ${candidate.notes.join('; ')}. Его отношение к героям: ${candidate.affinity}.`;
+
+    return { reinstatedCandidate: reinstatedNPC, promptDirective: directive };
   }
 }
 
