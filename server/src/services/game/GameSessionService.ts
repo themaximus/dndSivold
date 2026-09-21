@@ -164,6 +164,19 @@ export class GameSessionService {
     const room = this.rooms.findByCode(roomCode);
     if (!room) return null;
 
+    // Self-healing: Reconcile duplicate entities between activeEnemies and sceneNPCs
+    if (room.activeEnemies && room.activeEnemies.length > 0 && room.sceneNPCs && room.sceneNPCs.length > 0) {
+      const reconciled = this.reconcileEnemiesAndNPCs(room.activeEnemies, room.sceneNPCs);
+      if (reconciled.enemies.length !== room.activeEnemies.length || reconciled.npcs.length !== room.sceneNPCs.length) {
+        room.activeEnemies = reconciled.enemies;
+        room.sceneNPCs = reconciled.npcs;
+        this.rooms.update(room.id, {
+          activeEnemies: reconciled.enemies,
+          sceneNPCs: reconciled.npcs,
+        });
+      }
+    }
+
     const players = this.rooms.findPlayersByRoomId(room.id);
     const populatedPlayers = players.map(p => {
       let char = p.characterId ? this.characters.findById(p.characterId) : undefined;
@@ -1259,8 +1272,11 @@ export class GameSessionService {
       }
     }
 
+    // Reconcile and deduplicate between updatedEnemies and updatedNPCs (mutual exclusivity)
+    const reconciledEntities = this.reconcileEnemiesAndNPCs(updatedEnemies, updatedNPCs, dmResult.mood);
+
     // Process NPC/Enemy departures & archive into WorldNPCRegistry (prunes from active radar)
-    const departureRes = this.handleNPCDepartures(room, updatedNPCs, updatedEnemies, dmResult);
+    const departureRes = this.handleNPCDepartures(room, reconciledEntities.npcs, reconciledEntities.enemies, dmResult);
     const finalNPCs = departureRes.activeNPCs;
     const finalEnemies = departureRes.activeEnemies;
 
@@ -2247,8 +2263,11 @@ export class GameSessionService {
       }
     }
 
+    // Reconcile and deduplicate between updatedEnemies and updatedNPCs (mutual exclusivity)
+    const reconciledEntities = this.reconcileEnemiesAndNPCs(updatedEnemies, updatedNPCs, dmResult.mood);
+
     // Process NPC/Enemy departures & archive into WorldNPCRegistry (prunes from active radar)
-    const departureRes = this.handleNPCDepartures(room, updatedNPCs, updatedEnemies, dmResult);
+    const departureRes = this.handleNPCDepartures(room, reconciledEntities.npcs, reconciledEntities.enemies, dmResult);
     const finalNPCs = departureRes.activeNPCs;
     const finalEnemies = departureRes.activeEnemies;
 
@@ -2521,6 +2540,98 @@ export class GameSessionService {
     return {
       room: updatedRoom,
       log: epilogueLog,
+    };
+  }
+
+  /**
+   * Enforces strict mutual exclusivity between activeEnemies and sceneNPCs.
+   * A character can NEVER be both an active enemy in combat and a bystander/friendly NPC at the same time.
+   * If an entity is actively fighting in activeEnemies, it is purged from sceneNPCs.
+   * If an enemy is pacified, becomes an ally, or surrenders into sceneNPCs, it is purged from activeEnemies.
+   */
+  private reconcileEnemiesAndNPCs(
+    enemies: RoomEnemy[],
+    npcs: RoomNPC[],
+    mood?: string
+  ): { enemies: RoomEnemy[]; npcs: RoomNPC[] } {
+    const isSameEntityName = (name1?: string, name2?: string): boolean => {
+      if (!name1 || !name2) return false;
+      const clean = (s: string) => s.toLowerCase().trim().replace(/^(купец|торговец|послушник|стражник|страж|вожак|главарь|адепт|культист|караванщик|бандит)\s+/i, '');
+      const n1 = clean(name1);
+      const n2 = clean(name2);
+      if (n1 === n2) return true;
+      if (n1.length >= 4 && n2.length >= 4 && (n1.includes(n2) || n2.includes(n1))) return true;
+      const o1 = name1.toLowerCase().trim();
+      const o2 = name2.toLowerCase().trim();
+      return o1 === o2 || (o1.length >= 4 && o2.length >= 4 && (o1.includes(o2) || o2.includes(o1)));
+    };
+
+    const finalEnemies: RoomEnemy[] = [];
+    const npcMap = new Map<string, RoomNPC>();
+    for (const n of (npcs || [])) {
+      npcMap.set(n.id, { ...n });
+    }
+
+    for (const enemy of (enemies || [])) {
+      // Find matching NPC
+      let matchedNpcId: string | undefined;
+      for (const [nId, n] of npcMap.entries()) {
+        if (nId === enemy.id || isSameEntityName(n.name, enemy.name)) {
+          matchedNpcId = nId;
+          break;
+        }
+      }
+
+      if (matchedNpcId) {
+        const matchedNpc = npcMap.get(matchedNpcId)!;
+        const enemyStatus = (enemy.status || '').toLowerCase();
+        const npcStatus = (matchedNpc.status || '').toLowerCase();
+
+        // Check if entity is pacified, became an ally, or surrendered
+        const isPacifiedOrAlly = (
+          (matchedNpc.disposition === 'friendly' && !enemyStatus.includes('в бою')) ||
+          matchedNpc.combatRole === 'ally_combatant' ||
+          /(успокоен|мирный|сдался|отступил|помогает|союзник|приручен)/i.test(enemyStatus) ||
+          /(успокоен|мирный|сдался|отступил|помогает|союзник|приручен)/i.test(npcStatus)
+        );
+
+        // Check if entity is hostile / attacking
+        const isHostileCombatant = !enemy.isDead && (enemy.hpCurrent > 0) && (
+          enemyStatus.includes('в бою') ||
+          enemyStatus.includes('атак') ||
+          enemyStatus.includes('сража') ||
+          enemyStatus.includes('агресс') ||
+          matchedNpc.disposition === 'hostile' ||
+          mood === 'combat'
+        );
+
+        if (isHostileCombatant && !isPacifiedOrAlly) {
+          // Keep as active enemy, remove from scene NPCs
+          npcMap.delete(matchedNpcId);
+          finalEnemies.push({
+            ...enemy,
+            hpCurrent: enemy.hpCurrent ?? matchedNpc.hpCurrent,
+            hpMax: enemy.hpMax ?? matchedNpc.hpMax,
+            ac: enemy.ac ?? matchedNpc.ac ?? 12,
+            willpower: enemy.willpower ?? matchedNpc.willpower ?? 75,
+          });
+        } else {
+          // Entity belongs in scene NPCs (neutral/friendly/pacified/ally), remove from active enemies
+          npcMap.set(matchedNpcId, {
+            ...matchedNpc,
+            hpCurrent: matchedNpc.hpCurrent ?? enemy.hpCurrent,
+            hpMax: matchedNpc.hpMax ?? enemy.hpMax,
+            ac: matchedNpc.ac ?? enemy.ac ?? 12,
+          });
+        }
+      } else {
+        finalEnemies.push(enemy);
+      }
+    }
+
+    return {
+      enemies: finalEnemies,
+      npcs: Array.from(npcMap.values()),
     };
   }
 

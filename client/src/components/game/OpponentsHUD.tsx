@@ -97,6 +97,18 @@ const isEntityDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; s
   return /(повержен|без сознания|не подает признаков|мертв|убит|погиб|покинул|ушел|уехал|скрылся|убежал|сбежал|исчез|отступил|в бегстве|в панике бежит|забился под)/i.test(s);
 };
 
+const isSameEntityName = (name1?: string, name2?: string): boolean => {
+  if (!name1 || !name2) return false;
+  const clean = (s: string) => s.toLowerCase().trim().replace(/^(купец|торговец|послушник|стражник|страж|вожак|главарь|адепт|культист|караванщик|бандит)\s+/i, '');
+  const n1 = clean(name1);
+  const n2 = clean(name2);
+  if (n1 === n2) return true;
+  if (n1.length >= 4 && n2.length >= 4 && (n1.includes(n2) || n2.includes(n1))) return true;
+  const o1 = name1.toLowerCase().trim();
+  const o2 = name2.toLowerCase().trim();
+  return o1 === o2 || (o1.length >= 4 && o2.length >= 4 && (o1.includes(o2) || o2.includes(o1)));
+};
+
 export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   enemies = [],
   enemiesStatus,
@@ -105,8 +117,15 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   const activeEnemies = enemies.filter(e => !isEntityDepartedOrDefeated(e));
   const defeatedEnemies = enemies.filter(e => isEntityDepartedOrDefeated(e));
 
-  const livingNPCs = sceneNPCs.filter(n => !isEntityDepartedOrDefeated(n));
-  const fallenNPCs = sceneNPCs.filter(n => isEntityDepartedOrDefeated(n));
+  // Exclude NPCs who are already present as active enemies in combat (prevents clone / dual existence)
+  const livingNPCs = sceneNPCs.filter(n =>
+    !isEntityDepartedOrDefeated(n) &&
+    !activeEnemies.some(e => isSameEntityName(e.name, n.name))
+  );
+  const fallenNPCs = sceneNPCs.filter(n =>
+    isEntityDepartedOrDefeated(n) &&
+    !defeatedEnemies.some(e => isSameEntityName(e.name, n.name))
+  );
   const allyCombatants = livingNPCs.filter(n => n.combatRole === 'ally_combatant');
 
   // Read initial tab from URL ?hud=threats|npcs|all if provided
