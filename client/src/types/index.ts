@@ -316,3 +316,11 @@ export interface InventoryNotification {
   reason: string;
   timestamp: string;
 }
+
+export interface RoomRollBroadcast {
+  id: string;
+  playerId: string;
+  username: string;
+  characterName: string;
+  roll: DiceRollResult;
+}

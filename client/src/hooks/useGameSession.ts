@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Room, RoomPlayer, GameLogEntry, DiceRollResult, Character, CharacterTalentTree, RoomLootItem, FeedActivity, ActionRejectedEvent, InventoryNotification } from '../types';
+import { Room, RoomPlayer, GameLogEntry, DiceRollResult, Character, CharacterTalentTree, RoomLootItem, FeedActivity, ActionRejectedEvent, InventoryNotification, RoomRollBroadcast } from '../types';
 import { api } from '../services/api';
 import { getSocket, connectSocket } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,7 @@ export function useGameSession(roomCode: string) {
   const [rejectedAction, setRejectedAction] = useState<ActionRejectedEvent | null>(null);
   const [recentActivities, setRecentActivities] = useState<FeedActivity[]>([]);
   const [inventoryNotifications, setInventoryNotifications] = useState<InventoryNotification[]>([]);
+  const [roomRollBroadcast, setRoomRollBroadcast] = useState<RoomRollBroadcast | null>(null);
   const [finishedAdventure, setFinishedAdventure] = useState<{
     finishType: 'cliffhanger' | 'triumph' | 'open_ended';
     title: string;
@@ -133,8 +134,17 @@ export function useGameSession(roomCode: string) {
       });
     });
 
-    socket.on('dice_rolled', () => {
+    socket.on('dice_rolled', (data: { playerId: string; username: string; characterName: string; roll: DiceRollResult }) => {
       soundFx.playDiceRoll();
+      if (data && data.roll) {
+        setRoomRollBroadcast({
+          id: crypto.randomUUID(),
+          playerId: data.playerId,
+          username: data.username,
+          characterName: data.characterName,
+          roll: data.roll,
+        });
+      }
     });
 
     socket.on('loot_picked_up', (data: { lootId: string; characterId?: string; item: RoomLootItem; character: Character; room: Room }) => {
@@ -385,6 +395,10 @@ export function useGameSession(roomCode: string) {
     setInventoryNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
+  const dismissRoomRoll = useCallback(() => {
+    setRoomRollBroadcast(null);
+  }, []);
+
   return {
     room,
     players,
@@ -402,6 +416,8 @@ export function useGameSession(roomCode: string) {
     recentActivities,
     inventoryNotifications,
     dismissInventoryNotification,
+    roomRollBroadcast,
+    dismissRoomRoll,
     finishedAdventure,
     setFinishedAdventure,
     finishAdventure,

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Character, DiceRollResult } from '../types';
 import { getSocket } from '../services/socket';
 import { soundFx } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { Dices, Sparkles, X, ShieldAlert, Check, CheckCircle2, XCircle } from 'lucide-react';
+import { ThreeD20Die } from './game/ThreeD20Die';
 
 interface DiceRollerModalProps {
   roomCode: string;
@@ -28,29 +29,15 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   onClose,
   onRollComplete,
 }) => {
-  const [diceType, setDiceType] = useState('d20');
-  const [statKey, setStatKey] = useState<string>(defaultStatKey ? defaultStatKey.toLowerCase() : 'str');
-  const [purpose, setPurpose] = useState(initialPurpose || '');
+  const statKey = defaultStatKey ? defaultStatKey.toLowerCase() : 'dex';
+  const [purpose] = useState(initialPurpose || '');
   const [advantage, setAdvantage] = useState(initialAdvantage);
   const [disadvantage, setDisadvantage] = useState(initialDisadvantage);
   const [isRolling, setIsRolling] = useState(false);
-  const [animatedNumber, setAnimatedNumber] = useState<number>(10);
   const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null);
 
   const stats = character?.stats || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
   const calcMod = (val: number) => Math.floor((val - 10) / 2);
-
-  // Cycling numbers animation while rolling
-  useEffect(() => {
-    let interval: any;
-    if (isRolling) {
-      interval = setInterval(() => {
-        const maxVal = parseInt(diceType.replace('d', ''), 10) || 20;
-        setAnimatedNumber(Math.floor(Math.random() * maxVal) + 1);
-      }, 70);
-    }
-    return () => clearInterval(interval);
-  }, [isRolling, diceType]);
 
   const handleRoll = () => {
     if (isRolling || lastRoll) return;
@@ -60,25 +47,28 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     const socket = getSocket();
 
     const handleResult = (result: DiceRollResult) => {
-      setLastRoll(result);
-      setIsRolling(false);
+      // Allow 3D tumble for at least 1.2s before settling
+      setTimeout(() => {
+        setLastRoll(result);
+        setIsRolling(false);
 
-      if (result.isCriticalSuccess) {
-        soundFx.playCriticalSuccess();
-        confetti({
-          particleCount: 70,
-          spread: 80,
-          origin: { y: 0.6 },
-        });
-      } else if (result.isCriticalFail) {
-        soundFx.playCriticalFail();
-      } else if (targetDC && result.total >= targetDC) {
-        confetti({
-          particleCount: 40,
-          spread: 60,
-          origin: { y: 0.65 },
-        });
-      }
+        if (result.isCriticalSuccess) {
+          soundFx.playCriticalSuccess();
+          confetti({
+            particleCount: 70,
+            spread: 80,
+            origin: { y: 0.6 },
+          });
+        } else if (result.isCriticalFail) {
+          soundFx.playCriticalFail();
+        } else if (targetDC && result.total >= targetDC) {
+          confetti({
+            particleCount: 40,
+            spread: 60,
+            origin: { y: 0.65 },
+          });
+        }
+      }, 1200);
 
       socket.off('your_dice_result', handleResult);
       socket.off('dice_roll_rejected', handleRejected);
@@ -86,7 +76,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
 
     const handleRejected = (data: { message: string }) => {
       setIsRolling(false);
-      alert(data.message || 'Вы уже бросили кубик в этом раунде!');
+      alert(data.message || 'Вы уже совершили бросок в этом раунде!');
       socket.off('your_dice_result', handleResult);
       socket.off('dice_roll_rejected', handleRejected);
       onClose();
@@ -98,9 +88,9 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     socket.emit('roll_dice', {
       roomCode,
       request: {
-        diceType,
-        statKey: diceType === 'd20' ? statKey : undefined,
-        purpose: purpose || (diceType === 'd20' ? `Проверка характеристики` : `Бросок ${diceType}`),
+        diceType: 'd20',
+        statKey,
+        purpose: purpose || 'Проверка характеристики',
         advantage,
         disadvantage,
       },
@@ -113,7 +103,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
         socket.off('your_dice_result', handleResult);
         socket.off('dice_roll_rejected', handleRejected);
       }
-    }, 4000);
+    }, 4500);
   };
 
   const confirmRoll = () => {
@@ -131,9 +121,12 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     onClose();
   };
 
+  const rawDie = lastRoll?.rolls && lastRoll.rolls.length > 0 ? lastRoll.rolls[0] : lastRoll?.total;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-fantasy-panel border border-fantasy-border rounded-2xl p-6 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+      <div className="w-full max-w-md bg-gradient-to-b from-slate-900 to-slate-950 border border-fantasy-border rounded-3xl p-5 sm:p-6 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar">
+        {/* Close Button */}
         <button
           onClick={handleClose}
           disabled={isRolling}
@@ -142,146 +135,130 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-5">
-          <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
+        {/* Modal Header */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
             <Dices className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-bold font-rpg text-amber-400">Бросок кубика</h3>
-            <p className="text-xs text-slate-400">Честный расчет на сервере — строго 1 бросок за ход</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg sm:text-xl font-bold font-rpg text-amber-400">Бросок кубика d20</h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-bold border border-amber-500/40">
+                D&D 5e
+              </span>
+            </div>
+            <p className="text-xs text-slate-400">Строго 1 бросок за ход • Честный расчет на сервере</p>
           </div>
         </div>
 
-        {/* Dice Selector */}
+        {purpose && (
+          <div className="mb-3 px-3 py-1.5 bg-amber-950/20 border border-amber-500/20 rounded-xl text-xs text-amber-200/90 italic">
+            Действие: «{purpose}»
+          </div>
+        )}
+
+        {/* 3D d20 Interactive Viewport */}
+        <div className="my-2 p-2 rounded-2xl bg-black/40 border border-slate-800 flex flex-col items-center justify-center relative min-h-[220px]">
+          <ThreeD20Die
+            isRolling={isRolling}
+            targetNumber={rawDie}
+            targetDC={targetDC}
+            size={220}
+          />
+
+          {isRolling && (
+            <div className="absolute bottom-2 px-3 py-1 rounded-full bg-black/70 border border-amber-500/40 text-[11px] text-amber-300 font-mono animate-pulse">
+              🎲 Кость d20 брошена... Судьба решается!
+            </div>
+          )}
+        </div>
+
+        {/* D20 Stat Challenge Display */}
         <div className="mb-4">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            Тип кости
-          </label>
-          <div className="grid grid-cols-6 gap-2">
-            {['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDiceType(d)}
-                className={`py-2 text-sm font-bold font-rpg rounded-lg border transition-all ${
-                  diceType === d
-                    ? 'bg-amber-500 border-amber-400 text-black shadow-glow-gold'
-                    : 'bg-fantasy-card border-fantasy-border text-slate-300 hover:border-slate-500'
-                }`}
-              >
-                {d}
-              </button>
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Характеристика (Назначена Мастером)
+            </label>
+            {targetDC && (
+              <span className="text-xs font-mono font-bold text-amber-400">
+                СЛ {targetDC}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { key: 'str', label: 'СИЛА', val: stats.str },
+              { key: 'dex', label: 'ЛОВКОСТЬ', val: stats.dex },
+              { key: 'con', label: 'ТЕЛО', val: stats.con },
+              { key: 'int', label: 'ИНТЕЛЛЕКТ', val: stats.int },
+              { key: 'wis', label: 'МУДРОСТЬ', val: stats.wis },
+              { key: 'cha', label: 'ХАРИЗМА', val: stats.cha },
+            ].map((st) => {
+              const isSelected = statKey === st.key;
+              const mod = calcMod(st.val);
+
+              return (
+                <div
+                  key={st.key}
+                  className={`p-2 rounded-xl border text-left transition-all ${
+                    isSelected
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-2 ring-amber-400/40'
+                      : 'bg-slate-900/40 border-slate-800/80 text-slate-500 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span>{st.label}</span>
+                    {isSelected && (
+                      <span className="text-[8px] font-mono font-bold text-amber-400 uppercase">
+                        Активна
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-bold text-xs mt-0.5">
+                    {st.val} <span className="font-mono font-normal">({mod >= 0 ? `+${mod}` : mod})</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Advantage / Disadvantage toggles */}
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <button
+              type="button"
+              disabled={isRolling || !!lastRoll}
+              onClick={() => {
+                setAdvantage(!advantage);
+                setDisadvantage(false);
+              }}
+              className={`py-1.5 px-3 rounded-xl border text-xs font-semibold transition-all disabled:opacity-50 ${
+                advantage
+                  ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              ✦ Преимущество (2d20 max)
+            </button>
+            <button
+              type="button"
+              disabled={isRolling || !!lastRoll}
+              onClick={() => {
+                setDisadvantage(!disadvantage);
+                setAdvantage(false);
+              }}
+              className={`py-1.5 px-3 rounded-xl border text-xs font-semibold transition-all disabled:opacity-50 ${
+                disadvantage
+                  ? 'bg-rose-500/20 border-rose-500 text-rose-300'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              ▼ Помеха (2d20 min)
+            </button>
           </div>
         </div>
 
-        {/* D20 Stat Challenge - Dictated by Dungeon Master */}
-        {diceType === 'd20' && (
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Характеристика проверки (Назначена Мастером)
-              </label>
-              {defaultStatKey && (
-                <span className="text-[10px] font-mono px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-bold border border-amber-500/30">
-                  Выбор Мастера
-                </span>
-              )}
-            </div>
-
-            {/* Display character stats with DM required stat highlighted and locked */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { key: 'str', label: 'СИЛА (STR)', val: stats.str },
-                { key: 'dex', label: 'ЛОВКОСТЬ (DEX)', val: stats.dex },
-                { key: 'con', label: 'ТЕЛО (CON)', val: stats.con },
-                { key: 'int', label: 'ИНТЕЛЛЕКТ (INT)', val: stats.int },
-                { key: 'wis', label: 'МУДРОСТЬ (WIS)', val: stats.wis },
-                { key: 'cha', label: 'ХАРИЗМА (CHA)', val: stats.cha },
-              ].map((st) => {
-                const isDMChoice = (defaultStatKey ? defaultStatKey.toLowerCase() : 'dex') === st.key;
-                const isSelected = statKey === st.key;
-                const mod = calcMod(st.val);
-
-                return (
-                  <div
-                    key={st.key}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                      isSelected
-                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-2 ring-amber-400/40'
-                        : isDMChoice
-                        ? 'bg-amber-500/10 border-amber-500/40 text-slate-300'
-                        : 'bg-slate-900/40 border-slate-800 text-slate-500 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span>{st.label.split(' ')[0]}</span>
-                      {isSelected && (
-                        <span className="text-[9px] font-mono font-bold text-amber-400">
-                          {defaultStatKey ? 'СЛ ДМ' : 'АКТИВНА'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="font-bold text-sm mt-0.5">
-                      {st.val} <span className="text-xs font-mono font-normal">({mod >= 0 ? `+${mod}` : mod})</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <p className="text-[11px] text-slate-400 mt-2 italic">
-              * Характеристику проверки назначает Мастер Подземелий по ситуации сцены.
-            </p>
-
-            {/* Advantage / Disadvantage */}
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setAdvantage(!advantage);
-                  setDisadvantage(false);
-                }}
-                className={`py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all ${
-                  advantage
-                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                    : 'bg-fantasy-card border-fantasy-border text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                ✦ Преимущество (2d20 max)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDisadvantage(!disadvantage);
-                  setAdvantage(false);
-                }}
-                className={`py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all ${
-                  disadvantage
-                    ? 'bg-red-500/20 border-red-500 text-red-300'
-                    : 'bg-fantasy-card border-fantasy-border text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                ▼ Помеха (2d20 min)
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Rolling State Display */}
-        {isRolling && (
-          <div className="p-6 rounded-2xl bg-gradient-to-b from-amber-500/15 to-slate-900 border border-amber-500/40 mb-5 text-center flex flex-col items-center justify-center gap-2 animate-pulse">
-            <div className="p-3.5 bg-amber-500/20 rounded-2xl text-amber-400 animate-dice-tumble shadow-glow-gold">
-              <Dices className="w-10 h-10" />
-            </div>
-            <div className="text-4xl font-extrabold font-rpg text-amber-300 font-mono">
-              {animatedNumber}
-            </div>
-            <p className="text-xs text-amber-200/80 font-medium">Кость брошена... Решается судьба раунда!</p>
-          </div>
-        )}
-
-        {/* Roll Result Display */}
+        {/* Roll Result Outcome Display */}
         {lastRoll && !isRolling && (() => {
           const isCritSuccess = !!lastRoll.isCriticalSuccess;
           const isCritFail = !!lastRoll.isCriticalFail;
@@ -289,47 +266,43 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
           const isFail = !isCritSuccess && (isCritFail || (targetDC !== undefined && lastRoll.total < targetDC));
 
           return (
-            <div className={`p-4 sm:p-5 rounded-2xl border mb-5 text-center transition-all animate-result-bounce ${
+            <div className={`p-4 rounded-2xl border mb-4 text-center transition-all animate-result-bounce ${
               isCritSuccess
-                ? 'bg-amber-500/25 border-amber-400 shadow-glow-gold animate-glow-success'
+                ? 'bg-amber-500/25 border-amber-400 shadow-glow-gold'
                 : isCritFail
-                ? 'bg-red-950/60 border-red-500 animate-fail-tremor shadow-glow-crimson'
+                ? 'bg-red-950/60 border-red-500 shadow-glow-crimson'
                 : isSuccess
-                ? 'bg-emerald-950/40 border-emerald-400 shadow-lg shadow-emerald-500/20 animate-glow-success'
+                ? 'bg-emerald-950/40 border-emerald-400 shadow-lg shadow-emerald-500/20'
                 : isFail
-                ? 'bg-rose-950/40 border-rose-500 animate-fail-tremor shadow-lg shadow-red-500/20'
-                : 'bg-fantasy-card border-fantasy-border'
+                ? 'bg-rose-950/40 border-rose-500 shadow-lg shadow-red-500/20'
+                : 'bg-slate-900 border-slate-800'
             }`}>
-              {/* Huge explicit SUCCESS or FAILURE banner */}
               {isCritSuccess && (
-                <div className="mb-2 py-1.5 px-4 rounded-full bg-amber-400 text-black font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-amber-500/40">
+                <div className="mb-2 py-1 px-4 rounded-full bg-amber-400 text-black font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-amber-500/40">
                   <Sparkles className="w-4 h-4 fill-current" />
                   <span>★ КРИТИЧЕСКИЙ УСПЕХ (20)!</span>
                 </div>
               )}
               {isCritFail && (
-                <div className="mb-2 py-1.5 px-4 rounded-full bg-red-600 text-white font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-red-600/40">
+                <div className="mb-2 py-1 px-4 rounded-full bg-red-600 text-white font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-red-600/40">
                   <ShieldAlert className="w-4 h-4 fill-current" />
                   <span>☠ КРИТИЧЕСКИЙ ПРОВАЛ (1)!</span>
                 </div>
               )}
               {!isCritSuccess && !isCritFail && isSuccess && (
-                <div className="mb-2 py-1.5 px-4 rounded-full bg-emerald-500 text-black font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-emerald-500/30">
+                <div className="mb-2 py-1 px-4 rounded-full bg-emerald-500 text-black font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-emerald-500/30">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>★ УСПЕХ! ({lastRoll.total} против СЛ {targetDC})</span>
                 </div>
               )}
               {!isCritSuccess && !isCritFail && isFail && (
-                <div className="mb-2 py-1.5 px-4 rounded-full bg-rose-600 text-white font-extrabold font-rpg text-xs sm:text-sm tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-rose-600/30">
+                <div className="mb-2 py-1 px-4 rounded-full bg-rose-600 text-white font-extrabold font-rpg text-xs tracking-wider uppercase inline-flex items-center gap-1.5 shadow-md shadow-rose-600/30">
                   <XCircle className="w-4 h-4" />
                   <span>✗ ПРОВАЛ! ({lastRoll.total} против СЛ {targetDC})</span>
                 </div>
               )}
 
-              <div className="text-xs uppercase tracking-wider text-slate-400 mt-1">
-                {lastRoll.purpose || 'Бросок проверки'}:
-              </div>
-              <div className="text-4xl sm:text-5xl font-extrabold font-rpg text-amber-300 my-1">
+              <div className="text-3xl sm:text-4xl font-extrabold font-rpg text-amber-300 my-1">
                 {lastRoll.total}
               </div>
               <div className="text-xs text-slate-300 font-mono">
@@ -339,7 +312,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
           );
         })()}
 
-        {/* Actions */}
+        {/* Action Button */}
         <div className="flex gap-3">
           {lastRoll ? (
             <button
@@ -358,7 +331,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
               className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold font-rpg rounded-xl shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
             >
               <Dices className={`w-5 h-5 ${isRolling ? 'animate-spin' : ''}`} />
-              {isRolling ? 'Кубик катится...' : 'Бросить кубик (1 попытка)'}
+              {isRolling ? '3D кость крутится...' : 'Бросить кубик d20'}
             </button>
           )}
         </div>

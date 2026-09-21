@@ -17,6 +17,7 @@ import { RestModal } from './game/RestModal';
 import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
 import { InventoryToastStack } from './game/InventoryToastStack';
+import { RoomDiceBroadcastModal } from './game/RoomDiceBroadcastModal';
 
 interface GameTableProps {
   roomCode: string;
@@ -57,6 +58,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     recentActivities,
     inventoryNotifications,
     dismissInventoryNotification,
+    roomRollBroadcast,
+    dismissRoomRoll,
     finishedAdventure,
     finishAdventure,
     submitAction,
@@ -200,7 +203,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         </div>
       </div>
 
-      {/* Dice Roller Modal */}
+      {/* Dice Roller Modal for the active roller */}
       {isDiceModalOpen && (
         <DiceRollerModal
           roomCode={roomCode}
@@ -212,6 +215,15 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
           initialDisadvantage={diceModalOpts.defaultDisadvantage}
           onClose={() => setIsDiceModalOpen(false)}
           onRollComplete={handleAttachRoll}
+        />
+      )}
+
+      {/* Room-wide 3D Dice Roll Broadcast (All players see the 3D dice roll in real time) */}
+      {roomRollBroadcast && (!isDiceModalOpen || roomRollBroadcast.playerId !== user?.id) && (
+        <RoomDiceBroadcastModal
+          broadcast={roomRollBroadcast}
+          targetDC={room.targetDC}
+          onClose={dismissRoomRoll}
         />
       )}
 

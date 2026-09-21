@@ -328,8 +328,8 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       {/* Main Console Input Row */}
       <form onSubmit={handleSubmit} className="space-y-1.5">
         <div className="flex items-center gap-2">
-          {/* Dice roll button / result chip */}
-          {d20Roll ? (() => {
+          {/* If d20 roll is completed, show locked result badge on the left */}
+          {d20Roll && (() => {
             const isCritSuccess = !!d20Roll.isCriticalSuccess;
             const isCritFail = !!d20Roll.isCriticalFail;
             const isSuccess = !isCritFail && (isCritSuccess || (targetDC !== undefined && d20Roll.total >= targetDC));
@@ -361,17 +361,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
                 </span>
               </div>
             );
-          })() : (
-            <button
-              type="button"
-              onClick={handleOpenDice}
-              className="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-rpg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all shrink-0"
-              title="Сначала опишите задуманное действие, затем нажмите для броска d20"
-            >
-              <Dices className="w-4 h-4" />
-              <span>Бросить d20 [{statShort}]</span>
-            </button>
-          )}
+          })()}
 
           {/* Natural Language Action Input */}
           <div className="flex-1 relative min-w-0">
@@ -400,15 +390,28 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
             )}
           </div>
 
-          {/* Submit Turn Button */}
-          <button
-            type="submit"
-            disabled={!d20Roll || !actionText.trim()}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-rpg text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Ход</span>
-          </button>
+          {/* Dynamic Main Button: Step 1 (Roll D20) -> Step 2 (Submit Move) */}
+          {!d20Roll ? (
+            <button
+              type="button"
+              onClick={handleOpenDice}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-rpg text-xs font-bold rounded-xl shadow-md shadow-amber-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
+              title="Бросить кубик d20 для проверки действия"
+            >
+              <Dices className="w-4 h-4" />
+              <span>Бросить кубик d20</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!actionText.trim()}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-rpg text-xs font-bold rounded-xl shadow-md shadow-emerald-500/25 transition-all flex items-center gap-1.5 shrink-0 animate-pulse hover:scale-105 active:scale-95"
+              title="Отправить ход Мастеру Подземелий"
+            >
+              <Send className="w-4 h-4" />
+              <span>Сделать ход</span>
+            </button>
+          )}
         </div>
 
         {/* Lock Notice underneath input when rolled */}
@@ -416,7 +419,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           <div className="flex items-center justify-between text-[11px] text-amber-300/80 px-1 font-mono">
             <span className="flex items-center gap-1">
               <Lock className="w-3 h-3 text-amber-400" />
-              Действие зафиксировано под бросок d20. Для отправки хода нажмите «Ход».
+              Действие зафиксировано под бросок d20. Для отправки хода нажмите «Сделать ход».
             </span>
             <span className="text-slate-500 text-[10px]">Строго 1 попытка за раунд</span>
           </div>
