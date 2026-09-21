@@ -3,7 +3,7 @@ export interface ITextChunker {
 }
 
 export class SentenceChunker implements ITextChunker {
-  public chunk(text: string, maxChunkLen = 420): string[] {
+  public chunk(text: string, maxChunkLen = 1500): string[] {
     if (text.length <= maxChunkLen) {
       return [text];
     }

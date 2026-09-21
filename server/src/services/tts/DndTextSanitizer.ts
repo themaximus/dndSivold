@@ -30,10 +30,14 @@ export class DndTextSanitizer implements ITextSanitizer {
     cleaned = cleaned.replace(/<[^>]*>?/gm, '');
     cleaned = cleaned.replace(/[*_~`#\[\]]/gu, '');
 
-    // 8. Remove dangling empty parentheses
-    cleaned = cleaned.replace(/\(\s*\)/gu, '');
+    // 8. Remove emojis and pictorial symbols so TTS doesn't speak their names aloud
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}]/gu, '');
 
-    // 9. Normalize whitespace and punctuation spacing
+    // 9. Remove dangling empty parentheses or brackets
+    cleaned = cleaned.replace(/\(\s*\)/gu, '');
+    cleaned = cleaned.replace(/\[\s*\]/gu, '');
+
+    // 10. Normalize whitespace and punctuation spacing
     cleaned = cleaned.replace(/\s+/gu, ' ');
     cleaned = cleaned.replace(/\s+([,\.!\?:;])/gu, '$1');
 

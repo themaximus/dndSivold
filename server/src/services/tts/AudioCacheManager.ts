@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { config } from '../../config';
 
 export interface IAudioCache {
   get(key: string): string | null;
@@ -12,7 +13,7 @@ export class AudioCacheManager implements IAudioCache {
   private cacheDir: string;
 
   constructor(cacheDir?: string) {
-    this.cacheDir = cacheDir || path.resolve(__dirname, '../../../data/audio_cache');
+    this.cacheDir = cacheDir || path.join(config.dataDir, 'audio_cache');
     this.init();
   }
 

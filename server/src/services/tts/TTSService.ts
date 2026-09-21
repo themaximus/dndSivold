@@ -16,6 +16,7 @@ export class TTSService implements ITTSService {
   private chunker: ITextChunker;
   private ttsClient: ITTSClient;
   private cache: IAudioCache;
+  private pendingRequests = new Map<string, Promise<{ filePath: string; mood: MoodType }>>();
 
   constructor(
     sanitizer: ITextSanitizer = dndTextSanitizer,
@@ -73,7 +74,7 @@ export class TTSService implements ITTSService {
     rawText: string,
     moodOverride?: MoodType
   ): Promise<{ filePath: string; mood: MoodType }> {
-    // 1. Sanitize technical annotations & D&D rolls
+    // 1. Sanitize technical annotations, emojis & D&D rolls
     const cleaned = this.sanitizer.sanitize(rawText);
 
     // 2. Apply stress marks & restore 'ё'
@@ -83,26 +84,42 @@ export class TTSService implements ITTSService {
     const mood = moodOverride && moodOverride !== 'neutral' ? moodOverride : this.detectMood(cleaned);
     const prosody = this.getProsodyForMood(mood);
 
-    // 4. Check cache
+    // 4. Check disk cache
     const cacheKey = this.cache.createKey(accented, mood);
     const cachedPath = this.cache.get(cacheKey);
     if (cachedPath) {
       return { filePath: cachedPath, mood };
     }
 
-    // 5. Chunk text
-    const chunks = this.chunker.chunk(accented);
+    // 5. In-flight deduplication: if multiple clients in room request the exact same narrative simultaneously
+    if (this.pendingRequests.has(cacheKey)) {
+      return this.pendingRequests.get(cacheKey)!;
+    }
 
-    // 6. Synthesize chunks concurrently
-    const buffers = await Promise.all(
-      chunks.map(c => this.ttsClient.synthesizeChunk(c, prosody))
-    );
+    const synthesisPromise = (async () => {
+      try {
+        // 6. Chunk text with safe size (1500 chars keeps full paragraphs intact)
+        const chunks = this.chunker.chunk(accented, 1500);
 
-    // 7. Combine & cache
-    const combinedBuffer = Buffer.concat(buffers);
-    const savedPath = this.cache.set(cacheKey, combinedBuffer);
+        // 7. Synthesize chunks sequentially (prevents WebSocket collision on Edge TTS)
+        const buffers: Buffer[] = [];
+        for (const chunk of chunks) {
+          const buffer = await this.ttsClient.synthesizeChunk(chunk, prosody);
+          buffers.push(buffer);
+        }
 
-    return { filePath: savedPath, mood };
+        // 8. Combine & cache
+        const combinedBuffer = Buffer.concat(buffers);
+        const savedPath = this.cache.set(cacheKey, combinedBuffer);
+
+        return { filePath: savedPath, mood };
+      } finally {
+        this.pendingRequests.delete(cacheKey);
+      }
+    })();
+
+    this.pendingRequests.set(cacheKey, synthesisPromise);
+    return synthesisPromise;
   }
 }
 
