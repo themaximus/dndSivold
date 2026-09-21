@@ -16,6 +16,8 @@ import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest, TurnActionEntity } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
+import { mechanicalArbiter, MechanicalResolution } from './MechanicalArbiter';
+import { sessionAuditLogger, RoundAuditRecord } from '../logging/SessionAuditLogger';
 
 export function sanitizeNarrativeText(text: string): string {
   if (!text) return '';
@@ -512,6 +514,19 @@ export class GameSessionService {
     const actingChar = activeCharacters.find(c => c.id === actingAction.characterId);
     const previousLogs = this.gameLogs.findByRoomId(room.id).map(l => l.narrativeText);
 
+    // Procedural Mechanical Resolution & Validation
+    const mechanicalRes = mechanicalArbiter.evaluateAction(
+      actingAction,
+      actingChar,
+      room.activeEnemies || [],
+      room.sceneNPCs || [],
+      room.targetDC || 12
+    );
+
+    const mechanicalDirectives: Record<string, string> = {
+      [actingAction.id]: mechanicalRes.promptDirective,
+    };
+
     const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
     const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
 
@@ -538,6 +553,7 @@ export class GameSessionService {
       turnMode: 'turn_by_turn',
       turnPlayerName: actingAction.characterName,
       characterReactions: completedReactions,
+      mechanicalDirectives,
     };
 
     try {
@@ -832,6 +848,131 @@ export class GameSessionService {
       dmResult.narrative
     );
 
+    // Procedural HP Clamping & Verification from Mechanical Arbiter
+    if (mechanicalRes.targetUpdate) {
+      const tu = mechanicalRes.targetUpdate;
+      if (tu.targetType === 'enemy') {
+        const eIdx = updatedEnemies.findIndex(e => e.id === tu.targetId || e.name.toLowerCase() === tu.targetName.toLowerCase());
+        if (eIdx !== -1) {
+          updatedEnemies[eIdx] = {
+            ...updatedEnemies[eIdx],
+            hpCurrent: tu.hpAfter,
+            isDead: tu.isDead,
+            status: tu.newStatus,
+          };
+        } else {
+          updatedEnemies.push({
+            id: tu.targetId,
+            name: tu.targetName,
+            type: 'minion',
+            hpCurrent: tu.hpAfter,
+            hpMax: tu.hpBefore,
+            ac: 13,
+            status: tu.newStatus,
+            isDead: tu.isDead,
+          });
+        }
+      } else if (tu.targetType === 'npc') {
+        const nIdx = updatedNPCs.findIndex(n => n.id === tu.targetId || n.name.toLowerCase() === tu.targetName.toLowerCase());
+        if (nIdx !== -1) {
+          updatedNPCs[nIdx] = {
+            ...updatedNPCs[nIdx],
+            hpCurrent: tu.hpAfter,
+            isDead: tu.isDead,
+            status: tu.newStatus,
+            disposition: mechanicalRes.actionType === 'heal' ? 'friendly' : 'hostile',
+          };
+        }
+      }
+    }
+
+    // Process consumed items verified by Mechanical Arbiter
+    if (mechanicalRes.consumedItems && mechanicalRes.consumedItems.length > 0 && actingChar) {
+      for (const ci of mechanicalRes.consumedItems) {
+        if (!inventoryNotifications.some(n => n.characterId === actingChar.id && n.itemName.toLowerCase() === ci.itemName.toLowerCase())) {
+          this.characters.removeItemFromInventory(actingChar.id, ci.itemId || ci.itemName, ci.quantity, ci.reason);
+          inventoryNotifications.push({
+            id: crypto.randomUUID(),
+            characterId: actingChar.id,
+            characterName: actingChar.name,
+            action: 'remove',
+            itemName: ci.itemName,
+            quantity: ci.quantity,
+            reason: ci.reason,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    // Process self-heal if targeted self
+    if (mechanicalRes.actionType === 'heal' && actingChar && !mechanicalRes.targetUpdate) {
+      this.characters.updateHp(actingChar.id, mechanicalRes.healRolled || 0);
+    }
+
+    // Comprehensive Forensic Turn Audit Logging to disk (asynchronous)
+    sessionAuditLogger.logTurn({
+      id: crypto.randomUUID(),
+      roomId: room.id,
+      roundNumber: room.roundNumber,
+      timestamp: new Date().toISOString(),
+      turnMode: 'turn_by_turn',
+      actingPlayer: { userId: actingUserId, username: actingAction.characterName },
+      charactersSnapshot: activeCharacters.map(c => ({
+        id: c.id,
+        name: c.name,
+        race: c.race,
+        characterClass: c.characterClass,
+        level: c.level,
+        hpCurrent: c.hpCurrent,
+        hpMax: c.hpMax,
+        ac: c.ac,
+        stats: { ...c.stats },
+        conditions: [...(c.conditions || [])],
+        activeWeapon: c.activeWeaponId,
+        inventorySummary: (c.inventory || []).map(i => ({
+          name: i.name,
+          quantity: i.quantity || 1,
+          type: i.type,
+          damage: i.damage,
+          healAmount: i.healAmount,
+          history: i.history,
+        })),
+      })),
+      enemiesBefore: (room.activeEnemies || []).map(e => ({ ...e })),
+      sceneNPCsBefore: (room.sceneNPCs || []).map(n => ({ ...n })),
+      actions: [{
+        actionId: actingAction.id,
+        characterName: actingAction.characterName,
+        actionText: actingAction.actionText,
+        actionType: actingAction.actionType,
+        targetEnemyName: actingAction.targetEnemyName,
+        diceRolls: actingAction.diceRolls || [],
+        mechanicalResolution: {
+          isHit: mechanicalRes.isHit,
+          damageFormula: mechanicalRes.damageFormula,
+          damageRolled: mechanicalRes.damageRolled,
+          damageRolls: mechanicalRes.damageRolls,
+          healRolled: mechanicalRes.healRolled,
+          targetHpBefore: mechanicalRes.targetUpdate?.hpBefore,
+          targetHpAfter: mechanicalRes.targetUpdate?.hpAfter,
+          targetDied: mechanicalRes.targetUpdate?.isDead,
+          promptDirective: mechanicalRes.promptDirective,
+          auditNotes: mechanicalRes.auditNotes,
+        },
+      }],
+      enemiesAfter: updatedEnemies.map(e => ({ ...e })),
+      sceneNPCsAfter: updatedNPCs.map(n => ({ ...n })),
+      aiResponseSnapshot: {
+        narrative: dmResult.narrative,
+        currentSituation: dmResult.currentSituation,
+        choiceDilemma: dmResult.choiceDilemma,
+        mood: dmResult.mood,
+        nextRoundDC: dmResult.nextRoundDC,
+        ruleViolations: dmResult.ruleViolations,
+      },
+    }).catch(err => console.warn('[GameSessionService] Audit log error:', err?.message || err));
+
     // Save Game Log
     const cleanRoundNarrative = sanitizeNarrativeText(dmResult.narrative);
     const newLog = this.gameLogs.create({
@@ -936,6 +1077,48 @@ export class GameSessionService {
 
     const previousLogs = this.gameLogs.findByRoomId(room.id).map(l => l.narrativeText);
 
+    // Procedural Mechanical Evaluation & Validation across all party actions
+    const mechanicalDirectives: Record<string, string> = {};
+    const mechanicalResolutions: MechanicalResolution[] = [];
+    const simEnemies = (room.activeEnemies || []).map(e => ({ ...e }));
+    const simNPCs = (room.sceneNPCs || []).map(n => ({ ...n }));
+
+    for (const action of currentRoundActions) {
+      const char = activeCharacters.find(c => c.id === action.characterId || c.name.toLowerCase() === action.characterName.toLowerCase());
+      const res = mechanicalArbiter.evaluateAction(action, char, simEnemies, simNPCs, room.targetDC || 12);
+      mechanicalResolutions.push(res);
+      mechanicalDirectives[action.id] = res.promptDirective;
+
+      if (res.targetUpdate) {
+        if (res.targetUpdate.targetType === 'enemy') {
+          const idx = simEnemies.findIndex(e => e.id === res.targetUpdate!.targetId);
+          if (idx !== -1) {
+            simEnemies[idx].hpCurrent = res.targetUpdate.hpAfter;
+            simEnemies[idx].isDead = res.targetUpdate.isDead;
+            simEnemies[idx].status = res.targetUpdate.newStatus;
+          } else {
+            simEnemies.push({
+              id: res.targetUpdate.targetId,
+              name: res.targetUpdate.targetName,
+              type: 'minion',
+              hpCurrent: res.targetUpdate.hpAfter,
+              hpMax: res.targetUpdate.hpBefore,
+              ac: 13,
+              status: res.targetUpdate.newStatus,
+              isDead: res.targetUpdate.isDead,
+            });
+          }
+        } else if (res.targetUpdate.targetType === 'npc') {
+          const idx = simNPCs.findIndex(n => n.id === res.targetUpdate!.targetId);
+          if (idx !== -1) {
+            simNPCs[idx].hpCurrent = res.targetUpdate.hpAfter;
+            simNPCs[idx].isDead = res.targetUpdate.isDead;
+            simNPCs[idx].status = res.targetUpdate.newStatus;
+          }
+        }
+      }
+    }
+
     // AI Provider resolution with DC, quenta, and milestones context
     const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
     const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
@@ -961,6 +1144,7 @@ export class GameSessionService {
       actions: currentRoundActions,
       previousHistory: previousLogs,
       characterReactions: completedReactions,
+      mechanicalDirectives,
     };
 
     try {
@@ -1348,6 +1532,141 @@ export class GameSessionService {
         updatedEnemies.push(fallbackEnemy);
       }
     }
+
+    // Authoritative HP Clamping & Verification across all mechanical resolutions in the round
+    for (const res of mechanicalResolutions) {
+      if (res.targetUpdate) {
+        const tu = res.targetUpdate;
+        if (tu.targetType === 'enemy') {
+          const eIdx = updatedEnemies.findIndex(e => e.id === tu.targetId || e.name.toLowerCase() === tu.targetName.toLowerCase());
+          if (eIdx !== -1) {
+            updatedEnemies[eIdx] = {
+              ...updatedEnemies[eIdx],
+              hpCurrent: tu.hpAfter,
+              isDead: tu.isDead,
+              status: tu.newStatus,
+            };
+          } else {
+            updatedEnemies.push({
+              id: tu.targetId,
+              name: tu.targetName,
+              type: 'minion',
+              hpCurrent: tu.hpAfter,
+              hpMax: tu.hpBefore,
+              ac: 13,
+              status: tu.newStatus,
+              isDead: tu.isDead,
+            });
+          }
+        } else if (tu.targetType === 'npc') {
+          const nIdx = updatedNPCs.findIndex(n => n.id === tu.targetId || n.name.toLowerCase() === tu.targetName.toLowerCase());
+          if (nIdx !== -1) {
+            updatedNPCs[nIdx] = {
+              ...updatedNPCs[nIdx],
+              hpCurrent: tu.hpAfter,
+              isDead: tu.isDead,
+              status: tu.newStatus,
+              disposition: res.actionType === 'heal' ? 'friendly' : 'hostile',
+            };
+          }
+        }
+      }
+
+      // Process consumed items verified by Mechanical Arbiter
+      if (res.consumedItems && res.consumedItems.length > 0) {
+        const actingChar = activeCharacters.find(c => c.id === res.characterId);
+        if (actingChar) {
+          for (const ci of res.consumedItems) {
+            if (!inventoryNotifications.some(n => n.characterId === actingChar.id && n.itemName.toLowerCase() === ci.itemName.toLowerCase())) {
+              this.characters.removeItemFromInventory(actingChar.id, ci.itemId || ci.itemName, ci.quantity, ci.reason);
+              inventoryNotifications.push({
+                id: crypto.randomUUID(),
+                characterId: actingChar.id,
+                characterName: actingChar.name,
+                action: 'remove',
+                itemName: ci.itemName,
+                quantity: ci.quantity,
+                reason: ci.reason,
+                timestamp: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+
+      // Process self-heal
+      if (res.actionType === 'heal' && !res.targetUpdate) {
+        const actingChar = activeCharacters.find(c => c.id === res.characterId);
+        if (actingChar) {
+          this.characters.updateHp(actingChar.id, res.healRolled || 0);
+        }
+      }
+    }
+
+    // Comprehensive Forensic Turn Audit Logging to disk (asynchronous)
+    sessionAuditLogger.logTurn({
+      id: crypto.randomUUID(),
+      roomId: room.id,
+      roundNumber: room.roundNumber,
+      timestamp: new Date().toISOString(),
+      turnMode: 'simultaneous',
+      charactersSnapshot: activeCharacters.map(c => ({
+        id: c.id,
+        name: c.name,
+        race: c.race,
+        characterClass: c.characterClass,
+        level: c.level,
+        hpCurrent: c.hpCurrent,
+        hpMax: c.hpMax,
+        ac: c.ac,
+        stats: { ...c.stats },
+        conditions: [...(c.conditions || [])],
+        activeWeapon: c.activeWeaponId,
+        inventorySummary: (c.inventory || []).map(i => ({
+          name: i.name,
+          quantity: i.quantity || 1,
+          type: i.type,
+          damage: i.damage,
+          healAmount: i.healAmount,
+          history: i.history,
+        })),
+      })),
+      enemiesBefore: (room.activeEnemies || []).map(e => ({ ...e })),
+      sceneNPCsBefore: (room.sceneNPCs || []).map(n => ({ ...n })),
+      actions: currentRoundActions.map(a => {
+        const res = mechanicalResolutions.find(r => r.actionId === a.id);
+        return {
+          actionId: a.id,
+          characterName: a.characterName,
+          actionText: a.actionText,
+          actionType: a.actionType,
+          targetEnemyName: a.targetEnemyName,
+          diceRolls: a.diceRolls || [],
+          mechanicalResolution: {
+            isHit: res?.isHit,
+            damageFormula: res?.damageFormula,
+            damageRolled: res?.damageRolled,
+            damageRolls: res?.damageRolls,
+            healRolled: res?.healRolled,
+            targetHpBefore: res?.targetUpdate?.hpBefore,
+            targetHpAfter: res?.targetUpdate?.hpAfter,
+            targetDied: res?.targetUpdate?.isDead,
+            promptDirective: res?.promptDirective || '',
+            auditNotes: res?.auditNotes || '',
+          },
+        };
+      }),
+      enemiesAfter: updatedEnemies.map(e => ({ ...e })),
+      sceneNPCsAfter: updatedNPCs.map(n => ({ ...n })),
+      aiResponseSnapshot: {
+        narrative: dmResult.narrative,
+        currentSituation: dmResult.currentSituation,
+        choiceDilemma: dmResult.choiceDilemma,
+        mood: dmResult.mood,
+        nextRoundDC: dmResult.nextRoundDC,
+        ruleViolations: dmResult.ruleViolations,
+      },
+    }).catch(err => console.warn('[GameSessionService] Round audit log error:', err?.message || err));
 
     // Process Condition Updates for Players and Enemies
     if (Array.isArray(dmResult.conditionUpdates) && dmResult.conditionUpdates.length > 0) {

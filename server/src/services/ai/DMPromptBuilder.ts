@@ -82,8 +82,12 @@ export class DMPromptBuilder {
 ЗОЛОТОЕ ПРАВИЛО МАСТЕРА — ОБРАЩЕНИЕ К КОНТЕКСТУ МИРА И ПЕРСОНАЖЕЙ:
 Перед тем как сгенерировать ответ, Мастер ОБЯЗАН:
 1. Обратиться к КВЕНТАМ И ПРЕДЫСТОРИЯМ ИГРОКОВ (раздел «Квента / Личная история») — учитывать их происхождение, мотивы, характер и слабости в диалогах, поведении NPC и сюжетных поворотах.
-2. Обратиться к ИСТОРИИ КАЖДОГО ПРЕДМЕТА (раздел «Хроника предмета») — помнить, откуда он взялся, каково его состояние, и если игрок задействует его в ходе, продолжать его историю.
-3. Обратиться к ЖУРНАЛУ ИГРЫ И ХРОНИКЕ ВЕХ («Хроника ключевых вех истории») — помнить обещания персонажей, прошлые решения и развивать события последовательно.
+2. Обратиться к ФИЗИЧЕСКОМУ И ДУШЕВНОМУ СОСТОЯНИЮ ГЕРОЕВ (раздел «Состояние и настрой»):
+   - Ощущения здоровья: если герой окровавлен (Bloodied, мало HP), отрази его одышку, кровоточащие раны, стиснутые зубы и превозмогание боли. Если свеж и полон сил — подчеркни бодрость, уверенность и твердость шага.
+   - Фирменные характеристики: отражай ключевые статы (могучий атлет сокрушает преграды СИЛОЙ, ловкач грациозно уходит с ЛОВКОСТЬЮ, мудрец подмечает детали МУДРОСТЬЮ).
+   - Эмоциональный настрой: учитывай душевное состояние (боевая ярость, хладнокровие, тревога, праведная решимость) в интонациях и реакциях.
+3. Обратиться к ИСТОРИИ КАЖДОГО ПРЕДМЕТА (раздел «Хроника предмета») — помнить, откуда он взялся, каково его состояние, и если игрок задействует его в ходе, продолжать его историю.
+4. Обратиться к ЖУРНАЛУ ИГРЫ И ХРОНИКЕ ВЕХ («Хроника ключевых вех истории») — помнить обещания персонажей, прошлые решения и развивать события последовательно.
 
 ЗАКОН 1: УНИВЕРСАЛЬНАЯ СЕТТИНГОВАЯ КОГЕРЕНТНОСТЬ (ЛЮБОЙ ЖАНР ПО ПРАВИЛАМ D&D 5E)
 Игра поддерживает ЛЮБОЙ жанр приключения по правилам D&D (броски d20, проверки характеристик СИЛ/ЛОВ/ТЕЛ/ИНТ/МУД/ХАР, класс брони, урон, раунды):
@@ -188,10 +192,19 @@ export class DMPromptBuilder {
   * ДИАЛОГИ И ВЛИЯНИЕ:
     - Если игроки убеждают, подкупают, защищают или запугивают NPC, обязательно меняй "disposition" ("friendly", "neutral", "cautious", "offended", "hostile") и отражай это в "status", "combatRole" и тексте "narrative".
 
-9. ТОЧНЫЕ ИМЕНА ПЕРСОНАЖЕЙ В ИЗМЕНЕНИЯХ ЗДОРОВЬЯ ("playerUpdates"):
+ЗАКОН 9: НЕПРЕЛОЖНЫЕ ДИРЕКТИВЫ МЕХАНИЧЕСКОГО АРБИТРА (⚖️) И ПРЕДОТВРАЩЕНИЕ ВАНШОТОВ:
+Если в заявке игрока приведено указание ⚖️ МЕХАНИЧЕСКОГО АРБИТРА (точный урон оружия, КБ, оставшиеся HP цели):
+1. Мастер ОБЯЗАН СТРОГО И БЕЗОГОВОРОЧНО подчиняться директиве Механического Арбитра!
+2. ПРЕДОТВРАЩЕНИЕ НЕОБОСНОВАННЫХ ВАНШОТОВ (НЕРЕАЛЬНЫХ ДЕЙСТВИЙ):
+   - Если игрок написал в заявке «отрубаю голову капитану», «убиваю одним ударом» или «разрываю на куски», НО механический урон оружия (например, 6 урона кинжалом) не снижает HP цели до 0, а оставляет врагу здоровье (например, 24/30 HP) — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО убивать или обезглавливать цель!
+   - Опиши сочный удар, глубокую ссадину или разрубленную кирасу, но покажи невероятную стойкость, ярость и продолжающееся сопротивление противника!
+3. Если арбитр зафиксировал промах — урон строго равен 0 (удар парирован щитом или доспехом).
+4. Если арбитр зафиксировал добивание (HP упало до 0) — опиши зрелищный финал и падение противника.
+
+10. ТОЧНЫЕ ИМЕНА ПЕРСОНАЖЕЙ В ИЗМЕНЕНИЯХ ЗДОРОВЬЯ ("playerUpdates"):
    - СЛОВО «Герой» СТРОГО ЗАПРЕЩЕНО! Указывай реальные "characterId" (UUID) и "characterName".
 
-10. ЧИСТЫЙ ЛИТЕРАТУРНЫЙ ТЕКСТ ДЛЯ НЕЙРОСЕТЕВОГО ДИКТОРА В "narrative":
+11. ЧИСТЫЙ ЛИТЕРАТУРНЫЙ ТЕКСТ ДЛЯ НЕЙРОСЕТЕВОГО ДИКТОРА В "narrative":
     - Текст поля "narrative" зачитывается голосовым диктором вслух!
     - Запрещено включать формулы, скобки («СЛ 14», «-4 HP», «d20»), маркеры списков. Буква «ё» обязательна.
 
@@ -264,7 +277,7 @@ export class DMPromptBuilder {
 
   public buildUserPrompt(context: AIDMContext): string {
     const partyInfo = this.formatPartyInfo(context.characters);
-    const actionsSummary = this.formatActionsSummary(context.actions, context.characters);
+    const actionsSummary = this.formatActionsSummary(context.actions, context.characters, context.mechanicalDirectives);
 
     const livingEnemies = (context.activeEnemies || []).filter(e => !e.isDead && e.hpCurrent > 0);
     const enemiesSummary = livingEnemies.length > 0
@@ -400,6 +413,58 @@ ${encounterGuidance}
 10. Укажи requiredCheckStat ("str", "dex", "con", "int", "wis" или "cha") для следующей проверки. Верни чистый JSON.`;
   }
 
+  public formatPhysicalAndEmotionalState(c: CharacterEntity): string {
+    const hpRatio = c.hpMax > 0 ? c.hpCurrent / c.hpMax : 1;
+    let healthTag = '🟢 Свеж и полон сил (100% HP)';
+    if (c.hpCurrent <= 0 || c.lifeState === 'downed' || c.lifeState === 'dead') {
+      healthTag = '☠ Без сознания / при смерти (0 HP)';
+    } else if (hpRatio <= 0.3) {
+      healthTag = `🔴 Окровавлен (Bloodied), на пределе сил, шатается от ран (${c.hpCurrent}/${c.hpMax} HP)`;
+    } else if (hpRatio <= 0.6) {
+      healthTag = `🟠 Изранен, сбивчивое дыхание, ощущает боль (${c.hpCurrent}/${c.hpMax} HP)`;
+    } else if (hpRatio < 1.0) {
+      healthTag = `🟡 Бодр, поверхностные ссадины (${c.hpCurrent}/${c.hpMax} HP)`;
+    }
+
+    const stats = c.stats || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
+    let highestStat: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha' = 'str';
+    let highestVal = -1;
+    for (const [k, v] of Object.entries(stats)) {
+      if (typeof v === 'number' && v > highestVal) {
+        highestVal = v;
+        highestStat = k as any;
+      }
+    }
+
+    let statTag = `СИЛ ${stats.str}`;
+    if (highestStat === 'str') statTag = `Атлетическая мощь и напор (СИЛ ${stats.str})`;
+    else if (highestStat === 'dex') statTag = `Молниеносная ловкость и грация (ЛОВ ${stats.dex})`;
+    else if (highestStat === 'con') statTag = `Несокрушимая выносливость (ТЕЛ ${stats.con})`;
+    else if (highestStat === 'int') statTag = `Острый аналитический ум (ИНТ ${stats.int})`;
+    else if (highestStat === 'wis') statTag = `Обострённая интуиция и чутье (МУД ${stats.wis})`;
+    else if (highestStat === 'cha') statTag = `Внушительное лидерство и шарм (ХАР ${stats.cha})`;
+
+    let moodTag = 'Решимость и сосредоточенность';
+    const clsLower = (c.characterClass || '').toLowerCase();
+    if (c.conditions && c.conditions.includes('frightened')) {
+      moodTag = 'Подавлен страхом, тревога';
+    } else if (hpRatio <= 0.3) {
+      moodTag = 'Превозмогание жгучей боли';
+    } else if (clsLower.includes('варвар') || clsLower.includes('barbarian')) {
+      moodTag = 'Бурлящая ярость и боевой раж';
+    } else if (clsLower.includes('плут') || clsLower.includes('rogue')) {
+      moodTag = 'Хладнокровная расчётливость';
+    } else if (clsLower.includes('маг') || clsLower.includes('волшеб') || clsLower.includes('wizard')) {
+      moodTag = 'Концентрация на тайных плетениях магии';
+    } else if (clsLower.includes('паладин') || clsLower.includes('жрец') || clsLower.includes('cleric')) {
+      moodTag = 'Непоколебимая вера и готовность защищать';
+    } else if (clsLower.includes('воин') || clsLower.includes('fighter')) {
+      moodTag = 'Боевой азарт и тактическое спокойствие';
+    }
+
+    return `[${healthTag} | ${statTag} | Настрой: ${moodTag}]`;
+  }
+
   public formatPartyInfo(characters: CharacterEntity[]): string {
     return characters.map(c => {
       const condList = c.conditions && c.conditions.length > 0 ? c.conditions.join(', ') : 'В норме';
@@ -408,19 +473,22 @@ ${encounterGuidance}
         ? Object.entries(c.spellSlots).map(([lvl, s]) => `${lvl} ур: ${s.current}/${s.max}`).join(', ')
         : 'Нет';
 
+      const stateTag = this.formatPhysicalAndEmotionalState(c);
+
+      // Compact lean inventory representation to conserve context tokens
       const inventoryFormatted = c.inventory && c.inventory.length > 0
         ? c.inventory.map(i => {
-            const histStr = Array.isArray(i.history) && i.history.length > 0
-              ? `\n      ↳ Хроника предмета: ${i.history.join(' -> ')}`
+            const latestHist = Array.isArray(i.history) && i.history.length > 0
+              ? ` [Хроника: ${i.history[i.history.length - 1]}]`
               : '';
             const stats = [
               `тип: ${i.type}`,
-              `кол-во: ${i.quantity || 1}`,
+              i.quantity && i.quantity > 1 ? `кол-во: ${i.quantity}` : '',
               i.damage ? `урон: ${i.damage}` : '',
               i.ac_bonus ? `КБ +${i.ac_bonus}` : '',
               i.healAmount ? `лечение: ${i.healAmount}` : '',
             ].filter(Boolean).join(', ');
-            return `    - "${i.name}" (${stats})${histStr}`;
+            return `    - "${i.name}" (${stats})${latestHist}`;
           }).join('\n')
         : '    - Пусто (нет снаряжения)';
 
@@ -433,20 +501,25 @@ ${encounterGuidance}
   Имя: ${c.name} (${c.race} ${c.characterClass}, уровень ${c.level})
   Статус: ${c.lifeState === 'dead' ? '☠ ПОГИБ' : c.lifeState === 'downed' ? '⚠️ ПРИ СМЕРТИ (0 HP)' : 'В строю'}
   HP: ${c.hpCurrent}/${c.hpMax}, КБ: ${c.ac}
+  Физическое и душевное состояние (ОБЯЗАТЕЛЬНО ОТРАЖАТЬ В ПОВЕСТВОВАНИИ): ${stateTag}
   Кости хитов: ${hdInfo}
   Ячейки заклинаний: ${slotsInfo}
   Состояния (Conditions): ${condList}
   Характеристики: СИЛ ${c.stats.str}, ЛОВ ${c.stats.dex}, ТЕЛ ${c.stats.con}, ИНТ ${c.stats.int}, МУД ${c.stats.wis}, ХАР ${c.stats.cha}
   Способности: ${c.abilities && c.abilities.length > 0 ? c.abilities.map(a => a.name).join(', ') : 'Базовые приёмы'}
   Активное оружие: ${activeWeapon}
-  Личный инвентарь в рюкзаке (с историей каждого предмета):
+  Личный инвентарь:
 ${inventoryFormatted}
-  Квента / Личная история (ОБЯЗАТЕЛЬНО УЧИТЫВАТЬ МОТИВЫ И ХАРАКТЕР): "${c.bio || 'Опытный искатель приключений'}"
+  Квента / Личная история: "${c.bio || 'Опытный искатель приключений'}"
 `;
     }).join('\n');
   }
 
-  public formatActionsSummary(actions: TurnActionEntity[], characters?: CharacterEntity[]): string {
+  public formatActionsSummary(
+    actions: TurnActionEntity[],
+    characters?: CharacterEntity[],
+    mechanicalDirectives?: Record<string, string>
+  ): string {
     return actions.map(a => {
       const typeLabel = a.actionType === 'attack'
         ? `⚔️ АТАКА ПО ЦЕЛИ: ${a.targetEnemyName || a.targetEnemyId || 'Враг'}`
@@ -482,15 +555,20 @@ ${inventoryFormatted}
      - Если получен новый предмет — добавь его в "inventoryUpdates" с action="add" и стартовой историей "history".`;
       }
 
+      // Check for mechanical arbiter directive for this action
+      const arbiterDirective = mechanicalDirectives && mechanicalDirectives[a.id]
+        ? `\n  ${mechanicalDirectives[a.id]}`
+        : '';
+
       // Detect combat trigger, duel, trespassing or aggressive provocation
       const aggressiveRegex = /(атак(а|ую|овать)|удар(ить|яю)?|рубл(ю|ить)|выстрел(ить|ю)?|стреля(ю|ть)|дуэл(ь|и)|напад(аю|ать|ение)|сража(ться|юсь)|вступаю в бой|выхватываю (меч|клинок|оружие)|достаю (меч|клинок|топор|лук)|врезать|приконч(ить|у)|уб(ить|ью)|вламыва(юсь|ться)|взламыва(ю|ть)|захожу в запретн|прокрадыва(юсь|ться) в покои|нарыва(юсь|ется)|провоцир(ую|овать))/i;
       const isAggressiveAction = a.actionType === 'attack' || aggressiveRegex.test(a.actionText);
       let combatTriggerDirective = '';
-      if (isAggressiveAction) {
+      if (isAggressiveAction && !arbiterDirective) {
         combatTriggerDirective = `\n  ⚔️ [ТРИГГЕР БОЕВОЙ АГРЕССИИ / ДУЭЛИ / ВТОРЖЕНИЯ]: Игрок инициировал явную атаку, дуэль, нарывается на драку или вторгается в охраняемую/запретную зону! Если бой еще не начался, ОБЯЗАТЕЛЬНО СОЗДАЙ противника(ов) в массиве "activeEnemies" (укажи реалистичные name, КБ ~12-16, HP ~15-40, status: "В бою"), установи "mood": "combat", опиши начало битвы и рассчитай попадание/урон по КБ!`;
       }
 
-      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}${itemTrackingDirective}${combatTriggerDirective}`;
+      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}${arbiterDirective}${itemTrackingDirective}${combatTriggerDirective}`;
     }).join('\n\n');
   }
 

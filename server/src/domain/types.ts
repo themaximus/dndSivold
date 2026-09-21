@@ -123,6 +123,7 @@ export interface AIDMContext {
   turnMode?: 'simultaneous' | 'turn_by_turn';
   turnPlayerName?: string;
   characterReactions?: CharacterReactionRequest[];
+  mechanicalDirectives?: Record<string, string>;
 }
 
 export interface PlayerHpUpdate {
