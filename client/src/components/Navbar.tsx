@@ -2,10 +2,11 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { soundFx } from '../utils/audio';
 import { Shield, Volume2, VolumeX, User, LogOut, PlusCircle, Dices, Compass } from 'lucide-react';
+import { AppView } from '../utils/navigation';
 
 interface NavbarProps {
-  currentView: string;
-  setCurrentView: (view: string) => void;
+  currentView: AppView | string;
+  setCurrentView: (view: AppView) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { AuthModal } from './components/AuthModal';
@@ -10,22 +10,55 @@ import { RoomLobby } from './components/RoomLobby';
 import { GameTable } from './components/GameTable';
 import { api } from './services/api';
 import { Character } from './types';
+import { AppView, parseRoute, buildUrl } from './utils/navigation';
 
 export function App() {
   const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<string>('characters');
-  const [activeRoomCode, setActiveRoomCode] = useState<string>('');
+  
+  // Parse initial route directly from URL search params & pathname
+  const initialRoute = parseRoute();
+  const [currentView, setCurrentView] = useState<AppView>(initialRoute.view);
+  const [activeRoomCode, setActiveRoomCode] = useState<string>(initialRoute.roomCode);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoadingChars, setIsLoadingChars] = useState(false);
 
-  // Check URL query param e.g. ?room=DUNGEON-123
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomParam = urlParams.get('room');
-    if (roomParam) {
-      setActiveRoomCode(roomParam.toUpperCase());
-      setCurrentView('lobby');
+  // Navigate to a view and update the browser URL & history
+  const navigateTo = useCallback((view: AppView, roomCode?: string, replace: boolean = false) => {
+    let targetRoomCode = '';
+    if (roomCode !== undefined) {
+      targetRoomCode = roomCode.toUpperCase().trim();
+    } else if (view === 'game' || view === 'lobby') {
+      targetRoomCode = activeRoomCode;
+    } else if (view === 'create-character' && activeRoomCode) {
+      targetRoomCode = activeRoomCode;
     }
+
+    const newUrl = buildUrl(view, targetRoomCode);
+    if (replace) {
+      window.history.replaceState({ view, roomCode: targetRoomCode }, '', newUrl);
+    } else {
+      window.history.pushState({ view, roomCode: targetRoomCode }, '', newUrl);
+    }
+
+    setCurrentView(view);
+    setActiveRoomCode(targetRoomCode);
+  }, [activeRoomCode]);
+
+  // Initial URL normalization & popstate listener for back/forward browser navigation
+  useEffect(() => {
+    // If opened with bare '/', format URL to /?tab=characters without adding history stack entry
+    if (!window.location.search && (!window.location.pathname || window.location.pathname === '/')) {
+      window.history.replaceState({ view: 'characters', roomCode: '' }, '', buildUrl('characters'));
+    }
+
+    const handlePopState = () => {
+      const route = parseRoute();
+      setCurrentView(route.view);
+      setActiveRoomCode(route.roomCode);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const loadCharacters = async () => {
@@ -92,7 +125,7 @@ export function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#0d0f12]">
-        <Navbar currentView={currentView} setCurrentView={setCurrentView} />
+        <Navbar currentView={currentView} setCurrentView={navigateTo} />
         <AuthModal />
       </div>
     );
@@ -100,13 +133,13 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#0d0f12] flex flex-col">
-      <Navbar currentView={currentView} setCurrentView={setCurrentView} />
+      <Navbar currentView={currentView} setCurrentView={navigateTo} />
 
       <main className="flex-1">
         {currentView === 'characters' && (
           <CharacterList
             characters={characters}
-            onCreateNew={() => setCurrentView('create-character')}
+            onCreateNew={() => navigateTo('create-character')}
             onRefresh={loadCharacters}
           />
         )}
@@ -116,16 +149,16 @@ export function App() {
             onCreated={(newChar) => {
               setCharacters((prev) => [...prev, newChar]);
               if (activeRoomCode) {
-                setCurrentView('lobby');
+                navigateTo('lobby', activeRoomCode);
               } else {
-                setCurrentView('characters');
+                navigateTo('characters');
               }
             }}
             onCancel={() => {
               if (activeRoomCode) {
-                setCurrentView('lobby');
+                navigateTo('lobby', activeRoomCode);
               } else {
-                setCurrentView('characters');
+                navigateTo('characters');
               }
             }}
           />
@@ -134,35 +167,28 @@ export function App() {
         {currentView === 'create-room' && (
           <CreateRoomModal
             onRoomCreated={(code) => {
-              setActiveRoomCode(code);
-              // Update URL without reload
-              window.history.pushState({}, '', `/?room=${code}`);
-              setCurrentView('lobby');
+              navigateTo('lobby', code);
             }}
-            onCancel={() => setCurrentView('campaigns')}
+            onCancel={() => navigateTo('campaigns')}
           />
         )}
 
         {currentView === 'campaigns' && (
           <MyCampaignsList
             onEnterRoom={(code) => {
-              setActiveRoomCode(code);
-              window.history.pushState({}, '', `/?room=${code}`);
-              setCurrentView('lobby');
+              navigateTo('lobby', code);
             }}
-            onCreateRoom={() => setCurrentView('create-room')}
+            onCreateRoom={() => navigateTo('create-room')}
           />
         )}
 
         {currentView === 'lobby' && activeRoomCode && (
           <RoomLobby
             roomCode={activeRoomCode}
-            onGameStarted={() => setCurrentView('game')}
-            onCreateCharacter={() => setCurrentView('create-character')}
+            onGameStarted={() => navigateTo('game', activeRoomCode)}
+            onCreateCharacter={() => navigateTo('create-character', activeRoomCode)}
             onLeave={() => {
-              window.history.pushState({}, '', '/');
-              setActiveRoomCode('');
-              setCurrentView('campaigns');
+              navigateTo('campaigns', '');
             }}
           />
         )}
@@ -171,7 +197,7 @@ export function App() {
           <GameTable
             roomCode={activeRoomCode}
             onLeave={() => {
-              setCurrentView('lobby');
+              navigateTo('lobby', activeRoomCode);
             }}
           />
         )}

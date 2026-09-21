@@ -102,16 +102,38 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   const fallenNPCs = sceneNPCs.filter(n => n.isDead || n.hpCurrent <= 0);
   const allyCombatants = livingNPCs.filter(n => n.combatRole === 'ally_combatant');
 
-  // Automatic smart tab selection:
-  // If in combat with enemies -> default to 'threats'
-  // If peaceful with NPCs -> default to 'npcs'
-  const [activeTab, setActiveTab] = useState<'threats' | 'npcs' | 'all'>('threats');
+  // Read initial tab from URL ?hud=threats|npcs|all if provided
+  const [activeTab, setActiveTab] = useState<'threats' | 'npcs' | 'all'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const hud = params.get('hud');
+      if (hud === 'threats' || hud === 'npcs' || hud === 'all') return hud;
+    }
+    return 'threats';
+  });
 
+  const handleTabChange = (tab: 'threats' | 'npcs' | 'all') => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('hud', tab);
+        window.history.replaceState(null, '', url.pathname + url.search);
+      } catch (e) {}
+    }
+  };
+
+  // Automatic smart tab selection only if user hasn't explicitly chosen via URL
   useEffect(() => {
-    if (activeEnemies.length > 0) {
-      setActiveTab('threats');
-    } else if (livingNPCs.length > 0) {
-      setActiveTab('npcs');
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has('hud')) {
+        if (activeEnemies.length > 0) {
+          setActiveTab('threats');
+        } else if (livingNPCs.length > 0) {
+          setActiveTab('npcs');
+        }
+      }
     }
   }, [activeEnemies.length, livingNPCs.length]);
 
@@ -168,7 +190,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
       <div className="grid grid-cols-3 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 mb-3 text-[11px]">
         <button
           type="button"
-          onClick={() => setActiveTab('threats')}
+          onClick={() => handleTabChange('threats')}
           className={`flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg font-bold transition-all ${
             activeTab === 'threats'
               ? 'bg-red-950/70 text-red-200 border border-red-600/50 shadow-sm'
@@ -187,7 +209,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
 
         <button
           type="button"
-          onClick={() => setActiveTab('npcs')}
+          onClick={() => handleTabChange('npcs')}
           className={`flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg font-bold transition-all ${
             activeTab === 'npcs'
               ? 'bg-emerald-950/70 text-emerald-200 border border-emerald-600/50 shadow-sm'
@@ -210,7 +232,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
 
         <button
           type="button"
-          onClick={() => setActiveTab('all')}
+          onClick={() => handleTabChange('all')}
           className={`flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg font-bold transition-all ${
             activeTab === 'all'
               ? 'bg-indigo-950/70 text-indigo-200 border border-indigo-600/50 shadow-sm'

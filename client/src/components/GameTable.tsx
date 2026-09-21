@@ -89,6 +89,13 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     }
   }, [myPlayer?.pendingRoll]);
 
+  // If the room has not started yet (waiting), return to lobby
+  useEffect(() => {
+    if (room && room.status === 'waiting') {
+      onLeave();
+    }
+  }, [room?.status, onLeave]);
+
   if (!room) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-400">
