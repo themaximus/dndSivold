@@ -25,7 +25,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   const defeatedEnemies = enemies.filter(e => e.isDead || e.hpCurrent <= 0);
 
   return (
-    <div className="bg-[#13161d] border border-[#2a303d] rounded-xl p-3 sm:p-3.5 shadow-md flex flex-col min-h-0 h-full overflow-hidden font-serif">
+    <div className="bg-[#13161d] border border-[#2a303d] rounded-xl p-3 sm:p-3.5 shadow-md flex flex-col shrink-0 max-h-80 overflow-hidden font-serif">
       {/* Header */}
       <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-[#242935]">
         <div className="flex items-center gap-2">
@@ -60,16 +60,12 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
       {/* Enemies List */}
       <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
         {enemies.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-4 text-[#968e7f]">
-            <div className="p-3 rounded-lg bg-[#0c0d11] border border-[#222733] mb-2.5 text-[#786e60]">
-              <Shield className="w-5 h-5 stroke-[1.5]" />
+          <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#0c0d11] border border-[#222733] text-[#968e7f] text-xs">
+            <span className="text-base">🕊️</span>
+            <div className="leading-snug">
+              <span className="text-[#86efac] font-semibold">Угрозы не обнаружены</span>
+              <p className="text-[11px] text-[#786e60]">В текущей сцене спокойно, отряд может свободно исследовать мир.</p>
             </div>
-            <p className="text-xs font-bold text-[#ded7c8] mb-1">
-              Угрозы не обнаружены
-            </p>
-            <p className="text-[11px] text-[#968e7f] leading-relaxed max-w-[200px]">
-              В текущей сцене нет активных врагов. Отряд может исследовать окружение или вести диалог.
-            </p>
           </div>
         ) : (
           <>

@@ -18,16 +18,17 @@ export const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
   if (abilities.length === 0 && weapons.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-      <span className="text-[#8e8574] text-[11px] font-serif whitespace-nowrap">Быстрые действия:</span>
+    <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+      <span className="text-[#c5a059] text-xs font-rpg font-bold whitespace-nowrap">⚡ Быстрые действия:</span>
       {abilities.map(a => (
         <button
           key={a.id}
           type="button"
           onClick={() => onSelectAction(`Применяю способность "${a.name}": ${a.description}.`)}
-          className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] border border-[#2a303d] hover:border-[#c5a059]/60 text-[#ded7c8] whitespace-nowrap text-[11px] font-serif transition-colors"
+          className="px-3 py-1 rounded-lg bg-gradient-to-b from-[#1c2438] to-[#101624] hover:from-[#2a3654] hover:to-[#172033] border border-[#3b82f6]/70 text-[#bfdbfe] hover:text-white whitespace-nowrap text-xs font-rpg font-bold transition-all shadow-sm active:translate-y-0.5 flex items-center gap-1"
         >
-          ⚡ {a.name}
+          <span>✨</span>
+          <span>{a.name}</span>
         </button>
       ))}
       {weapons.map(w => (
@@ -35,9 +36,10 @@ export const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
           key={w.id}
           type="button"
           onClick={() => onSelectAction(`Атакую оружием ${w.name}.`)}
-          className="px-2.5 py-1 rounded bg-[#181c25] hover:bg-[#222735] border border-[#2a303d] hover:border-[#c5a059]/60 text-[#ded7c8] whitespace-nowrap text-[11px] font-serif transition-colors"
+          className="px-3 py-1 rounded-lg bg-gradient-to-b from-[#2b1418] to-[#180a0c] hover:from-[#3d1d22] hover:to-[#220e11] border border-[#ef4444]/70 text-[#fca5a5] hover:text-white whitespace-nowrap text-xs font-rpg font-bold transition-all shadow-sm active:translate-y-0.5 flex items-center gap-1"
         >
-          ⚔️ {w.name}
+          <span>⚔️</span>
+          <span>{w.name}</span>
         </button>
       ))}
     </div>
