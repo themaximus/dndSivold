@@ -220,7 +220,7 @@ export const PartyMemberModal: React.FC<PartyMemberModalProps> = ({
               <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-amber-400" /> Квента и предыстория
               </h4>
-              <div className="bg-fantasy-panel border border-fantasy-border/70 p-3.5 rounded-xl text-xs text-slate-300 leading-relaxed font-serif whitespace-pre-line">
+              <div className="bg-fantasy-panel border border-fantasy-border/70 p-3.5 rounded-xl text-xs text-slate-300 leading-relaxed font-sans whitespace-pre-line">
                 {character.bio}
               </div>
             </div>

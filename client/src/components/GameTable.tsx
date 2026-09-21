@@ -130,7 +130,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] max-w-7xl mx-auto px-2 sm:px-4">
+    <div className="flex flex-col h-[calc(100vh-5rem)] w-full max-w-[1920px] mx-auto px-2 sm:px-4 lg:px-6">
       {/* Table Header with Quick Access to Inventory, Talents, Lore Journal */}
       <GameTableHeader
         room={room}
@@ -153,10 +153,10 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         onLeave={onLeave}
       />
 
-      {/* Main Grid: Party HUD (Left) + Chronicle & Action Console (Center) + Opponents HUD (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
-        {/* Party HUD Column */}
-        <div className="lg:col-span-3 flex flex-col min-h-0">
+      {/* Main Layout: Party HUD (Far Left) + Chronicle & Action Console (Expanded Center) + Opponents HUD (Far Right) */}
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 w-full">
+        {/* Party HUD Column (Far Left) */}
+        <div className="w-full lg:w-72 xl:w-80 2xl:w-[340px] shrink-0 flex flex-col min-h-0">
           <PartyHUD
             players={players}
             currentUserId={user?.id}
@@ -165,8 +165,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
           />
         </div>
 
-        {/* DM Chronicle + Action Console Column */}
-        <div className="lg:col-span-6 flex flex-col min-h-0 bg-fantasy-panel border border-fantasy-border rounded-2xl shadow-xl overflow-hidden">
+        {/* DM Chronicle + Action Console Column (Expanded Central Reading & Action Zone) */}
+        <div className="flex-1 min-w-0 flex flex-col min-h-0 bg-fantasy-panel border border-fantasy-border rounded-2xl shadow-xl overflow-hidden">
           {/* Battlefield Loot Drops if any items dropped */}
           <LootDropsBar
             loot={room.availableLoot || []}
@@ -209,8 +209,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
           />
         </div>
 
-        {/* Opponents & Threats Column */}
-        <div className="lg:col-span-3 flex flex-col min-h-0">
+        {/* Opponents & Threats Column (Far Right) */}
+        <div className="w-full lg:w-72 xl:w-80 2xl:w-[340px] shrink-0 flex flex-col min-h-0">
           <OpponentsHUD
             enemies={room.activeEnemies || []}
           />

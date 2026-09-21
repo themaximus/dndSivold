@@ -21,8 +21,9 @@ export default {
         }
       },
       fontFamily: {
-        cinzel: ['Cinzel', 'serif'],
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        rpg: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        cinzel: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
         'glow-gold': '0 0 15px rgba(245, 158, 11, 0.25)',

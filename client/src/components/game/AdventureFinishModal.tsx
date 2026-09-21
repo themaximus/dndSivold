@@ -89,7 +89,7 @@ export const AdventureFinishModal: React.FC<AdventureFinishModalProps> = ({
               <h3 className="text-2xl font-bold font-rpg text-amber-300">
                 Приключение Завершено!
               </h3>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl mx-auto italic font-serif">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl mx-auto italic font-sans">
                 {room.currentSituation || 'История подошла к своему логическому финалу. Отряд проявил великое мужество и находчивость!'}
               </p>
 

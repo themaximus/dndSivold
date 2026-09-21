@@ -19,7 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setCurrentView }) =
 
   return (
     <header className="border-b border-fantasy-border bg-fantasy-panel/90 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="max-w-[1920px] mx-auto flex items-center justify-between">
         {/* Brand */}
         <div
           onClick={() => setCurrentView('characters')}

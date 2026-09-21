@@ -126,7 +126,7 @@ export const ThreeD20Die: React.FC<ThreeD20DieProps> = ({
       const ctx = canvas.getContext('2d')!;
       ctx.clearRect(0, 0, 256, 256);
 
-      ctx.font = '900 130px "Cinzel", "Times New Roman", Georgia, serif';
+      ctx.font = '900 130px "Inter", -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 

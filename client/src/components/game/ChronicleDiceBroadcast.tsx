@@ -88,7 +88,7 @@ export const ChronicleDiceBroadcast: React.FC<ChronicleDiceBroadcastProps> = ({
         </div>
 
         {roll.purpose && (
-          <p className="text-xs text-slate-300 italic mt-1.5 line-clamp-2 max-w-md font-serif">
+          <p className="text-xs text-slate-300 italic mt-1.5 line-clamp-2 max-w-md font-sans">
             «{roll.purpose}»
           </p>
         )}

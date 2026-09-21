@@ -93,7 +93,7 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
       </div>
 
       {/* Story text */}
-      <div className="text-sm text-slate-200 leading-relaxed whitespace-pre-line font-serif">
+      <div className="text-[15px] sm:text-base text-slate-100 leading-relaxed whitespace-pre-line font-sans">
         {displayNarrative}
       </div>
 
