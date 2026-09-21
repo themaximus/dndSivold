@@ -167,7 +167,7 @@ export class GameSessionService {
     const players = this.rooms.findPlayersByRoomId(room.id);
     const populatedPlayers = players.map(p => {
       let char = p.characterId ? this.characters.findById(p.characterId) : undefined;
-      if (char && char.conditions && char.conditions.includes('prone')) {
+      if (char && char.conditions && char.conditions.some(c => /prone|ничком|сбит.*ног/i.test(c))) {
         char = this.reconcileCharacterConditions(char.id, room.id) || char;
       }
       return {
