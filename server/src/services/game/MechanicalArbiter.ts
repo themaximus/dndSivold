@@ -224,11 +224,12 @@ export class MechanicalArbiter {
 
     // 1. Healing / potions / bandaging
     // Requires physical consumption verbs (drinking, pouring, administering, wrapping bandages)
-    // Spoken dialogue alone without physical consumption verbs does NOT trigger heal!
-    const hasPhysicalHealVerb = /(выпи(л|ть|ваю)|пь(ет|ю|ем)|глота(ет|ю|ть)|пои(т|ть|л)\s+(зельем|водой|снадобь)|наложи(л|ть|ваю)\s+повязк|перевяз(ал|ать|ываю)|влива(ет|ю|ть)\s+в\s+рот)/i.test(speech.physicalAction || text);
-    const mentionsPotionItemExplicitly = /(зель[ея]\s+лечения|лечебн(ое|ым|ого)\s+зель|исцеляющ(ее|им)\s+зель|склянк(а|у)\s+с\s+зельем)/i.test(speech.physicalAction || text);
+    // or giving/administering a potion/salve/bandage/medicine
+    const hasPhysicalHealVerb = /(выпи(л|ть|ваю)|пь(ет|ю|ем)|глота(ет|ю|ть)|пои(т|ть|л)\s*(зельем|водой|снадобь)?|отпои(ть|л|ю)|напои(ть|л|ю)|вли(ть|л|ваю|вать)|наложи(л|ть|ваю)\s+повязк|перевяз(ал|ать|ываю)|леч(ить|у|ат)|исцел(ить|яю|яет)|подлеч(ить|у)|обработа(ть|л|ю)\s+ран|оказа(ть|л|зываю)\s+помощь)/i.test(speech.physicalAction || text);
+    const mentionsPotionItemExplicitly = /(зель[ея]|снадобь[ея]|эликсир|склянк(а|у)\s+с\s+зельем|лекарств|бальзам|бинт|повязк)/i.test(speech.physicalAction || text);
+    const givesHealingItem = /(дать|даю|протянуть|влить|скармливаю|применить|использовать|поделиться)\s+.*(зель|снадобь|лекарств|эликсир|склянк|бальзам|бинт|повязк)/i.test(speech.physicalAction || text);
 
-    if (hasPhysicalHealVerb || (mentionsPotionItemExplicitly && !speech.isPureSpeech)) {
+    if ((hasPhysicalHealVerb && mentionsPotionItemExplicitly) || givesHealingItem || (hasPhysicalHealVerb && !speech.isPureSpeech && /(ранен|ран[ыа]|гонец|гонц|спутник|союзник|себя|здоровь)/i.test(text))) {
       return 'heal';
     }
 
@@ -846,18 +847,25 @@ export class MechanicalArbiter {
         }
       }
     } else {
-      // Keyword matching across NPCs and Enemies
+      // Per-NPC and per-Enemy keyword and stem matching
+      const actStems = this.extractStems(actionLower);
+      const matchesEntity = (act: string, entity: { name?: string; role?: string; type?: string }) => {
+        const name = (entity.name || '').toLowerCase();
+        const role = ((entity.role || '') + ' ' + (entity.type || '')).toLowerCase();
+        if (name && act.includes(name)) return true;
+        if (role && role.length >= 4 && act.includes(role)) return true;
+
+        const entityStems = this.extractStems(`${name} ${role}`);
+        for (const s of entityStems) {
+          if (act.includes(s) || actStems.includes(s)) {
+            return true;
+          }
+        }
+        return false;
+      };
+
       for (const npc of currentNPCs) {
-        const nLower = (npc.name || '').toLowerCase();
-        const rLower = (npc.role || '').toLowerCase();
-        if (
-          (nLower && actionLower.includes(nLower)) ||
-          (rLower.length > 3 && actionLower.includes(rLower)) ||
-          actionLower.includes('ранен') ||
-          actionLower.includes('гонц') ||
-          actionLower.includes('купц') ||
-          actionLower.includes('союзник')
-        ) {
+        if (matchesEntity(actionLower, npc)) {
           targetName = npc.name;
           targetType = 'npc';
           targetEntity = npc;
@@ -866,8 +874,7 @@ export class MechanicalArbiter {
       }
       if (!targetEntity) {
         for (const e of currentEnemies) {
-          const eLower = (e.name || '').toLowerCase();
-          if (eLower && actionLower.includes(eLower)) {
+          if (matchesEntity(actionLower, e)) {
             targetName = e.name;
             targetType = 'enemy';
             targetEntity = e;
@@ -879,11 +886,14 @@ export class MechanicalArbiter {
 
     // 2. Item & Ledger Verification (Catches phantom potions)
     const availablePotions = (character?.inventory || []).filter(i => {
-      if (!i) return false;
+      if (!i || (i.quantity !== undefined && i.quantity <= 0)) return false;
       const isPotionType = i.type === 'potion' || i.name.toLowerCase().includes('зелье') || ((i.healAmount || 0) > 0);
       if (!isPotionType) return false;
       if (character && itemLedgerRepository) {
-        return itemLedgerRepository.isItemAvailable(character.id, i.id);
+        const status = itemLedgerRepository.getItemStatus(character.id, i.id);
+        if (status === 'broken' || status === 'destroyed' || status === 'consumed') {
+          return false;
+        }
       }
       return true;
     });
@@ -1231,6 +1241,19 @@ export class MechanicalArbiter {
   }
 
   /**
+   * Russian stem extraction handling fleeing vowels (ец -> ц) and inflections.
+   */
+  public extractStems(text: string): string[] {
+    return (text || '')
+      .toLowerCase()
+      .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 3)
+      .map(w => w.replace(/ец$/g, 'ц').replace(/(а|я|о|е|у|ю|ы|и|е|ом|ем|ам|ям|ами|ями|ах|ях|ого|его|ому|ему|ым|им|ой|ей|ую|юю|ое|ее|ые|ие|ов|ев)$/g, ''))
+      .filter(s => s.length >= 3);
+  }
+
+  /**
    * Identifies target from action metadata, enemy list, or scene NPCs.
    */
   public findTarget(
@@ -1265,10 +1288,16 @@ export class MechanicalArbiter {
     }
 
     const actLower = actText.toLowerCase();
+    const actStems = this.extractStems(actLower);
+
     for (const e of enemies) {
       if (!e.isDead && e.hpCurrent > 0) {
         const eName = e.name.toLowerCase();
         if (actLower.includes(eName) || (eName.length >= 4 && actLower.includes(eName.slice(0, -1)))) {
+          return { target: e, type: 'enemy' };
+        }
+        const eStems = this.extractStems(`${eName} ${e.type || ''}`);
+        if (eStems.some(s => actLower.includes(s) || actStems.includes(s))) {
           return { target: e, type: 'enemy' };
         }
       }
@@ -1281,6 +1310,10 @@ export class MechanicalArbiter {
         (nName && actLower.includes(nName)) ||
         (nRole.length >= 4 && actLower.includes(nRole))
       ) {
+        return { target: n, type: 'npc' };
+      }
+      const nStems = this.extractStems(`${nName} ${nRole}`);
+      if (nStems.some(s => actLower.includes(s) || actStems.includes(s))) {
         return { target: n, type: 'npc' };
       }
     }

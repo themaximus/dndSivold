@@ -412,16 +412,17 @@ export class SimulationAIProvider implements IAIProvider {
 
       const npcNameLower = npc.name.toLowerCase();
       const npcRoleLower = (npc.role || '').toLowerCase();
+      const npcWords = `${npcNameLower} ${npcRoleLower}`.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+      const npcStems = npcWords.map(w => w.replace(/(а|я|о|е|у|ю|ы|и|е|ом|ем|ам|ям|ами|ями|ах|ях|ого|его|ому|ему|ым|им|ой|ей|ую|юю|ое|ее|ые|ие|ов|ев)$/g, ''));
+
       const targetedAction = actions.find(a => {
         const text = a.actionText.toLowerCase();
+        const matchesStem = npcStems.some(s => s.length >= 3 && text.includes(s));
         return (
           text.includes(npcNameLower) ||
           (npcRoleLower.length > 3 && text.includes(npcRoleLower)) ||
-          text.includes('курьер') ||
-          text.includes('гонец') ||
-          text.includes('путниц') ||
-          text.includes('ранен') ||
-          ((context.sceneNPCs || []).length === 1 && (text.includes('npc') || text.includes('нпс') || text.includes('союзник')))
+          matchesStem ||
+          ((context.sceneNPCs || []).length === 1 && (text.includes('npc') || text.includes('нпс') || text.includes('союзник') || text.includes('ранен')))
         );
       });
 

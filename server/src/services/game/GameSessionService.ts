@@ -77,6 +77,110 @@ export interface TurnStepResolutionResult {
   };
 }
 
+/**
+ * Rigorous entity comparison to prevent duplication between activeEnemies and sceneNPCs.
+ * Compares IDs, exact/normalized names, number suffixes, Russian word stems, and roles/types.
+ */
+export function isSameEntity(
+  a?: { id?: string; name?: string; role?: string; type?: string },
+  b?: { id?: string; name?: string; role?: string; type?: string }
+): boolean {
+  if (!a || !b) return false;
+
+  // 1. Direct ID match
+  if (a.id && b.id && a.id === b.id) return true;
+
+  const nameA = (a.name || '').trim();
+  const nameB = (b.name || '').trim();
+  if (!nameA && !nameB) return false;
+
+  // 2. Direct normalized exact match
+  const normA = nameA.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normB = nameB.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (normA && normA === normB) return true;
+
+  // 3. Numeric distinction: "Бандит 1" vs "Бандит 2" must NEVER match!
+  const numA = normA.match(/\b(\d+)\b/);
+  const numB = normB.match(/\b(\d+)\b/);
+  if (numA && numB && numA[1] !== numB[1]) {
+    return false;
+  }
+
+  // 4. Stemming & tokenization
+  const stem = (word: string) => {
+    return word.toLowerCase()
+      .replace(/ец$/g, 'ц')
+      .replace(/(а|я|о|е|у|ю|ы|и|е|ом|ем|ам|ям|ами|ями|ах|ях|ого|его|ому|ему|ым|им|ой|ей|ую|юю|ое|ее|ые|ие|ов|ев)$/g, '');
+  };
+
+  const getTokens = (str: string) => {
+    return str.toLowerCase()
+      .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 3)
+      .map(stem)
+      .filter(s => s.length >= 3);
+  };
+
+  const tokensA = getTokens(normA);
+  const tokensB = getTokens(normB);
+
+  // Cross-field: also include role/type
+  const roleA = ((a.role || '') + ' ' + (a.type || '')).trim();
+  const roleB = ((b.role || '') + ' ' + (b.type || '')).trim();
+  const roleTokensA = getTokens(roleA);
+  const roleTokensB = getTokens(roleB);
+
+  // Direct stem overlap between names
+  for (const tA of tokensA) {
+    for (const tB of tokensB) {
+      if (tA === tB || (tA.length >= 4 && tB.length >= 4 && (tA.includes(tB) || tB.includes(tA)))) {
+        return true;
+      }
+    }
+  }
+
+  // Cross-name-and-role stem match (e.g. enemy name "Посланник стражи" vs NPC name "Раненый гонец" role "Посланник стражи")
+  for (const tA of tokensA) {
+    if (tA.length >= 4) {
+      for (const tB of roleTokensB) {
+        if (tA === tB || tA.includes(tB) || tB.includes(tA)) return true;
+      }
+    }
+  }
+  for (const tB of tokensB) {
+    if (tB.length >= 4) {
+      for (const tA of roleTokensA) {
+        if (tB === tA || tB.includes(tA) || tA.includes(tB)) return true;
+      }
+    }
+  }
+
+  // RPG Synonym groups
+  const synonymGroups = [
+    ['гонц', 'курьер', 'вестник', 'посланник'],
+    ['разбойник', 'бандит', 'грабител', 'головорез', 'налетчик'],
+    ['купец', 'торговец', 'караванщик', 'коробейник'],
+    ['страж', 'стражник', 'охранник', 'караульн'],
+    ['культист', 'адепт', 'сектант', 'фанатик'],
+    ['ящер', 'варан'],
+    ['волк', 'хищник', 'звер'],
+  ];
+
+  const allTokensA = [...tokensA, ...roleTokensA];
+  const allTokensB = [...tokensB, ...roleTokensB];
+
+  for (const group of synonymGroups) {
+    const hasA = allTokensA.some(w => group.some(g => w.includes(g) || g.includes(w)));
+    const hasB = allTokensB.some(w => group.some(g => w.includes(g) || g.includes(w)));
+    if (hasA && hasB) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export class GameSessionService {
   private rooms: IRoomRepository;
   private characters: ICharacterRepository;
@@ -2695,18 +2799,6 @@ export class GameSessionService {
     npcs: RoomNPC[],
     mood?: string
   ): { enemies: RoomEnemy[]; npcs: RoomNPC[] } {
-    const isSameEntityName = (name1?: string, name2?: string): boolean => {
-      if (!name1 || !name2) return false;
-      const clean = (s: string) => s.toLowerCase().trim().replace(/^(купец|торговец|послушник|стражник|страж|вожак|главарь|адепт|культист|караванщик|бандит)\s+/i, '');
-      const n1 = clean(name1);
-      const n2 = clean(name2);
-      if (n1 === n2) return true;
-      if (n1.length >= 4 && n2.length >= 4 && (n1.includes(n2) || n2.includes(n1))) return true;
-      const o1 = name1.toLowerCase().trim();
-      const o2 = name2.toLowerCase().trim();
-      return o1 === o2 || (o1.length >= 4 && o2.length >= 4 && (o1.includes(o2) || o2.includes(o1)));
-    };
-
     const finalEnemies: RoomEnemy[] = [];
     const npcMap = new Map<string, RoomNPC>();
     for (const n of (npcs || [])) {
@@ -2717,7 +2809,7 @@ export class GameSessionService {
       // Find matching NPC
       let matchedNpcId: string | undefined;
       for (const [nId, n] of npcMap.entries()) {
-        if (nId === enemy.id || isSameEntityName(n.name, enemy.name)) {
+        if (isSameEntity(enemy, n)) {
           matchedNpcId = nId;
           break;
         }
@@ -2743,7 +2835,7 @@ export class GameSessionService {
           enemyStatus.includes('сража') ||
           enemyStatus.includes('агресс') ||
           matchedNpc.disposition === 'hostile' ||
-          mood === 'combat'
+          (mood === 'combat' && matchedNpc.disposition !== 'neutral' && matchedNpc.combatRole !== 'neutral_observer' && matchedNpc.combatRole !== 'hiding')
         );
 
         if (isHostileCombatant && !isPacifiedOrAlly) {
@@ -2770,9 +2862,14 @@ export class GameSessionService {
       }
     }
 
+    // Final mutual exclusivity guarantee: remove any NPC that matches any entity in finalEnemies
+    const finalNpcs = Array.from(npcMap.values()).filter(n =>
+      !finalEnemies.some(e => isSameEntity(e, n))
+    );
+
     return {
       enemies: finalEnemies,
-      npcs: Array.from(npcMap.values()),
+      npcs: finalNpcs,
     };
   }
 
@@ -2833,6 +2930,9 @@ export class GameSessionService {
           if (aiNpc.hpMax && aiNpc.hpMax > 0) {
             existing.hpMax = aiNpc.hpMax;
           }
+          if (aiNpc.hpCurrent !== undefined && !isNaN(aiNpc.hpCurrent) && aiNpc.hpCurrent > 0) {
+            existing.hpCurrent = Math.min(existing.hpMax, aiNpc.hpCurrent);
+          }
         } else {
           // Genuinely new NPC spawned in scene
           const newId = aiNpc.id || crypto.randomUUID();
@@ -2867,14 +2967,30 @@ export class GameSessionService {
         const npcNameLower = (npc.name || '').toLowerCase();
         const npcRoleLower = (npc.role || '').toLowerCase();
 
+        const npcWords = `${npcNameLower} ${npcRoleLower}`.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+        const npcStems = npcWords.map(w => w.replace(/ец$/g, 'ц').replace(/(а|я|о|е|у|ю|ы|и|е|ом|ем|ам|ям|ами|ями|ах|ях|ого|его|ому|ему|ым|им|ой|ей|ую|юю|ое|ее|ые|ие|ов|ев)$/g, ''));
+        const matchesNpcStem = npcStems.some(s => s.length >= 3 && actLower.includes(s));
+
+        const synonymGroups = [
+          ['гонц', 'курьер', 'вестник', 'посланник'],
+          ['разбойник', 'бандит', 'грабител', 'головорез', 'налетчик'],
+          ['купец', 'торговец', 'караванщик', 'коробейник'],
+          ['страж', 'стражник', 'охранник', 'караульн'],
+          ['культист', 'адепт', 'сектант', 'фанатик'],
+          ['ящер', 'варан'],
+          ['волк', 'хищник', 'звер'],
+        ];
+        const matchesSynonym = synonymGroups.some(group =>
+          npcStems.some(s => group.some(g => s.includes(g) || g.includes(s))) &&
+          group.some(g => actLower.includes(g))
+        );
+
         const isTargeted =
           (npcNameLower && actLower.includes(npcNameLower)) ||
           (npcRoleLower.length > 3 && actLower.includes(npcRoleLower)) ||
-          actLower.includes('курьер') ||
-          actLower.includes('гонец') ||
-          actLower.includes('путниц') ||
-          actLower.includes('ранен') ||
-          (list.length === 1 && (actLower.includes('npc') || actLower.includes('нпс') || actLower.includes('союзник')));
+          matchesNpcStem ||
+          matchesSynonym ||
+          (list.length === 1 && (actLower.includes('npc') || actLower.includes('нпс') || actLower.includes('союзник') || actLower.includes('ранен')));
 
         if (isTargeted) {
           const oldNpc = (currentNPCs || []).find(n => n.id === npc.id || n.name === npc.name);
@@ -2882,7 +2998,7 @@ export class GameSessionService {
           const isMartial = /страж|воин|наемник|егерь|следопыт|рыцарь|маг|паладин|лучник|караульн/i.test(`${npc.role} ${npc.name}`);
 
           if (isHealing) {
-            const healedHp = npc.hpCurrent > oldHp ? npc.hpCurrent : Math.min(npc.hpMax, oldHp + 8);
+            const healedHp = npc.hpCurrent > oldHp ? npc.hpCurrent : Math.min(npc.hpMax, Math.max(oldHp + 8, Math.round(npc.hpMax * 0.75)));
             list[i] = {
               ...npc,
               hpCurrent: healedHp,
