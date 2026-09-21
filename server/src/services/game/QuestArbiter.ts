@@ -91,18 +91,20 @@ export class QuestArbiter {
     // 2. Fallback check: If AI narrative explicitly states that an existing active quest is accomplished
     const activeQuests = this.quests.getActiveQuests(room.id);
     const narrativeCombined = `${dmResult.narrative || ''} ${dmResult.currentSituation || ''}`.toLowerCase();
-    for (const q of activeQuests) {
-      const qTitle = q.title.toLowerCase().trim();
-      if (
-        narrativeCombined.includes(qTitle) &&
-        /(?:успешно\s+(?:выполнен|завершен|решен)|задача\s+(?:выполнена|решена)|цель\s+достигнута)/i.test(narrativeCombined)
-      ) {
-        this.quests.completeQuest(
-          room.id,
-          q.id,
-          room.roundNumber,
-          `Задача «${q.title}» успешно решена в раунде ${room.roundNumber}.`
-        );
+    const isSuccessReported = /(?:успешно\s+(?:выполнен|завершен|решен|починен|исцелен|спасен)|задача\s+(?:выполнена|решена)|цель\s+достигнута|враги\s+(?:повержены|рассеяны)|нападение\s+отражено)/i.test(narrativeCombined);
+
+    if (isSuccessReported) {
+      for (const q of activeQuests) {
+        const qWords = `${q.title} ${q.description || ''}`.toLowerCase().split(/[\s,.:;«»"—]+/).filter(w => w.length >= 4);
+        const matchedWords = qWords.filter(w => narrativeCombined.includes(w));
+        if (matchedWords.length >= 2 || (qWords.length === 1 && matchedWords.length === 1)) {
+          this.quests.completeQuest(
+            room.id,
+            q.id,
+            room.roundNumber,
+            `Задача «${q.title}» успешно решена в раунде ${room.roundNumber}.`
+          );
+        }
       }
     }
 
@@ -118,7 +120,8 @@ export class QuestArbiter {
 
   private findMatchingQuest(quests: QuestEntity[], query: string): QuestEntity | undefined {
     const qLower = query.toLowerCase().trim();
-    return quests.find(q => {
+    // 1. Exact or substring match
+    const exact = quests.find(q => {
       const tLower = q.title.toLowerCase().trim();
       return (
         q.id === query ||
@@ -127,6 +130,25 @@ export class QuestArbiter {
         qLower.includes(tLower)
       );
     });
+    if (exact) return exact;
+
+    // 2. Token overlap match (handles paraphrasing like "Починить повозку" vs "Помочь каравану купца с повозкой")
+    const qWords = qLower.split(/[\s,.:;«»"—]+/).filter(w => w.length >= 4);
+    if (qWords.length > 0) {
+      let bestMatch: QuestEntity | undefined;
+      let maxOverlap = 0;
+      for (const q of quests) {
+        const tWords = `${q.title} ${q.description || ''}`.toLowerCase().split(/[\s,.:;«»"—]+/).filter(w => w.length >= 4);
+        const overlap = qWords.filter(qw => tWords.some(tw => tw.includes(qw) || qw.includes(tw))).length;
+        if (overlap > maxOverlap) {
+          maxOverlap = overlap;
+          bestMatch = q;
+        }
+      }
+      if (maxOverlap >= 1) return bestMatch;
+    }
+
+    return undefined;
   }
 }
 

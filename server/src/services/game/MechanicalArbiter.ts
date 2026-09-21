@@ -130,6 +130,8 @@ export class MechanicalArbiter {
       }
 
       case 'flee_retreat':
+        return this.resolveFleeRetreatAction(action, character, currentEnemies, currentNPCs, roomDC);
+
       case 'distraction_environment':
       case 'intimidation_repel':
       case 'general_check':
@@ -1280,6 +1282,106 @@ export class MechanicalArbiter {
     }
 
     return null;
+  }
+
+  /**
+   * Resolves fleeing / retreating from combat according to D&D 5e mechanics.
+   * If in combat, checks for Disengage action. If running without Disengage,
+   * closest enemy takes an Opportunity Attack. Also requires Athletics / Acrobatics roll vs Escape DC.
+   * If the check fails, Master is strictly instructed that enemies remain and combat continues.
+   */
+  private resolveFleeRetreatAction(
+    action: TurnActionEntity,
+    character: CharacterEntity | undefined,
+    currentEnemies: RoomEnemy[],
+    currentNPCs: RoomNPC[],
+    roomDC: number
+  ): MechanicalResolution {
+    const livingEnemies = currentEnemies.filter(e => !e.isDead && e.hpCurrent > 0);
+    const isInCombat = livingEnemies.length > 0;
+
+    const d20Roll = action.diceRolls && action.diceRolls.length > 0 ? action.diceRolls[0] : null;
+    const rollTotal = d20Roll?.total ?? 10;
+    const isCritSuccess = !!d20Roll?.isCriticalSuccess;
+    const isCritFail = !!d20Roll?.isCriticalFail;
+
+    // If not in combat, player can freely relocate/retreat without threat
+    if (!isInCombat) {
+      return {
+        actionId: action.id,
+        characterId: action.characterId,
+        characterName: action.characterName,
+        actionType: 'check',
+        consumedItems: [],
+        promptDirective: `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Боевого столкновения нет. Персонаж «${action.characterName}» свободно отступает или меняет позицию.`,
+        auditNotes: `Мирное перемещение/отход вне боя.`,
+      };
+    }
+
+    // In active combat: D&D 5e Opportunity Attack & Escape Check
+    const actTextLower = (action.actionText || '').toLowerCase();
+    const isDisengage = /(отход|действие отход|осторожно отступа|прикрыва(ясь|юсь)|разорвать дистанцию|не подставля(ясь|юсь))/i.test(actTextLower);
+    const escapeDC = Math.max(roomDC, 13);
+    const isEscapeSuccess = !isCritFail && (isCritSuccess || rollTotal >= escapeDC);
+
+    const closestEnemy = livingEnemies[0];
+    let oppAttackHit = false;
+    let oppDamage = 0;
+    let failureConsequence: FailureConsequence | undefined;
+
+    // Attack of Opportunity if no Disengage action declared
+    if (!isDisengage) {
+      const enemyHitBonus = Math.max(2, Math.floor((closestEnemy.ac || 12) / 3));
+      const enemyRoll = crypto.randomInt(1, 21);
+      const enemyTotal = enemyRoll + enemyHitBonus;
+      const charAC = character?.ac || 12;
+
+      if (enemyRoll === 20 || enemyTotal >= charAC) {
+        oppAttackHit = true;
+        oppDamage = crypto.randomInt(3, 8); // 1d6 + 2
+        failureConsequence = {
+          type: 'damage_hp',
+          severity: 'moderate',
+          hpDelta: -oppDamage,
+          description: `Провоцированная атака в спину: ${closestEnemy.name} наносит ${oppDamage} урона по КБ ${charAC}`,
+          narrativeDirective: `Ближайший противник «${closestEnemy.name}» совершает внеочередную провоцированную атаку по бегущему герою в спину! Нанеси -${oppDamage} HP урона в "playerUpdates".`,
+        };
+      }
+    }
+
+    let promptDirective = '';
+    let auditNotes = '';
+
+    if (!isEscapeSuccess) {
+      // ESCAPE FAILED
+      promptDirective = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР (ПОПЫТКА БЕГСТВА ИЗ БОЯ ПРОВАЛЕНА):
+- Проверка побега (Атлетика/Акробатика): ПРОВАЛ (${rollTotal} vs СЛ ${escapeDC}${isCritFail ? ', КРИТ 1!' : ''}).
+${!isDisengage ? (oppAttackHit ? `- ⚠️ ПРОВОЦИРОВАННАЯ АТАКА (Opportunity Attack): Герой бежал без «Отхода»! «${closestEnemy.name}» наносит удар вдогонку (-${oppDamage} HP в "playerUpdates").` : `- Герой рванул без «Отхода», но выпад «${closestEnemy.name}» просвистел мимо.`) : `- Герой осторожно отходил действием «Отход», избежав ударов в спину.`}
+- 🛑 СТРОЖАЙШИЙ ЗАПРЕТ МАСТЕРУ: КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО удалять врагов из "activeEnemies" или объявлять, что герой успешно сбежал!
+- Противники настигли беглеца, перекрыли проход или зажали в угол. БОЙ ПРОДОЛЖАЕТСЯ! Враги остаются в "activeEnemies".`;
+
+      auditNotes = `Провал побега: ${action.characterName} vs ${closestEnemy.name}. Бросок: ${rollTotal} vs СЛ ${escapeDC}. Провоцированная атака: ${oppAttackHit ? `ПОПАДАНИЕ (-${oppDamage} HP)` : 'промах'}. Враги удерживают бой.`;
+    } else {
+      // ESCAPE SUCCEEDED
+      promptDirective = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР (УСПЕШНЫЙ МАНЕВР РАЗРЫВА ДИСТАНЦИИ):
+- Проверка побега (Атлетика/Акробатика): УСПЕХ (${rollTotal} vs СЛ ${escapeDC}${isCritSuccess ? ', КРИТ 20!' : ''}).
+${!isDisengage && oppAttackHit ? `- ⚠️ Однако без действия «Отход» враг «${closestEnemy.name}» успел полоснуть вдогонку (-${oppDamage} HP в "playerUpdates")!` : ''}
+- Герою удаётся разорвать контакт и оторваться от преследователей на безопасную дистанцию.
+- Если остальные соратники ещё в бою — враги продолжают бой с отрядом. Враги не исчезают просто так!`;
+
+      auditNotes = `Успешный отрыв: ${action.characterName}. Бросок: ${rollTotal} vs СЛ ${escapeDC}.`;
+    }
+
+    return {
+      actionId: action.id,
+      characterId: action.characterId,
+      characterName: action.characterName,
+      actionType: 'check',
+      consumedItems: [],
+      failureConsequence,
+      promptDirective,
+      auditNotes,
+    };
   }
 }
 

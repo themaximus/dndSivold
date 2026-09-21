@@ -93,10 +93,26 @@ const COMBAT_ROLE_CONFIG: Record<NPCCombatRole, { label: string; color: string; 
 };
 
 const isEntityDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; status?: string; combatRole?: string }) => {
+  // 1. Defeated / Fallen / Zero HP
   if (e.isDead || (e.hpCurrent !== undefined && e.hpCurrent <= 0)) return true;
-  if (e.combatRole === 'fled') return true;
   const s = (e.status || '').toLowerCase();
-  return /(повержен|без сознания|не подает признаков|мертв|убит|погиб|покинул|ушел|уехал|скрылся|убежал|сбежал|исчез|отступил|в бегстве|в панике бежит|забился под)/i.test(s);
+  if (/(повержен|без сознания|не подает признаков|мертв|убит|погиб)/i.test(s)) return true;
+
+  // 2. Hiding in bushes, under carts, behind trees/rocks is IN THE SCENE, NOT DEPARTED!
+  if (e.combatRole === 'hiding') return false;
+  if (/(в куст|в заросл|под повозк|под телег|за дерев|за кам|в укрыти|в тен|спрятался|затаился|укрылся)/i.test(s)) return false;
+
+  // 3. Only departed if EXPLICITLY moved to another location / traveled far away
+  if (/(покинул\s+локацию|ушел\s+в\s+(?:город|деревню|лагерь|горы|другую\s+локацию)|уехал\s+вдаль|скрылся\s+за\s+горизонтом|ушел\s+прочь\s+по\s+тракту|удалился\s+из\s+этих\s+мест)/i.test(s)) {
+    return true;
+  }
+
+  // 4. Combat fled role only if actually escaped out of the entire area
+  if (e.combatRole === 'fled' && /(скрылся\s+вдалеке|убежал\s+прочь|покинул\s+локацию|ушел\s+за\s+горизонт)/i.test(s)) {
+    return true;
+  }
+
+  return false;
 };
 
 const isSameEntityName = (name1?: string, name2?: string): boolean => {
@@ -144,8 +160,11 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
     return 'threats';
   });
 
+  const [userManuallySelectedTab, setUserManuallySelectedTab] = useState(false);
+
   const handleTabChange = (tab: 'threats' | 'npcs' | 'quests' | 'all') => {
     setActiveTab(tab);
+    setUserManuallySelectedTab(true);
     if (typeof window !== 'undefined') {
       try {
         const url = new URL(window.location.href);
@@ -155,8 +174,9 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
     }
   };
 
-  // Automatic smart tab selection only if user hasn't explicitly chosen via URL
+  // Automatic smart tab selection only if user hasn't explicitly chosen manually or via URL
   useEffect(() => {
+    if (userManuallySelectedTab) return;
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (!params.has('hud')) {
@@ -169,7 +189,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
         }
       }
     }
-  }, [activeEnemies.length, livingNPCs.length, activeQuests.length]);
+  }, [activeEnemies.length, livingNPCs.length, activeQuests.length, userManuallySelectedTab]);
 
   const showThreats = activeTab === 'threats' || activeTab === 'all';
   const showNPCs = activeTab === 'npcs' || activeTab === 'all';

@@ -3112,7 +3112,6 @@ export class GameSessionService {
     const isDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; status?: string; combatRole?: string }): { departed: boolean; reason: 'fled' | 'departed' | 'defeated' | 'unconscious' } => {
       if (e.isDead) return { departed: true, reason: 'defeated' };
       if (e.hpCurrent !== undefined && e.hpCurrent <= 0) return { departed: true, reason: 'unconscious' };
-      if (e.combatRole === 'fled') return { departed: true, reason: 'fled' };
 
       const status = (e.status || '').toLowerCase();
       if (/(повержен|не подает признаков|мертв|убит|погиб)/i.test(status)) {
@@ -3121,11 +3120,22 @@ export class GameSessionService {
       if (/(без сознания|лежит без чувств|в глубоком обмороке|в отключке)/i.test(status)) {
         return { departed: true, reason: 'unconscious' };
       }
-      if (/(в бегстве|в панике бежит|сбежал|убежал|дал стрекача)/i.test(status)) {
-        return { departed: true, reason: 'fled' };
+
+      // CRITICAL: Hiding in bushes, under carts, behind trees/rocks is IN THE SCENE, NOT DEPARTED!
+      if (e.combatRole === 'hiding') {
+        return { departed: false, reason: 'departed' };
       }
-      if (/(покинул|ушел|уехал|скрылся|исчез|отступил|забился под)/i.test(status)) {
+      if (/(в куст|в заросл|под повозк|под телег|за дерев|за кам|в укрыти|в тен|спрятался|затаился|укрылся)/i.test(status)) {
+        return { departed: false, reason: 'departed' };
+      }
+
+      // Only archive as departed if EXPLICITLY moved to another location / traveled far away
+      if (/(покинул\s+локацию|ушел\s+в\s+(?:город|деревню|лагерь|горы|другую\s+локацию)|уехал\s+вдаль|скрылся\s+за\s+горизонтом|ушел\s+прочь\s+по\s+тракту|удалился\s+из\s+этих\s+мест)/i.test(status)) {
         return { departed: true, reason: 'departed' };
+      }
+
+      if (e.combatRole === 'fled' && /(скрылся\s+вдалеке|убежал\s+прочь|покинул\s+локацию|ушел\s+за\s+горизонт)/i.test(status)) {
+        return { departed: true, reason: 'fled' };
       }
 
       return { departed: false, reason: 'departed' };

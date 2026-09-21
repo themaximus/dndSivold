@@ -11,7 +11,7 @@ interface ActionAnalysis {
   isCritFail: boolean;
   isSuccess: boolean;
   isSevereFail: boolean;
-  intent: 'melee' | 'ranged' | 'magic' | 'heal' | 'stealth' | 'defense' | 'athletics' | 'investigation' | 'dialogue' | 'general';
+  intent: 'melee' | 'ranged' | 'magic' | 'heal' | 'stealth' | 'defense' | 'athletics' | 'investigation' | 'dialogue' | 'flee' | 'general';
 }
 
 export class SimulationAIProvider implements IAIProvider {
@@ -46,6 +46,8 @@ export class SimulationAIProvider implements IAIProvider {
         intent = 'stealth';
       } else if (/блок|парир|уклон|закрыт|отскоч|защит|прикры/.test(textLower)) {
         intent = 'defense';
+      } else if (/беж|убега|удира|спасаться бегств|отступ|побег|уйти из боя/.test(textLower)) {
+        intent = 'flee';
       } else if (/прыж|толкн|сбит|слома|выбит|пнут|рывок|бег/.test(textLower)) {
         intent = 'athletics';
       } else if (/осмотр|изуч|найт|замок|ловушк|взлом|разгляд|поиск|огляд|следы/.test(textLower)) {
@@ -161,6 +163,9 @@ export class SimulationAIProvider implements IAIProvider {
           case 'athletics':
             outcomePhrase = `совершает безупречный атлетический рывок, легко расчищая путь от завала!`;
             break;
+          case 'flee':
+            outcomePhrase = `совершает молниеносный маневр выхода из боя, разрывая дистанцию с врагами без малейшего риска!`;
+            break;
           default:
             outcomePhrase = `демонстрирует высшее мастерство: всё задуманное исполняется с безукоризненной лёгкостью!`;
         }
@@ -193,11 +198,18 @@ export class SimulationAIProvider implements IAIProvider {
           case 'athletics':
             outcomePhrase = `силовым движением устраняет преграду, прокладывая дорогу вперёд.`;
             break;
+          case 'flee':
+            outcomePhrase = `ловко разрывает дистанцию и отступает на безопасное расстояние от противников.`;
+            break;
           default:
             outcomePhrase = `действует расчётливо и уверенно, добиваясь желаемого результата.`;
         }
       } else if (item.isCritFail) {
-        outcomePhrase = `оступается в самый неподходящий момент: движение выходит неуклюжим, привлекая ненужное внимание и ставя отряд в неловкое положение!`;
+        if (item.intent === 'flee') {
+          outcomePhrase = `в панике спотыкается при попытке бежать — враг наносит жестокий удар в беззащитную спину!`;
+        } else {
+          outcomePhrase = `оступается в самый неподходящий момент: движение выходит неуклюжим, привлекая ненужное внимание и ставя отряд в неловкое положение!`;
+        }
       } else {
         switch (item.intent) {
           case 'dialogue':
@@ -205,6 +217,9 @@ export class SimulationAIProvider implements IAIProvider {
             break;
           case 'investigation':
             outcomePhrase = `не находит ничего примечательного среди камней и дорожной пыли.`;
+            break;
+          case 'flee':
+            outcomePhrase = `пытается спастись бегством, но враги мгновенно перекрывают путь к отступлению, загоняя в угол!`;
             break;
           default:
             outcomePhrase = `не успевает завершить задуманное в полной мере, теряя драгоценную инициативу.`;
@@ -241,10 +256,38 @@ export class SimulationAIProvider implements IAIProvider {
     const critFails = analyzedActions.filter(a => a.isCritFail);
     const failedActions = analyzedActions.filter(a => !a.isSuccess);
     const critSuccesses = analyzedActions.filter(a => a.isCritSuccess);
+    const fleeingActions = analyzedActions.filter(a => a.intent === 'flee');
+
+    // D&D 5e: Opportunity attack on flee without Disengage
+    if (isCombat && fleeingActions.length > 0) {
+      for (const fleeAction of fleeingActions) {
+        const fleeChar = characters.find(c => c.id === fleeAction.characterId);
+        if (!fleeChar) continue;
+        const textLower = fleeAction.actionText.toLowerCase();
+        const hasDisengage = /отход|disengage|осторож.*отступ/i.test(textLower);
+
+        if (!hasDisengage) {
+          const oppDmg = fleeAction.isCritFail ? 7 : 5;
+          playerUpdates.push({
+            characterId: fleeChar.id,
+            characterName: fleeChar.name,
+            hpDelta: -oppDmg,
+            note: 'Провоцированная атака (Opportunity Attack) при бегстве без действия «Отход»',
+          });
+          narrativeParagraphs.push(`⚠️ Провоцированная атака! ${fleeChar.name} пытается бежать, не разорвав дистанцию действием «Отход». Ближайший враг наносит удар в спину на ${oppDmg} урона!`);
+        }
+
+        if (!fleeAction.isSuccess) {
+          narrativeParagraphs.push(`Попытка побега сорвана: враги смыкают кольцо вокруг ${fleeChar.name}, отрезая путь к отступлению! Бой продолжается.`);
+        }
+      }
+    }
 
     if (isCombat && failedActions.length > 0) {
-      const targetChar = characters.find(c => c.id === failedActions[0].characterId) || characters[0];
-      if (targetChar) {
+      // Don't duplicate damage if targetChar already took opportunity attack damage
+      const targetChar = characters.find(c => c.id === failedActions[0].characterId && !playerUpdates.some(u => u.characterId === c.id)) ||
+        characters.find(c => c.id === failedActions[0].characterId) || characters[0];
+      if (targetChar && !playerUpdates.some(u => u.characterId === targetChar.id)) {
         const dmg = critFails.length > 0 ? 6 : 4;
         playerUpdates.push({
           characterId: targetChar.id,
