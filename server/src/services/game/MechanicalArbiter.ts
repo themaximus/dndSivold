@@ -970,8 +970,14 @@ export class MechanicalArbiter {
       failureConsequence = this.generateFailureConsequence(action, character, target, roomDC, isFail);
     }
 
+    let standUpDirective = '';
+    const standUpRegex = /(вста(ю|ть|л|ла|ли|ем|йте)|поднима(юсь|ется|ться|лась|лся|лись)|на ноги|отряхива(юсь|ется|ясь|лась|лся)|подня(лся|лась|лись)|выпрям(ился|илась|иться))/i;
+    if (isSuccess && character?.conditions?.includes('prone') && standUpRegex.test(action.actionText || '')) {
+      standUpDirective = `\n🏃 [СНЯТИЕ СОСТОЯНИЯ «НИЧКОМ»]: Герой ${character.name} успешно поднимается с земли. ОБЯЗАТЕЛЬНО сними состояние 'prone' ("conditionUpdates": [{"targetId": "${character.id}", "targetName": "${character.name}", "action": "remove", "condition": "prone", "reason": "Встал на ноги"}])!`;
+    }
+
     const directive = isSuccess
-      ? `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Проверка УСПЕШНА (${total} vs СЛ ${roomDC}${isCrit ? ', КРИТ 20!' : ''}). Задуманное действие полностью удается.`
+      ? `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Проверка УСПЕШНА (${total} vs СЛ ${roomDC}${isCrit ? ', КРИТ 20!' : ''}). Задуманное действие полностью удается.${standUpDirective}`
       : `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Проверка ПРОВАЛЕНА (${total} vs СЛ ${roomDC}${isFail ? ', КРИТ 1!' : ''}).
 ⚡ ПОСЛЕДСТВИЕ ПРОВАЛА: ${failureConsequence?.description}
 🛑 ТРЕБОВАНИЕ МАСТЕРУ: ${failureConsequence?.narrativeDirective}`;

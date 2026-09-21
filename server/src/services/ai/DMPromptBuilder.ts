@@ -145,7 +145,13 @@ export class DMPromptBuilder {
   * Если бросок >= КБ (или Натуральная 20): Атака ПОПАЛА! Опиши удар и снизь "hpCurrent" этого врага в "activeEnemies". Если "hpCurrent" упал до 0, установи "isDead": true!
   * Если бросок < КБ: Атака промахнулась или отражена броней/укрытием цели.
 - ПРОВЕРКИ И СПАСБРОСКИ: Проверки навыков (check) и спасброски (save) сравнивай с общей СЛ сцены (room DC).
-- СОСТОЯНИЯ: "prone", "poisoned", "restrained", "frightened", "stunned", "cover_half", "cover_three_quarters".
+- СОСТОЯНИЯ (CONDITIONS) И ИХ СНЯТИЕ/НАЛОЖЕНИЕ ("conditionUpdates"):
+  * Поддерживаемые состояния: "prone" (Ничком / Сбит с ног), "poisoned", "restrained", "frightened", "stunned", "cover_half", "cover_three_quarters".
+  * СНЯТИЕ СОСТОЯНИЯ "prone" (ВСТАТЬ НА НОГИ):
+    - Если персонаж находился в положении «Ничком» ("prone") и заявляет подъем на ноги («встаю с земли», «поднимаюсь», «встать», «отряхиваюсь») — ОБЯЗАТЕЛЬНО удали состояние 'prone' через "conditionUpdates" с "action": "remove", "condition": "prone"!
+    - Формат: { "targetId": "uuid-персонажа", "targetName": "Имя Персонажа", "targetType": "character", "action": "remove", "condition": "prone", "reason": "Встал на ноги с земли" }
+  * НАЛОЖЕНИЕ СОСТОЯНИЙ:
+    - Если персонаж или враг сбит с ног (удар великана, подсечка, критический провал) — добавь состояние с "action": "add", "condition": "prone".
 
 ЗАКОН 8: НЕЙТРАЛЬНЫЕ ПЕРСОНАЖИ В СЦЕНЕ, ОТНОШЕНИЯ И ВСТУПЛЕНИЕ В БОЙ ("sceneNPCs")
 В мире D&D герои постоянно встречают колоритных персонажей (купцов, караванщиков, стражников, раненых путников, наёмников, трактирщиков, проводников, заложников).
@@ -247,7 +253,16 @@ export class DMPromptBuilder {
       "isDead": false
     }
   ],
-  "conditionUpdates": [],
+  "conditionUpdates": [
+    {
+      "targetId": "uuid-персонажа-или-врага",
+      "targetName": "Имя Персонажа",
+      "targetType": "character",
+      "action": "remove",
+      "condition": "prone",
+      "reason": "Встал на ноги с земли"
+    }
+  ],
   "inventoryUpdates": [
     {
       "characterId": "точный-uuid-персонажа",
@@ -599,6 +614,13 @@ ${inventoryFormatted}
      - Если бросок кубика УСПЕШЕН (>= СЛ) — ОБЯЗАТЕЛЬНО добавь этот предмет обратно в "inventoryUpdates" с action="add" и понятной причиной "reason" (например, "Поднято из грязи / с земли")!`;
       }
 
+      // Check if character is prone and attempting to stand up
+      const standUpRegex = /(вста(ю|ть|л|ла|ли|ем|йте)|поднима(юсь|ется|ться|лась|лся|лись)|на ноги|отряхива(юсь|ется|ясь|лась|лся)|подня(лся|лась|лись)|выпрям(ился|илась|иться))/i;
+      let standUpDirective = '';
+      if (char && char.conditions?.includes('prone') && standUpRegex.test(actLower)) {
+        standUpDirective = `\n  🏃 [ВНИМАНИЕ — ГЕРОЙ ВСТАЕТ НА НОГИ]: ${char.name} находится в положении лёжа ('prone') и встает на ноги с земли. ОБЯЗАТЕЛЬНО сними состояние 'prone' через "conditionUpdates" с action="remove" и condition="prone"!`;
+      }
+
       // Check for mechanical arbiter directive for this action
       const arbiterDirective = mechanicalDirectives && mechanicalDirectives[a.id]
         ? `\n  ${mechanicalDirectives[a.id]}`
@@ -613,7 +635,7 @@ ${inventoryFormatted}
         combatTriggerDirective = `\n  ⚔️ [ТРИГГЕР БОЕВОЙ АГРЕССИИ / ДУЭЛИ / ВТОРЖЕНИЯ]: Игрок инициировал явную атаку, дуэль, нарывается на драку или вторгается в охраняемую/запретную зону! Если бой еще не начался, ОБЯЗАТЕЛЬНО СОЗДАЙ противника(ов) в массиве "activeEnemies" (укажи реалистичные name, КБ ~12-16, HP ~15-40, status: "В бою"), установи "mood": "combat", опиши начало битвы и рассчитай попадание/урон по КБ!`;
       }
 
-      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}${arbiterDirective}${itemTrackingDirective}${pickupDirective}${combatTriggerDirective}`;
+      return `* Игрок "${a.characterName}" (ID персонажа: "${a.characterId}") — ${typeLabel}${advLabel}${spellLabel}: "${a.actionText}"\n  Бросок: ${diceInfo}${arbiterDirective}${itemTrackingDirective}${pickupDirective}${standUpDirective}${combatTriggerDirective}`;
     }).join('\n\n');
   }
 

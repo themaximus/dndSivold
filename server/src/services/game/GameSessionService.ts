@@ -92,15 +92,79 @@ export class GameSessionService {
     this.tts = tts;
   }
 
+  public reconcileCharacterConditions(characterId: string, roomId?: string): CharacterEntity | null {
+    const char = this.characters.findById(characterId);
+    if (!char || !char.conditions || char.conditions.length === 0) return char || null;
+
+    const isProne = (c: string) => /prone|ничком|сбит.*ног/i.test(c);
+    if (char.conditions.some(isProne)) {
+      const standUpRegex = /(вста(ю|ть|л|ла|ли|ем|йте)|поднима(юсь|ется|ться|лась|лся|лись)|на ноги|отряхива(юсь|ется|ясь|лась|лся)|подня(лся|лась|лись)|выпрям(ился|илась|иться))/i;
+      let hasStoodUp = false;
+
+      if (roomId) {
+        const logs = this.gameLogs.findByRoomId(roomId);
+        const charNameLower = char.name.toLowerCase();
+
+        // Scan from most recent log backwards
+        for (let i = logs.length - 1; i >= 0; i--) {
+          const log = logs[i];
+          const actSummaryLower = (log.actionsSummary || '').toLowerCase();
+          const narrativeLower = (log.narrativeText || '').toLowerCase();
+
+          // If character was knocked down again in a more recent log, stop
+          if ((actSummaryLower.includes(charNameLower) || narrativeLower.includes(charNameLower)) &&
+              /(сбит(ы)? с ног|пада(ет|ют|л|ла) ничком|опрокинут|грохается на землю)/i.test(narrativeLower)) {
+            break;
+          }
+
+          if (actSummaryLower.includes(charNameLower) && standUpRegex.test(actSummaryLower)) {
+            hasStoodUp = true;
+            break;
+          } else if (narrativeLower.includes(charNameLower) && standUpRegex.test(narrativeLower)) {
+            hasStoodUp = true;
+            break;
+          }
+        }
+
+        // Also check recent turn actions for this character
+        if (!hasStoodUp && logs.length > 0) {
+          const lastRound = logs[logs.length - 1].roundNumber;
+          const actions = this.turnActions.findByRoomAndRound(roomId, lastRound);
+          const charActions = actions.filter(a => a.characterId === char.id || a.characterName.toLowerCase() === charNameLower);
+          if (charActions.length > 0) {
+            const lastAction = charActions[charActions.length - 1];
+            if (standUpRegex.test(lastAction.actionText || '')) {
+              hasStoodUp = true;
+            }
+          }
+        }
+      }
+
+      if (hasStoodUp) {
+        const updated = char.conditions.filter(c => !isProne(c));
+        this.characters.updateConditions(char.id, updated);
+        return this.characters.findById(char.id) || null;
+      }
+    }
+
+    return char;
+  }
+
   public getRoomAndPlayers(roomCode: string) {
     const room = this.rooms.findByCode(roomCode);
     if (!room) return null;
 
     const players = this.rooms.findPlayersByRoomId(room.id);
-    const populatedPlayers = players.map(p => ({
-      ...p,
-      character: p.characterId ? this.characters.findById(p.characterId) : undefined,
-    }));
+    const populatedPlayers = players.map(p => {
+      let char = p.characterId ? this.characters.findById(p.characterId) : undefined;
+      if (char && char.conditions && char.conditions.includes('prone')) {
+        char = this.reconcileCharacterConditions(char.id, room.id) || char;
+      }
+      return {
+        ...p,
+        character: char,
+      };
+    });
 
     return { room: sanitizeRoom(room), players: populatedPlayers };
   }
@@ -1146,6 +1210,23 @@ export class GameSessionService {
     // Process self-heal if targeted self
     if (mechanicalRes.actionType === 'heal' && actingChar && !mechanicalRes.targetUpdate) {
       this.characters.updateHp(actingChar.id, mechanicalRes.healRolled || 0);
+    }
+
+    // Process Condition Updates from AI DM
+    this.applyConditionUpdates(dmResult, activeCharacters, updatedEnemies);
+
+    // Procedural Condition Resolution Heuristic (e.g. standing up from prone)
+    this.handleProceduralConditionResolution(
+      [actingAction],
+      activeCharacters,
+      dmResult,
+      (charId) => charId === actingChar?.id && mechanicalRes.failureConsequence?.conditionAdded === 'prone'
+    );
+    if (actingChar) {
+      const refreshed = this.characters.findById(actingChar.id);
+      if (refreshed) {
+        actingChar.conditions = refreshed.conditions;
+      }
     }
 
     // Comprehensive Forensic Turn Audit Logging to disk (asynchronous)
@@ -2195,41 +2276,26 @@ export class GameSessionService {
     }).catch(err => console.warn('[GameSessionService] Round audit log error:', err?.message || err));
 
     // Process Condition Updates for Players and Enemies
-    if (Array.isArray(dmResult.conditionUpdates) && dmResult.conditionUpdates.length > 0) {
-      dmResult.conditionUpdates.forEach(update => {
-        if (update.targetType === 'player' || update.targetType === 'character') {
-          const target = this.characters.findById(update.targetId) ||
-            activeCharacters.find(c =>
-              c.name.toLowerCase().trim() === (update.targetName || update.targetId || '').toLowerCase().trim() ||
-              c.name.toLowerCase().includes((update.targetName || update.targetId || '').toLowerCase().trim())
-            );
-          if (target) {
-            const currentConditions = target.conditions || [];
-            let nextConditions: string[];
-            if (update.action === 'add') {
-              nextConditions = Array.from(new Set([...currentConditions, update.condition]));
-            } else {
-              nextConditions = currentConditions.filter(c => c !== update.condition);
-            }
-            this.characters.updateConditions(target.id, nextConditions);
-          }
-        } else if (update.targetType === 'enemy') {
-          const enemy = updatedEnemies.find(e =>
-            e.id === update.targetId ||
-            e.name.toLowerCase().trim() === (update.targetName || update.targetId || '').toLowerCase().trim() ||
-            e.name.toLowerCase().includes((update.targetName || update.targetId || '').toLowerCase().trim())
-          );
-          if (enemy) {
-            const currentConditions = enemy.conditions || [];
-            if (update.action === 'add') {
-              enemy.conditions = Array.from(new Set([...currentConditions, update.condition]));
-            } else {
-              enemy.conditions = currentConditions.filter(c => c !== update.condition);
-            }
-          }
-        }
-      });
-    }
+    this.applyConditionUpdates(dmResult, activeCharacters, updatedEnemies);
+
+    // Procedural Condition Resolution Heuristic for all round actions
+    this.handleProceduralConditionResolution(
+      currentRoundActions,
+      activeCharacters,
+      dmResult,
+      (charId) => {
+        const mRes = mechanicalResolutions.find(r => r.characterId === charId);
+        return mRes?.failureConsequence?.conditionAdded === 'prone';
+      }
+    );
+
+    // Keep activeCharacters array in sync with fresh database state
+    activeCharacters.forEach(c => {
+      const refreshed = this.characters.findById(c.id);
+      if (refreshed) {
+        c.conditions = refreshed.conditions;
+      }
+    });
 
     const isFinished = !!(dmResult.campaignFinished && dmResult.campaignFinished.isFinished);
 
@@ -2668,6 +2734,135 @@ export class GameSessionService {
               timestamp: new Date().toISOString(),
             });
           }
+        }
+      }
+    }
+  }
+
+  /**
+   * Normalizes condition names to canonical lowercase identifiers
+   */
+  private normalizeCondition(rawCond: string): string {
+    const c = (rawCond || '').toLowerCase().trim();
+    if (/ничком|сбит.*ног|леж(а|ит|у)/i.test(c)) return 'prone';
+    if (/отравлен/i.test(c)) return 'poisoned';
+    if (/опутан|схвачен|обездвиж/i.test(c)) return 'restrained';
+    if (/испуган|напуган|страх/i.test(c)) return 'frightened';
+    if (/оглушен/i.test(c)) return 'stunned';
+    if (/без сознания/i.test(c)) return 'unconscious';
+    if (/парализован/i.test(c)) return 'paralyzed';
+    if (/ослеп/i.test(c)) return 'blinded';
+    if (/укрытие.*половин/i.test(c)) return 'cover_half';
+    if (/укрытие.*четверт/i.test(c)) return 'cover_three_quarters';
+    return c;
+  }
+
+  /**
+   * Processes Condition Updates emitted by AI DM with flexible property names
+   */
+  private applyConditionUpdates(
+    dmResult: AIDMResponse,
+    activeCharacters: CharacterEntity[],
+    updatedEnemies: RoomEnemy[]
+  ): void {
+    if (!Array.isArray(dmResult.conditionUpdates) || dmResult.conditionUpdates.length === 0) return;
+
+    dmResult.conditionUpdates.forEach(rawUpdate => {
+      const update = rawUpdate as any;
+      if (!update) return;
+      const targetId = update.targetId || update.characterId || update.enemyId;
+      const targetName = update.targetName || update.characterName || update.name || '';
+      const rawCondition = update.condition || update.conditionName || '';
+      const condition = this.normalizeCondition(rawCondition);
+      if (!condition) return;
+
+      const isEnemy = update.targetType === 'enemy' ||
+        updatedEnemies.some(e => e.id === targetId || (targetName && e.name.toLowerCase().trim() === targetName.toLowerCase().trim()));
+
+      if (!isEnemy) {
+        const target = this.characters.findById(targetId) ||
+          activeCharacters.find(c =>
+            c.id === targetId ||
+            (targetName && c.name.toLowerCase().trim() === targetName.toLowerCase().trim()) ||
+            (targetName && c.name.toLowerCase().includes(targetName.toLowerCase().trim()))
+          );
+        if (target) {
+          const fresh = this.characters.findById(target.id) || target;
+          const currentConditions = fresh.conditions || [];
+          let nextConditions: string[];
+          if (update.action === 'add') {
+            nextConditions = Array.from(new Set([...currentConditions, condition]));
+          } else {
+            nextConditions = currentConditions.filter(c => this.normalizeCondition(c) !== condition);
+          }
+          this.characters.updateConditions(target.id, nextConditions);
+          target.conditions = nextConditions;
+          fresh.conditions = nextConditions;
+        }
+      } else {
+        const enemy = updatedEnemies.find(e =>
+          e.id === targetId ||
+          (targetName && e.name.toLowerCase().trim() === targetName.toLowerCase().trim()) ||
+          (targetName && e.name.toLowerCase().includes(targetName.toLowerCase().trim()))
+        );
+        if (enemy) {
+          const currentConditions = enemy.conditions || [];
+          if (update.action === 'add') {
+            enemy.conditions = Array.from(new Set([...currentConditions, condition]));
+          } else {
+            enemy.conditions = currentConditions.filter(c => this.normalizeCondition(c) !== condition);
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Procedural Condition Resolution:
+   * Fallback heuristic ensuring that characters who stood up or recovered have conditions updated
+   * even if the AI DM forgot to emit conditionUpdates in JSON.
+   */
+  private handleProceduralConditionResolution(
+    actions: TurnActionEntity[],
+    activeCharacters: CharacterEntity[],
+    dmResult: AIDMResponse,
+    hasFailureKnockdown: (charId: string) => boolean
+  ): void {
+    const standUpRegex = /(вста(ю|ть|л|ла|ли|ем|йте)|поднима(юсь|ется|ться|лась|лся|лись)|на ноги|отряхива(юсь|ется|ясь|лась|лся)|подня(лся|лась|лись)|выпрям(ился|илась|иться))/i;
+    const isProne = (c: string) => /prone|ничком|сбит.*ног/i.test(c);
+    const narrativeLower = (dmResult.narrative || '').toLowerCase();
+
+    for (const action of actions) {
+      if (!action) continue;
+      const char = activeCharacters.find(c =>
+        c.id === action.characterId ||
+        (action.characterName && c.name.toLowerCase().trim() === action.characterName.toLowerCase().trim())
+      );
+      if (!char) continue;
+
+      const freshChar = this.characters.findById(char.id) || char;
+      const conditions = freshChar.conditions || [];
+
+      // If character has prone condition
+      if (conditions.some(isProne)) {
+        if (hasFailureKnockdown(char.id)) {
+          continue;
+        }
+
+        const actLower = (action.actionText || '').toLowerCase();
+        const charNameLower = char.name.toLowerCase();
+
+        const attemptedStandUp = standUpRegex.test(actLower);
+        const narrativeConfirmsStandUp = standUpRegex.test(narrativeLower) && narrativeLower.includes(charNameLower);
+
+        const roll = (action.diceRolls && action.diceRolls.length > 0) ? action.diceRolls[0] : (action as any).diceRoll;
+        const isRollCritFail = roll?.isCriticalFail || roll?.isNat1;
+
+        if (!isRollCritFail && (attemptedStandUp || narrativeConfirmsStandUp)) {
+          const updatedConds = conditions.filter(c => !isProne(c));
+          this.characters.updateConditions(char.id, updatedConds);
+          char.conditions = updatedConds;
+          freshChar.conditions = updatedConds;
         }
       }
     }

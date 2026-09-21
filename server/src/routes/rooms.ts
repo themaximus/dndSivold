@@ -188,17 +188,12 @@ router.get('/:code', authMiddleware, (req: Request, res: Response): void => {
     return;
   }
 
-  const players = db.roomPlayers.findByRoomId(room.id);
-  const hydratedPlayers = players.map(p => ({
-    ...p,
-    character: p.characterId ? db.characters.findById(p.characterId) : undefined,
-  }));
-
+  const roomData = gameSessionService.getRoomAndPlayers(room.code);
   const logs = db.gameLogs.findByRoomId(room.id);
 
   res.json({
-    room: sanitizeRoom(room),
-    players: hydratedPlayers,
+    room: roomData?.room || sanitizeRoom(room),
+    players: roomData?.players || [],
     logs,
   });
 });
