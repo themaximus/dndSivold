@@ -83,6 +83,27 @@ export class DMResponseValidator {
               conditions: Array.isArray(e.conditions) ? e.conditions : [],
             }))
           : [],
+        sceneNPCs: Array.isArray(parsed.sceneNPCs)
+          ? parsed.sceneNPCs.map((n: any, idx: number) => {
+              const validDispositions = ['friendly', 'neutral', 'cautious', 'offended', 'frightened', 'hostile'];
+              const validRoles = ['ally_combatant', 'neutral_observer', 'hiding', 'fled'];
+              const disposition = validDispositions.includes(n.disposition) ? n.disposition : 'neutral';
+              const combatRole = validRoles.includes(n.combatRole) ? n.combatRole : 'neutral_observer';
+              return {
+                id: typeof n.id === 'string' && n.id ? n.id : `npc_${idx + 1}`,
+                name: typeof n.name === 'string' && n.name ? n.name : 'Незнакомец',
+                role: typeof n.role === 'string' && n.role ? n.role : 'Персонаж сцены',
+                hpCurrent: typeof n.hpCurrent === 'number' ? Math.max(0, n.hpCurrent) : 15,
+                hpMax: typeof n.hpMax === 'number' ? Math.max(1, n.hpMax) : 15,
+                ac: typeof n.ac === 'number' ? Math.max(5, n.ac) : 11,
+                disposition,
+                combatRole,
+                status: typeof n.status === 'string' && n.status ? n.status : 'Присутствует в сцене',
+                conditions: Array.isArray(n.conditions) ? n.conditions : [],
+                isDead: typeof n.isDead === 'boolean' ? n.isDead : (typeof n.hpCurrent === 'number' && n.hpCurrent <= 0),
+              };
+            })
+          : [],
         conditionUpdates: Array.isArray(parsed.conditionUpdates) ? parsed.conditionUpdates : [],
         inventoryUpdates: Array.isArray(parsed.inventoryUpdates)
           ? parsed.inventoryUpdates

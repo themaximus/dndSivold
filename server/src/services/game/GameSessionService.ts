@@ -13,7 +13,7 @@ import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { AIDMResponse, AIDMPrologueContext, AIDMContext, InventoryNotification } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
-import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, CharacterReactionRequest } from '../../db';
+import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 
@@ -208,6 +208,7 @@ export class GameSessionService {
       turnOrder,
       activePlayerUserId: turnOrder[0] || undefined,
       activeEnemies: prologueResult.activeEnemies || [],
+      sceneNPCs: prologueResult.sceneNPCs || [],
     });
     this.rooms.resetPlayersTurn(room.id);
 
@@ -531,6 +532,7 @@ export class GameSessionService {
       loreJournal: room.loreJournal,
       characters: activeCharacters,
       activeEnemies: room.activeEnemies || [],
+      sceneNPCs: room.sceneNPCs || [],
       actions: [actingAction],
       previousHistory: previousLogs,
       turnMode: 'turn_by_turn',
@@ -822,6 +824,11 @@ export class GameSessionService {
       ? [...dmResult.activeEnemies]
       : [...(room.activeEnemies || [])];
 
+    // Update scene NPCs from dmResult
+    const updatedNPCs: RoomNPC[] = Array.isArray(dmResult.sceneNPCs)
+      ? [...dmResult.sceneNPCs]
+      : [...(room.sceneNPCs || [])];
+
     // Save Game Log
     const cleanRoundNarrative = sanitizeNarrativeText(dmResult.narrative);
     const newLog = this.gameLogs.create({
@@ -872,6 +879,7 @@ export class GameSessionService {
         dcReason: dmResult.nextRoundDCReason || room.dcReason,
         requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
         activeEnemies: updatedEnemies,
+        sceneNPCs: updatedNPCs,
         activePlayerUserId: nextActiveUserId,
         pendingReactions: [],
       });
@@ -896,6 +904,7 @@ export class GameSessionService {
         dcReason: dmResult.nextRoundDCReason || room.dcReason,
         requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
         activeEnemies: updatedEnemies,
+        sceneNPCs: updatedNPCs,
         activePlayerUserId: order[0] || undefined,
         pendingReactions: [],
       });
@@ -945,6 +954,7 @@ export class GameSessionService {
       loreJournal: room.loreJournal,
       characters: activeCharacters,
       activeEnemies: room.activeEnemies || [],
+      sceneNPCs: room.sceneNPCs || [],
       actions: currentRoundActions,
       previousHistory: previousLogs,
       characterReactions: completedReactions,
@@ -1296,6 +1306,10 @@ export class GameSessionService {
       ? [...dmResult.activeEnemies]
       : [...(room.activeEnemies || [])];
 
+    const updatedNPCs: RoomNPC[] = Array.isArray(dmResult.sceneNPCs)
+      ? [...dmResult.sceneNPCs]
+      : [...(room.sceneNPCs || [])];
+
     // Safety Guard: Check for narrative-enemy desynchronization (STRICTLY for active combat only)
     const livingEnemies = updatedEnemies.filter(e => !e.isDead && e.hpCurrent > 0);
     const narrativeFullText = ((dmResult.narrative || '') + ' ' + (dmResult.currentSituation || '')).toLowerCase();
@@ -1378,6 +1392,7 @@ export class GameSessionService {
       activePlayerUserId: firstActiveUserId,
       campaignPlot: dmResult.campaignPlot || room.campaignPlot,
       activeEnemies: updatedEnemies,
+      sceneNPCs: updatedNPCs,
       pendingReactions: [],
     });
     this.rooms.resetPlayersTurn(room.id);

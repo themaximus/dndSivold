@@ -32,6 +32,7 @@ export interface AIDMPrologueContext {
   campaignDuration?: 'short' | 'medium' | 'long';
   characters: CharacterEntity[];
   campaignPlot?: string;
+  sceneNPCs?: RoomNPC[];
 }
 
 export interface ConditionUpdate {
@@ -51,6 +52,23 @@ export interface RoomEnemy {
   hpMax: number;
   ac?: number;
   status: string;
+  conditions?: string[];
+  isDead: boolean;
+}
+
+export type NPCDisposition = 'friendly' | 'neutral' | 'cautious' | 'offended' | 'frightened' | 'hostile';
+export type NPCCombatRole = 'ally_combatant' | 'neutral_observer' | 'hiding' | 'fled';
+
+export interface RoomNPC {
+  id: string;
+  name: string;
+  role: string; // e.g. "Купец", "Стражник", "Следопыт", "Раненый гонец"
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  disposition: NPCDisposition;
+  combatRole: NPCCombatRole;
+  status: string; // e.g. "Стреляет из арбалета по гоблинам", "Прячется под телегой"
   conditions?: string[];
   isDead: boolean;
 }
@@ -99,6 +117,7 @@ export interface AIDMContext {
   loreJournal?: LoreMilestone[];
   characters: CharacterEntity[];
   activeEnemies?: RoomEnemy[];
+  sceneNPCs?: RoomNPC[];
   actions: TurnActionEntity[];
   previousHistory: string[];
   turnMode?: 'simultaneous' | 'turn_by_turn';
@@ -121,6 +140,7 @@ export interface AIDMResponse {
   choiceDilemma?: string;
   enemiesStatus?: string;
   activeEnemies?: RoomEnemy[];
+  sceneNPCs?: RoomNPC[];
   inventoryUpdates?: InventoryUpdate[];
   conditionUpdates?: ConditionUpdate[];
   ruleViolations?: string[];

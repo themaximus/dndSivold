@@ -102,6 +102,23 @@ export interface RoomEnemy {
   isDead: boolean;
 }
 
+export type NPCDisposition = 'friendly' | 'neutral' | 'cautious' | 'offended' | 'frightened' | 'hostile';
+export type NPCCombatRole = 'ally_combatant' | 'neutral_observer' | 'hiding' | 'fled';
+
+export interface RoomNPC {
+  id: string;
+  name: string;
+  role: string;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  disposition: NPCDisposition;
+  combatRole: NPCCombatRole;
+  status: string;
+  conditions?: string[];
+  isDead: boolean;
+}
+
 export interface CharacterReactionRequest {
   id: string;
   initiatorUserId: string;
@@ -135,6 +152,7 @@ export interface RoomEntity {
   activePlayerUserId?: string;
   turnOrder?: string[];
   activeEnemies?: RoomEnemy[];
+  sceneNPCs?: RoomNPC[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   pendingReactions?: CharacterReactionRequest[];

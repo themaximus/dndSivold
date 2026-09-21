@@ -209,10 +209,11 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
           />
         </div>
 
-        {/* Opponents & Threats Column (Far Right) */}
+        {/* Opponents, Threats & Scene NPCs Column (Far Right) */}
         <div className="w-full lg:w-72 xl:w-80 2xl:w-[340px] shrink-0 flex flex-col min-h-0">
           <OpponentsHUD
             enemies={room.activeEnemies || []}
+            sceneNPCs={room.sceneNPCs || []}
           />
         </div>
       </div>

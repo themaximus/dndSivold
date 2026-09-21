@@ -168,6 +168,23 @@ export interface RoomEnemy {
   isDead: boolean;
 }
 
+export type NPCDisposition = 'friendly' | 'neutral' | 'cautious' | 'offended' | 'frightened' | 'hostile';
+export type NPCCombatRole = 'ally_combatant' | 'neutral_observer' | 'hiding' | 'fled';
+
+export interface RoomNPC {
+  id: string;
+  name: string;
+  role: string; // e.g. "Купец", "Стражник", "Следопыт", "Раненый гонец"
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  disposition: NPCDisposition;
+  combatRole: NPCCombatRole;
+  status: string; // e.g. "Стреляет из арбалета по гоблинам", "Прячется под телегой"
+  conditions?: string[];
+  isDead: boolean;
+}
+
 export interface CharacterReactionRequest {
   id: string;
   initiatorUserId: string;
@@ -205,6 +222,7 @@ export interface Room {
   activePlayerUserId?: string;
   turnOrder?: string[];
   activeEnemies?: RoomEnemy[];
+  sceneNPCs?: RoomNPC[];
   loreJournal?: LoreMilestone[];
   availableLoot?: RoomLootItem[];
   pendingReactions?: CharacterReactionRequest[];

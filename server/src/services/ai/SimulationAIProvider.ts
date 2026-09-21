@@ -349,6 +349,57 @@ export class SimulationAIProvider implements IAIProvider {
       newMilestones.push(`Раунд ${roundNumber}: Герои добились выдающегося успеха.`);
     }
 
+    // 9. Update scene NPCs
+    const updatedSceneNPCs = (context.sceneNPCs || []).map(npc => {
+      if (npc.isDead) return npc;
+      if (isCombat) {
+        if (npc.disposition === 'friendly' && (npc.combatRole === 'ally_combatant' || npc.role.includes('Страж') || npc.role.includes('Следопыт') || npc.role.includes('Воин') || npc.role.includes('Наёмник'))) {
+          return {
+            ...npc,
+            combatRole: 'ally_combatant' as const,
+            status: 'Сражается плечом к плечу с отрядом, прикрывая фланг',
+          };
+        } else if (npc.disposition === 'friendly' && npc.combatRole !== 'ally_combatant') {
+          // If players asked or if brave
+          const helpCalled = actions.some(a => a.actionText.toLowerCase().includes(npc.name.toLowerCase()) || a.actionText.toLowerCase().includes('помощ'));
+          if (helpCalled) {
+            return {
+              ...npc,
+              combatRole: 'ally_combatant' as const,
+              status: 'Вступает в бой на стороне героев по их призыву!',
+            };
+          }
+          return {
+            ...npc,
+            combatRole: 'hiding' as const,
+            status: 'Прячется в укрытии, опасаясь шальной стрелы',
+          };
+        } else if (npc.disposition === 'offended' || npc.disposition === 'hostile') {
+          return {
+            ...npc,
+            combatRole: 'neutral_observer' as const,
+            status: 'Настороженно наблюдает за схваткой со стороны, не вмешиваясь',
+          };
+        } else {
+          return {
+            ...npc,
+            combatRole: 'hiding' as const,
+            status: 'Прячется в безопасном месте',
+          };
+        }
+      }
+      return {
+        ...npc,
+        combatRole: 'neutral_observer' as const,
+        status: npc.status || 'Присутствует в сцене',
+      };
+    });
+
+    const allyNPC = updatedSceneNPCs.find(n => n.combatRole === 'ally_combatant' && !n.isDead);
+    if (isCombat && allyNPC) {
+      narrativeParagraphs.push(`Союзник отряда, ${allyNPC.name}, решительно вступает в схватку и метким выпадом отвлекает внимание противников на себя!`);
+    }
+
     return {
       narrative: narrativeParagraphs.join('\n\n'),
       playerUpdates,
@@ -356,6 +407,7 @@ export class SimulationAIProvider implements IAIProvider {
       choiceDilemma,
       enemiesStatus: livingCount === 0 ? 'Врагов нет. Мирная обстановка.' : `В бою: ${livingCount} противников`,
       activeEnemies: activeEnemies.length > 0 ? activeEnemies : [],
+      sceneNPCs: updatedSceneNPCs,
       mood: isCombat ? (playerUpdates.length > 0 ? 'combat' : livingCount === 0 ? 'triumph' : 'tension') : 'social',
       nextRoundDC,
       nextRoundDCReason,
@@ -389,6 +441,20 @@ export class SimulationAIProvider implements IAIProvider {
         currentSituation: 'Караван купца Бальтазара встал на развилке тракта из-за сломанной повозки. Купец рад встрече с отрядом.',
         choiceDilemma: 'Помочь починить повозку проверкой Силы, расспросить купца о слухах и окрестных тайнах или поинтересоваться его товарами. Что делает каждый герой?',
         activeEnemies: [],
+        sceneNPCs: [
+          {
+            id: 'npc_balthazar',
+            name: 'Купец Бальтазар',
+            role: 'Торговец диковинками',
+            hpCurrent: 18,
+            hpMax: 18,
+            ac: 12,
+            disposition: 'friendly',
+            combatRole: 'neutral_observer',
+            status: 'Радушно приглашает к костру и предлагает осмотреть товары',
+            isDead: false,
+          }
+        ],
         enemiesStatus: 'Врагов поблизости нет. Обстановка мирная и дружелюбная.',
         mood: 'social',
         nextRoundDC: 11,
@@ -407,6 +473,20 @@ export class SimulationAIProvider implements IAIProvider {
         currentSituation: 'У обочины обнаружен тяжелораненый гонец с запечатанным посланием. Ему срочно нужна помощь.',
         choiceDilemma: 'Оказать раненому медицинскую помощь (зельем или проверкой Мудрости), расспросить его о нападавших или изучить сургучную печать на тубусе. Что предпринимает отряд?',
         activeEnemies: [],
+        sceneNPCs: [
+          {
+            id: 'npc_liam',
+            name: 'Гонец Лиам',
+            role: 'Королевский вестник',
+            hpCurrent: 7,
+            hpMax: 20,
+            ac: 13,
+            disposition: 'cautious',
+            combatRole: 'hiding',
+            status: 'Прижимает окровавленную ладонь к боку, моля о помощи',
+            isDead: false,
+          }
+        ],
         enemiesStatus: 'Поблизости врагов не видно, но вокруг витает ощущение скрытой опасности.',
         mood: 'mystery',
         nextRoundDC: 12,
@@ -425,6 +505,20 @@ export class SimulationAIProvider implements IAIProvider {
         currentSituation: 'Отряд остановлен бдительным патрулем стражи на мостовой заставе для досмотра и проверки документов.',
         choiceDilemma: 'Попытаться убедить сержанта пропустить отряд (Харизма), расспросить о причинах перекрытия тракта или предложить свою помощь страже. Каково решение отряда?',
         activeEnemies: [],
+        sceneNPCs: [
+          {
+            id: 'npc_elrik',
+            name: 'Сержант Элрик',
+            role: 'Командир заставы',
+            hpCurrent: 28,
+            hpMax: 28,
+            ac: 16,
+            disposition: 'neutral',
+            combatRole: 'neutral_observer',
+            status: 'Держит алебарду на изготовку, ожидая предъявления подорожных грамот',
+            isDead: false,
+          }
+        ],
         enemiesStatus: 'Стражники на заставе не враждебны, но соблюдают бдительность.',
         mood: 'social',
         nextRoundDC: 12,
