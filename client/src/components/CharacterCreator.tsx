@@ -7,10 +7,13 @@ import {
   Sparkles,
   Sword,
   Wand2,
-  Backpack,
   ArrowLeft,
   Check,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Minus,
+  Info,
+  Backpack
 } from 'lucide-react';
 
 interface CharacterCreatorProps {
@@ -62,6 +65,60 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onCreated, o
 
   const calcMod = (score: number) => Math.floor((score - 10) / 2);
 
+  const [statMode, setStatMode] = useState<'point_buy' | 'rolled'>('point_buy');
+
+  const POINT_BUY_COSTS: Record<number, number> = {
+    8: 0,
+    9: 1,
+    10: 2,
+    11: 3,
+    12: 4,
+    13: 5,
+    14: 7,
+    15: 9,
+  };
+  const MAX_POINT_BUY = 27;
+
+  const calcPointsSpent = (s: CharacterStats) => {
+    let spent = 0;
+    const keys: (keyof CharacterStats)[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+    for (const k of keys) {
+      const val = s[k];
+      spent += POINT_BUY_COSTS[val] ?? (val > 15 ? 9 + (val - 15) * 2 : 0);
+    }
+    return spent;
+  };
+
+  const pointsSpent = calcPointsSpent(stats);
+  const remainingPoints = Math.max(0, MAX_POINT_BUY - pointsSpent);
+
+  const canIncrement = (key: keyof CharacterStats) => {
+    const currentVal = stats[key];
+    if (statMode === 'point_buy') {
+      if (currentVal >= 15) return false;
+      const nextCost = POINT_BUY_COSTS[currentVal + 1] ?? 99;
+      const currentCost = POINT_BUY_COSTS[currentVal] ?? 0;
+      return remainingPoints >= (nextCost - currentCost);
+    }
+    return currentVal < 18;
+  };
+
+  const canDecrement = (key: keyof CharacterStats) => {
+    const currentVal = stats[key];
+    if (statMode === 'point_buy') {
+      return currentVal > 8;
+    }
+    return currentVal > 3;
+  };
+
+  const handleStatChange = (key: keyof CharacterStats, delta: number) => {
+    if (delta > 0 && canIncrement(key)) {
+      setStats(prev => ({ ...prev, [key]: prev[key] + 1 }));
+    } else if (delta < 0 && canDecrement(key)) {
+      setStats(prev => ({ ...prev, [key]: prev[key] - 1 }));
+    }
+  };
+
   const rollStats4d6 = () => {
     const rollSingle = () => {
       const rolls = [
@@ -71,9 +128,10 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onCreated, o
         Math.floor(Math.random() * 6) + 1,
       ];
       rolls.sort((a, b) => a - b);
-      return rolls[1] + rolls[2] + rolls[3]; // Drop lowest
+      return Math.min(18, Math.max(3, rolls[1] + rolls[2] + rolls[3])); // Drop lowest, cap at 18
     };
 
+    setStatMode('rolled');
     setStats({
       str: rollSingle(),
       dex: rollSingle(),
@@ -85,12 +143,25 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onCreated, o
   };
 
   const setStandardArray = () => {
+    setStatMode('point_buy');
     setStats({
       str: 15,
       dex: 14,
       con: 13,
       int: 12,
       wis: 10,
+      cha: 8,
+    });
+  };
+
+  const resetToMinPointBuy = () => {
+    setStatMode('point_buy');
+    setStats({
+      str: 8,
+      dex: 8,
+      con: 8,
+      int: 8,
+      wis: 8,
       cha: 8,
     });
   };
@@ -233,32 +304,56 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onCreated, o
           <div className="border border-fantasy-border bg-fantasy-card/50 rounded-xl p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div>
-                <h4 className="text-sm font-bold font-rpg text-amber-400">
-                  Характеристики персонажа
-                </h4>
-                <p className="text-xs text-slate-400">
-                  Базовые параметры влияют на здоровье, класс брони и проверки кубика
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold font-rpg text-amber-400">
+                    Характеристики персонажа
+                  </h4>
+                  {statMode === 'point_buy' ? (
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                      remainingPoints > 0
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    }`}>
+                      Осталось очков: {remainingPoints} / {MAX_POINT_BUY}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                      Режим 4d6 (Сумма: {Object.values(stats).reduce((a, b) => a + b, 0)})
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {statMode === 'point_buy'
+                    ? 'Правила D&D 5e: базовые значения от 8 до 15. Тратьте очки с умом.'
+                    : 'Случайные значения через бросок 4d6 (с отбрасыванием наименьшего).'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={setStandardArray}
-                  className="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700"
+                  className="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
                 >
                   Стандартный набор
                 </button>
                 <button
                   type="button"
+                  onClick={resetToMinPointBuy}
+                  className="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
+                >
+                  Сброс на 8
+                </button>
+                <button
+                  type="button"
                   onClick={rollStats4d6}
-                  className="px-2.5 py-1 text-xs bg-amber-600 hover:bg-amber-500 text-black font-semibold rounded-lg flex items-center gap-1 shadow-sm"
+                  className="px-2.5 py-1 text-xs bg-amber-600 hover:bg-amber-500 text-black font-semibold rounded-lg flex items-center gap-1 shadow-sm transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" /> Бросить 4d6
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-center">
               {[
                 { key: 'str', label: 'Сила' },
                 { key: 'dex', label: 'Ловкость' },
@@ -267,23 +362,47 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({ onCreated, o
                 { key: 'wis', label: 'Мудрость' },
                 { key: 'cha', label: 'Харизма' },
               ].map(({ key, label }) => {
-                const val = stats[key as keyof CharacterStats];
+                const statKey = key as keyof CharacterStats;
+                const val = stats[statKey];
                 const mod = calcMod(val);
+                const decDisabled = !canDecrement(statKey);
+                const incDisabled = !canIncrement(statKey);
+
                 return (
-                  <div key={key} className="bg-fantasy-panel border border-fantasy-border p-2.5 rounded-xl">
-                    <span className="text-[11px] uppercase font-bold text-slate-400 block">{label}</span>
-                    <input
-                      type="number"
-                      min={3}
-                      max={20}
-                      value={val}
-                      onChange={(e) =>
-                        setStats({ ...stats, [key]: parseInt(e.target.value, 10) || 10 })
-                      }
-                      className="w-14 text-center text-lg font-bold font-rpg bg-transparent text-amber-400 focus:outline-none my-1"
-                    />
-                    <div className="text-xs text-slate-300 font-semibold">
-                      {mod >= 0 ? `+${mod}` : mod}
+                  <div key={key} className="bg-fantasy-panel border border-fantasy-border p-2.5 rounded-xl flex flex-col items-center justify-between">
+                    <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider">
+                      {label}
+                    </span>
+
+                    {/* Stepper with custom stylish arrow buttons */}
+                    <div className="flex items-center justify-center gap-1.5 my-1.5 w-full">
+                      <button
+                        type="button"
+                        onClick={() => handleStatChange(statKey, -1)}
+                        disabled={decDisabled}
+                        className="w-7 h-7 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700/80 disabled:opacity-25 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
+                        title={decDisabled ? 'Минимальное значение достигнуто' : 'Уменьшить'}
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+
+                      <div className="w-9 text-center font-rpg font-extrabold text-xl text-amber-300 select-none">
+                        {val}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStatChange(statKey, 1)}
+                        disabled={incDisabled}
+                        className="w-7 h-7 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700/80 disabled:opacity-25 disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
+                        title={incDisabled ? (val >= 15 && statMode === 'point_buy' ? 'Максимум 15 по правилам D&D 5e' : 'Недостаточно очков') : 'Увеличить'}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="text-xs text-slate-300 font-semibold font-mono">
+                      {mod >= 0 ? `+${mod}` : mod} мод
                     </div>
                   </div>
                 );

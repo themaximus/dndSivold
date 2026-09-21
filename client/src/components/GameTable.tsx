@@ -17,7 +17,6 @@ import { RestModal } from './game/RestModal';
 import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
 import { InventoryToastStack } from './game/InventoryToastStack';
-import { RoomDiceBroadcastModal } from './game/RoomDiceBroadcastModal';
 import { ReactionModal } from './game/ReactionModal';
 
 interface GameTableProps {
@@ -181,6 +180,9 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             recentActivities={recentActivities}
             isSpeakingText={isSpeakingText}
             onToggleVoice={toggleVoice}
+            activeRoomRoll={roomRollBroadcast && roomRollBroadcast.playerId !== user?.id ? roomRollBroadcast : null}
+            targetDC={room.targetDC}
+            onDismissRoomRoll={dismissRoomRoll}
           />
 
           <ActionConsole
@@ -227,15 +229,6 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
           initialDisadvantage={diceModalOpts.defaultDisadvantage}
           onClose={() => setIsDiceModalOpen(false)}
           onRollComplete={handleAttachRoll}
-        />
-      )}
-
-      {/* Room-wide 3D Dice Roll Broadcast (All players see the 3D dice roll in real time) */}
-      {roomRollBroadcast && (!isDiceModalOpen || roomRollBroadcast.playerId !== user?.id) && (
-        <RoomDiceBroadcastModal
-          broadcast={roomRollBroadcast}
-          targetDC={room.targetDC}
-          onClose={dismissRoomRoll}
         />
       )}
 

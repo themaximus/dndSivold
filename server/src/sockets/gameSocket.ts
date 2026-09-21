@@ -152,7 +152,8 @@ export function setupGameSockets(io: Server) {
         });
       }
 
-      io.to(room.id).emit('dice_rolled', {
+      // Broadcast dice animation to other players in room (roller already has their own dice modal)
+      socket.to(room.id).emit('dice_rolled', {
         playerId: userId,
         username,
         characterName: character?.name || username,
@@ -630,6 +631,18 @@ export function setupGameSockets(io: Server) {
           timestamp: new Date().toISOString(),
         });
 
+        // Log item pickup to Campaign Journal (loreJournal)
+        const updatedRoom = roomRepository.addMilestones(room.id, [{
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `📦 ${charName} подобрал предмет: «${result.item.name}».`,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (updatedRoom) {
+          io.to(room.id).emit('room_updated', sanitizeRoom(updatedRoom));
+        }
+
         io.to(room.id).emit('inventory_notification', {
           id: crypto.randomUUID(),
           characterId: result.character.id,
@@ -671,6 +684,18 @@ export function setupGameSockets(io: Server) {
           text: `🧪 ${result.character.name} использовал предмет: «${result.itemName}»${targetNote}${healNote}`,
           timestamp: new Date().toISOString(),
         });
+
+        // Log item usage to Campaign Journal (loreJournal)
+        const updatedRoom = roomRepository.addMilestones(room.id, [{
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `🧪 ${result.character.name} использовал предмет: «${result.itemName}»${targetNote}${healNote}.`,
+          timestamp: new Date().toISOString(),
+        }]);
+
+        if (updatedRoom) {
+          io.to(room.id).emit('room_updated', sanitizeRoom(updatedRoom));
+        }
 
         io.to(room.id).emit('inventory_notification', {
           id: crypto.randomUUID(),

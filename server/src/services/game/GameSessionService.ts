@@ -692,14 +692,42 @@ export class GameSessionService {
       }
     }
 
-    // Process Lore Journal Milestones
-    if (Array.isArray(dmResult.newMilestones) && dmResult.newMilestones.length > 0) {
-      const milestones: LoreMilestone[] = dmResult.newMilestones.map(m => ({
+    // Process Lore Journal Milestones (including item drops, acquisitions and usages)
+    const itemMilestones: LoreMilestone[] = [];
+    if (droppedLootItems.length > 0) {
+      itemMilestones.push({
         id: crypto.randomUUID(),
         round: room.roundNumber,
-        milestone: m,
-      }));
-      this.rooms.addMilestones(room.id, milestones);
+        milestone: `📦 На поле боя обнаружены трофеи: ${droppedLootItems.map(i => `«${i.name}»`).join(', ')}.`,
+      });
+    }
+    inventoryNotifications.forEach(notif => {
+      if (notif.action === 'add') {
+        itemMilestones.push({
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `🎒 ${notif.characterName} находит/получает предмет: «${notif.itemName}» (${notif.reason || 'в ходе действий'}).`,
+        });
+      } else if (notif.action === 'remove') {
+        itemMilestones.push({
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `🎒 ${notif.characterName} использует/теряет: «${notif.itemName}» (${notif.reason || 'израсходован или утрачен'}).`,
+        });
+      }
+    });
+
+    const dmMilestones: LoreMilestone[] = Array.isArray(dmResult.newMilestones) && dmResult.newMilestones.length > 0
+      ? dmResult.newMilestones.map(m => ({
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: m,
+        }))
+      : [];
+
+    const allMilestones = [...dmMilestones, ...itemMilestones];
+    if (allMilestones.length > 0) {
+      this.rooms.addMilestones(room.id, allMilestones);
     }
 
     // Award XP for turn step
@@ -1102,7 +1130,31 @@ export class GameSessionService {
       }
     }
 
-    // Process Lore Journal Milestones (ensure rich, expanded chronicles)
+    // Process Lore Journal Milestones (ensure rich, expanded chronicles including item drops, acquisitions, and usages)
+    const itemMilestones: LoreMilestone[] = [];
+    if (droppedLootItems.length > 0) {
+      itemMilestones.push({
+        id: crypto.randomUUID(),
+        round: room.roundNumber,
+        milestone: `📦 На поле боя обнаружены трофеи: ${droppedLootItems.map(i => `«${i.name}»`).join(', ')}.`,
+      });
+    }
+    inventoryNotifications.forEach(notif => {
+      if (notif.action === 'add') {
+        itemMilestones.push({
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `🎒 ${notif.characterName} находит/получает предмет: «${notif.itemName}» (${notif.reason || 'в ходе раунда'}).`,
+        });
+      } else if (notif.action === 'remove') {
+        itemMilestones.push({
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `🎒 ${notif.characterName} использует/теряет: «${notif.itemName}» (${notif.reason || 'израсходован или утрачен'}).`,
+        });
+      }
+    });
+
     const rawMilestones = (Array.isArray(dmResult.newMilestones) && dmResult.newMilestones.length > 0)
       ? dmResult.newMilestones
       : [
@@ -1113,7 +1165,7 @@ export class GameSessionService {
       round: room.roundNumber,
       milestone: m,
     }));
-    this.rooms.addMilestones(room.id, milestones);
+    this.rooms.addMilestones(room.id, [...milestones, ...itemMilestones]);
 
     // Award XP to active characters
     const xpToAward = dmResult.xpAwarded && dmResult.xpAwarded > 0 ? dmResult.xpAwarded : 25;

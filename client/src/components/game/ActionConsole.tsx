@@ -233,13 +233,6 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
         </div>
       )}
 
-      {/* Current Situation Context Banner */}
-      {currentSituation && (
-        <div className="px-2.5 py-1 rounded-lg bg-amber-950/30 border border-amber-500/20 text-[11px] text-slate-300 flex items-center gap-1.5 overflow-hidden">
-          <span className="font-bold text-amber-400 font-rpg uppercase text-[10px] shrink-0">Обстановка:</span>
-          <span className="truncate italic text-slate-200">{currentSituation}</span>
-        </div>
-      )}
 
       {/* Suggestion Chips & DC indicator Row */}
       <div className="flex items-center justify-between gap-2 flex-wrap">

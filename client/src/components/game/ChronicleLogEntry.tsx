@@ -87,7 +87,12 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
             {log.actionsSummary.split('\n\n').filter(Boolean).map((block, idx) => {
               const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
               const playerLine = lines[0] || block;
-              const verdictLine = lines.slice(1).join(' ').replace(/^↳\s*/, '');
+              const subLines = lines.slice(1);
+
+              const itemLines = subLines.filter(l => l.includes('🎒 [Инвентарь]:') || l.startsWith('🎒'));
+              const reactionLines = subLines.filter(l => l.includes('[Противодействие]') || l.includes('[Защита') || l.includes('[Содействие]'));
+              const verdictLines = subLines.filter(l => !l.includes('🎒 [Инвентарь]:') && !l.startsWith('🎒') && !l.includes('[Противодействие]') && !l.includes('[Защита') && !l.includes('[Содействие]'));
+              const verdictLine = verdictLines.join(' ').replace(/^↳\s*/, '');
               
               const isCritSuccess = verdictLine.includes('КРИТИЧЕСКИЙ УСПЕХ') || verdictLine.includes('КРИТИЧЕСКОЕ ПОПАДАНИЕ');
               const isCritFail = verdictLine.includes('КРИТИЧЕСКИЙ ПРОВАЛ') || verdictLine.includes('КРИТИЧЕСКИЙ ПРОМАХ');
@@ -110,6 +115,7 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
                   }`}
                 >
                   <div className="font-medium text-slate-100">{playerLine}</div>
+                  
                   {verdictLine && (
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-[11px] font-bold">
                       {isSuccess ? (
@@ -124,6 +130,21 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
                       <span className="text-slate-300 font-sans font-normal">{verdictLine}</span>
                     </div>
                   )}
+
+                  {/* Reaction Lines */}
+                  {reactionLines.map((rLine, rIdx) => (
+                    <div key={rIdx} className="mt-1.5 px-2.5 py-1 rounded-lg bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 text-[11px] font-sans">
+                      {rLine.replace(/^↳\s*/, '')}
+                    </div>
+                  ))}
+
+                  {/* Inventory Activity (Found, Used, Lost items) */}
+                  {itemLines.map((iLine, iIdx) => (
+                    <div key={iIdx} className="mt-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px] font-sans flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>{iLine.replace(/^↳\s*/, '').replace(/^🎒\s*(\[Инвентарь\]:)?\s*/, '')}</span>
+                    </div>
+                  ))}
                 </div>
               );
             })}

@@ -75,6 +75,7 @@ export interface LoreMilestone {
   milestone: string;
   imageUrl?: string;
   tags?: string[];
+  timestamp?: string;
 }
 
 export interface RoomLootItem {

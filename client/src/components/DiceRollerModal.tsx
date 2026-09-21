@@ -35,6 +35,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   const [disadvantage, setDisadvantage] = useState(initialDisadvantage);
   const [isRolling, setIsRolling] = useState(false);
   const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null);
+  const [pendingDie, setPendingDie] = useState<number | null>(null);
 
   const stats = character?.stats || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
   const calcMod = (val: number) => Math.floor((val - 10) / 2);
@@ -47,10 +48,14 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     const socket = getSocket();
 
     const handleResult = (result: DiceRollResult) => {
-      // Allow 3D tumble for at least 1.2s before settling
+      // Determine the exact d20 face value (1-20)
+      const dieFace = result.baseRoll || (result.rolls && result.rolls.length > 0 ? result.rolls[0] : result.total);
+      setPendingDie(dieFace);
+
+      // Allow 3D tumble for 1.1s before settling on the exact target number
       setTimeout(() => {
-        setLastRoll(result);
         setIsRolling(false);
+        setLastRoll(result);
 
         if (result.isCriticalSuccess) {
           soundFx.playCriticalSuccess();
@@ -68,7 +73,7 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
             origin: { y: 0.65 },
           });
         }
-      }, 1200);
+      }, 1100);
 
       socket.off('your_dice_result', handleResult);
       socket.off('dice_roll_rejected', handleRejected);
@@ -121,7 +126,9 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
     onClose();
   };
 
-  const rawDie = lastRoll?.rolls && lastRoll.rolls.length > 0 ? lastRoll.rolls[0] : lastRoll?.total;
+  const rawDie = lastRoll
+    ? (lastRoll.baseRoll || (lastRoll.rolls && lastRoll.rolls.length > 0 ? lastRoll.rolls[0] : lastRoll.total))
+    : pendingDie;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in">

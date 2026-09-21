@@ -135,6 +135,10 @@ export function useGameSession(roomCode: string) {
     });
 
     socket.on('dice_rolled', (data: { playerId: string; username: string; characterName: string; roll: DiceRollResult }) => {
+      // Don't show redundant animation/modal or play double sound for the person who made the roll
+      if (user?.id && data.playerId === user.id) {
+        return;
+      }
       soundFx.playDiceRoll();
       if (data && data.roll) {
         setRoomRollBroadcast({

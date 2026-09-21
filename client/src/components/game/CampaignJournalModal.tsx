@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LoreMilestone } from '../../types';
-import { X, BookMarked, Search, Sparkles, Calendar } from 'lucide-react';
+import { X, BookMarked, Search, Sparkles, Calendar, Package } from 'lucide-react';
 
 interface CampaignJournalModalProps {
   isOpen: boolean;
@@ -12,16 +12,26 @@ interface CampaignJournalModalProps {
 const MilestoneCard: React.FC<{
   item: LoreMilestone;
 }> = ({ item }) => {
+  const isItemEvent = item.milestone.includes('🎒') || item.milestone.includes('📦') || item.milestone.includes('🧪') || item.milestone.toLowerCase().includes('предмет') || item.milestone.toLowerCase().includes('трофей');
+
   return (
-    <div className="bg-fantasy-panel border border-fantasy-border hover:border-amber-500/50 rounded-2xl p-4 sm:p-5 transition-all duration-300 shadow-xl group">
+    <div className={`bg-fantasy-panel border rounded-2xl p-4 sm:p-5 transition-all duration-300 shadow-xl group ${
+      isItemEvent ? 'border-amber-500/30 hover:border-amber-500/60 bg-slate-900/80' : 'border-fantasy-border hover:border-amber-500/50'
+    }`}>
       <div className="flex items-center justify-between mb-2 pb-2 border-b border-fantasy-border/40">
         <div className="flex items-center gap-1.5 px-3 py-1 bg-black/60 border border-amber-500/40 rounded-xl text-amber-300 font-mono font-bold text-xs shadow-md">
           <Calendar className="w-3.5 h-3.5 text-amber-400" />
           <span>РАУНД {item.round}</span>
         </div>
-        <span className="flex items-center gap-1 text-[11px] text-amber-400/80 font-mono">
-          <Sparkles className="w-3 h-3 text-amber-400" /> Веха истории
-        </span>
+        {isItemEvent ? (
+          <span className="flex items-center gap-1 text-[11px] text-amber-300 font-mono bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/30">
+            <Package className="w-3 h-3 text-amber-400" /> Инвентарь и трофеи
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 text-[11px] text-amber-400/80 font-mono">
+            <Sparkles className="w-3 h-3 text-amber-400" /> Веха истории
+          </span>
+        )}
       </div>
 
       <p className="text-sm text-slate-100 font-medium leading-relaxed font-sans mt-2">

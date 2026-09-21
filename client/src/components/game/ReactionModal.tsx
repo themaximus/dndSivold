@@ -32,6 +32,7 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
   const [isRolling, setIsRolling] = useState(false);
   const [hasRolled, setHasRolled] = useState(false);
   const [rollResult, setRollResult] = useState<DiceRollResult | null>(null);
+  const [pendingDie, setPendingDie] = useState<number | null>(null);
 
   // Reset local state when a new request arrives
   useEffect(() => {
@@ -40,6 +41,7 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
       setIsRolling(false);
       setHasRolled(false);
       setRollResult(null);
+      setPendingDie(null);
       setResponseType('positive');
     }
   }, [reactionRequest?.id]);
@@ -62,6 +64,7 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
     const modifier = Math.floor((statScore - 10) / 2);
 
     const baseRoll = Math.floor(Math.random() * 20) + 1;
+    setPendingDie(baseRoll);
     const total = baseRoll + modifier;
     const isCriticalSuccess = baseRoll === 20;
     const isCriticalFail = baseRoll === 1;
@@ -234,7 +237,7 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
               <ThreeD20Die
                 size={160}
                 isRolling={isRolling}
-                targetNumber={rollResult?.baseRoll ?? 20}
+                targetNumber={rollResult?.baseRoll ?? pendingDie ?? null}
                 targetDC={targetDC}
               />
             </div>

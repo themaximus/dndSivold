@@ -28,7 +28,7 @@ export const RoomDiceBroadcastModal: React.FC<RoomDiceBroadcastModalProps> = ({
   const [hasLanded, setHasLanded] = useState(false);
 
   const roll = broadcast.roll;
-  const rawDie = roll.rolls && roll.rolls.length > 0 ? roll.rolls[0] : roll.total;
+  const rawDie = roll.baseRoll || (roll.rolls && roll.rolls.length > 0 ? roll.rolls[0] : roll.total);
 
   useEffect(() => {
     // 1.4s tumbling, then settles on target number
