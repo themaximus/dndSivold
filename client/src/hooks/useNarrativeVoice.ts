@@ -67,11 +67,12 @@ export function useNarrativeVoice(roomCode?: string) {
       return;
     }
 
+    setLoadingLogId(logId);
+    setSpeakingLogId(logId);
+
     if (roomCode) {
       socket.emit('narrator_play', { roomCode, logId, narrativeText });
     } else {
-      setLoadingLogId(logId);
-      setSpeakingLogId(logId);
       try {
         await soundFx.speakNarrative(narrativeText);
       } finally {

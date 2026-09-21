@@ -266,6 +266,59 @@ export class NeuralVoiceService {
     });
   }
 
+  private speakWithBrowserFallback(text: string, sessionId: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        this.stop();
+        resolve(false);
+        return;
+      }
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ru-RU';
+        utterance.rate = 1.0;
+        utterance.pitch = 0.95;
+
+        const voices = window.speechSynthesis.getVoices();
+        const ruVoice = voices.find(v => v.lang.startsWith('ru') || v.lang.includes('RU'));
+        if (ruVoice) {
+          utterance.voice = ruVoice;
+        }
+
+        utterance.onstart = () => {
+          if (sessionId === this.playbackSessionId) {
+            this.notify(true, text);
+          }
+        };
+
+        utterance.onend = () => {
+          if (sessionId === this.playbackSessionId) {
+            this.stop();
+          }
+          resolve(true);
+        };
+
+        utterance.onerror = (e) => {
+          console.warn('Browser speech synthesis error:', e);
+          if (sessionId === this.playbackSessionId) {
+            this.stop();
+          }
+          resolve(false);
+        };
+
+        (window as any).__currentDndUtterance = utterance;
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.warn('Browser TTS execution failed:', e);
+        if (sessionId === this.playbackSessionId) {
+          this.stop();
+        }
+        resolve(false);
+      }
+    });
+  }
+
   public async speak(text: string, isSpeechEnabled: boolean, mood?: AmbienceMood): Promise<boolean> {
     if (!isSpeechEnabled || typeof window === 'undefined') {
       return false;
@@ -293,7 +346,11 @@ export class NeuralVoiceService {
     this.lastStartedText = cleanText;
 
     try {
-      this.notify(true, cleanText);
+      const timeoutId = setTimeout(() => {
+        if (this.abortController) {
+          this.abortController.abort();
+        }
+      }, 7000);
 
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -301,6 +358,8 @@ export class NeuralVoiceService {
         body: JSON.stringify({ text: cleanText, mood }),
         signal: this.abortController.signal,
       });
+
+      clearTimeout(timeoutId);
 
       // If a newer playback was started or stop was called, abort
       if (sessionId !== this.playbackSessionId) {
@@ -329,22 +388,31 @@ export class NeuralVoiceService {
       };
 
       audio.onerror = (e) => {
-        console.error('Audio playback error:', e);
+        console.warn('Audio playback error, falling back to browser TTS:', e);
         if (sessionId === this.playbackSessionId) {
-          this.stop();
+          this.speakWithBrowserFallback(cleanText, sessionId);
         }
       };
 
-      await audio.play();
-      return true;
+      try {
+        await audio.play();
+        this.notify(true, cleanText);
+        return true;
+      } catch (playErr: any) {
+        console.warn('Audio play failed or autoplay restricted, falling back to browser TTS:', playErr);
+        if (sessionId === this.playbackSessionId) {
+          return this.speakWithBrowserFallback(cleanText, sessionId);
+        }
+        return false;
+      }
     } catch (err: any) {
-      if (err.name === 'AbortError') {
+      if (err.name === 'AbortError' && sessionId !== this.playbackSessionId) {
         // Request was deliberately aborted by a newer action; silently exit
         return false;
       }
-      console.error('Neural voice playback failed:', err);
+      console.warn('Neural voice request failed or timed out, trying browser TTS fallback:', err?.message || err);
       if (sessionId === this.playbackSessionId) {
-        this.stop();
+        return this.speakWithBrowserFallback(cleanText, sessionId);
       }
       return false;
     }
@@ -355,6 +423,12 @@ export class NeuralVoiceService {
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+      (window as any).__currentDndUtterance = null;
     }
     if (this.currentAudio) {
       this.currentAudio.pause();

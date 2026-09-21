@@ -14,19 +14,22 @@ import {
   ArrowLeft,
   UserCheck,
   Clock,
-  ListOrdered
+  ListOrdered,
+  Plus
 } from 'lucide-react';
 
 interface RoomLobbyProps {
   roomCode: string;
   onGameStarted: () => void;
   onLeave: () => void;
+  onCreateCharacter?: () => void;
 }
 
 export const RoomLobby: React.FC<RoomLobbyProps> = ({
   roomCode,
   onGameStarted,
   onLeave,
+  onCreateCharacter,
 }) => {
   const { user } = useAuth();
   const [room, setRoom] = useState<Room | null>(null);
@@ -36,6 +39,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
   const [isReady, setIsReady] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isStartingGame, setIsStartingGame] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
   const isHost = user && room && user.id === room.hostUserId;
@@ -103,11 +107,17 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
       setRoom(updatedRoom);
     });
 
+    socket.on('dm_thinking', () => {
+      setIsStartingGame(true);
+    });
+
     socket.on('game_started', () => {
+      setIsStartingGame(false);
       onGameStarted();
     });
 
     socket.on('error_message', (msg: string) => {
+      setIsStartingGame(false);
       alert(msg);
     });
 
@@ -115,6 +125,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
       isMounted = false;
       socket.off('room_players_updated');
       socket.off('room_updated');
+      socket.off('dm_thinking');
       socket.off('game_started');
       socket.off('error_message');
     };
@@ -143,6 +154,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
   };
 
   const handleStartGame = () => {
+    setIsStartingGame(true);
     const socket = getSocket();
     socket.emit('start_game', { roomCode });
   };
@@ -224,10 +236,23 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
 
           {/* My Character Picker */}
           <div className="bg-fantasy-panel border border-fantasy-border rounded-2xl p-5 shadow-xl">
-            <h3 className="text-sm font-bold font-rpg text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-amber-400" />
-              Ваш герой в этой сессии
-            </h3>
+            <div className="flex items-center justify-between mb-3 border-b border-fantasy-border/60 pb-2">
+              <h3 className="text-sm font-bold font-rpg text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-amber-400" />
+                Ваш герой в этой сессии
+              </h3>
+              {onCreateCharacter && (
+                <button
+                  type="button"
+                  onClick={onCreateCharacter}
+                  className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-amber-500/10 transition-colors"
+                  title="Создать нового персонажа для этой кампании"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Создать</span>
+                </button>
+              )}
+            </div>
 
             {myCharacters.length === 0 ? (
               <div className="text-center py-4">
@@ -235,9 +260,11 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                   У вас еще нет персонажа. Создайте его, чтобы отправиться в поход!
                 </p>
                 <button
-                  onClick={onLeave}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl"
+                  type="button"
+                  onClick={() => (onCreateCharacter ? onCreateCharacter() : onLeave())}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-1.5 mx-auto"
                 >
+                  <Plus className="w-3.5 h-3.5" />
                   Создать персонажа
                 </button>
               </div>
@@ -449,10 +476,20 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
 
                   <button
                     onClick={handleStartGame}
-                    className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-extrabold font-rpg rounded-xl shadow-xl shadow-amber-600/30 transition-all flex items-center justify-center gap-2"
+                    disabled={isStartingGame}
+                    className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-extrabold font-rpg rounded-xl shadow-xl shadow-amber-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait"
                   >
-                    <Play className="w-5 h-5 fill-current" />
-                    Запустить игру
+                    {isStartingGame ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                        <span>Мастер создаёт мир...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-5 h-5 fill-current" />
+                        <span>Запустить игру</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -460,6 +497,36 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Full-screen Loading Overlay when Master is generating the adventure */}
+      {isStartingGame && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-fantasy-panel border border-amber-500/50 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl space-y-6 relative overflow-hidden">
+            <div className="absolute -top-12 -left-12 w-36 h-36 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -right-12 w-36 h-36 bg-purple-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="relative">
+              <div className="w-20 h-20 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto shadow-glow-gold animate-bounce">
+                <Sparkles className="w-10 h-10 animate-spin-slow" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold font-rpg text-amber-300">
+                ИИ-Мастер создаёт приключение...
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Генерация художественного пролога, расстановка сил на поле боя и подготовка первой развилки для отряда.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 text-xs font-mono text-amber-400/90 pt-2">
+              <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              <span>Пожалуйста, подождите несколько секунд...</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

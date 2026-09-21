@@ -241,53 +241,9 @@ class Database {
       try {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         this.data = JSON.parse(raw);
-
-        // Merge safeguard: Ensure any users or characters from default seed are never lost
-        if (fs.existsSync(defaultPath)) {
-          try {
-            const defaultRaw = fs.readFileSync(defaultPath, 'utf-8');
-            const defaultData: DatabaseSchema = JSON.parse(defaultRaw);
-            let merged = false;
-
-            if (Array.isArray(defaultData.users)) {
-              for (const u of defaultData.users) {
-                if (!this.data.users.some(existing => existing.id === u.id || existing.username.toLowerCase() === u.username.toLowerCase())) {
-                  this.data.users.push(u);
-                  merged = true;
-                }
-              }
-            }
-
-            if (Array.isArray(defaultData.characters)) {
-              for (const c of defaultData.characters) {
-                if (!this.data.characters.some(existing => existing.id === c.id)) {
-                  this.data.characters.push(c);
-                  merged = true;
-                }
-              }
-            }
-
-            if (merged) {
-              console.log('Synchronized existing users and characters into database');
-              this.save();
-            }
-          } catch (e) {
-            console.warn('Fallback sync check encountered error:', e);
-          }
-        }
       } catch (err) {
-        console.error('Failed to parse database.json, initializing from default', err);
-        if (fs.existsSync(defaultPath)) {
-          try {
-            fs.copyFileSync(defaultPath, this.filePath);
-            const raw = fs.readFileSync(this.filePath, 'utf-8');
-            this.data = JSON.parse(raw);
-          } catch (e) {
-            this.save();
-          }
-        } else {
-          this.save();
-        }
+        console.error('Failed to parse database.json, initializing empty db', err);
+        this.save();
       }
     } else {
       if (fs.existsSync(defaultPath)) {

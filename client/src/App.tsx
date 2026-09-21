@@ -115,9 +115,19 @@ export function App() {
           <CharacterCreator
             onCreated={(newChar) => {
               setCharacters((prev) => [...prev, newChar]);
-              setCurrentView('characters');
+              if (activeRoomCode) {
+                setCurrentView('lobby');
+              } else {
+                setCurrentView('characters');
+              }
             }}
-            onCancel={() => setCurrentView('characters')}
+            onCancel={() => {
+              if (activeRoomCode) {
+                setCurrentView('lobby');
+              } else {
+                setCurrentView('characters');
+              }
+            }}
           />
         )}
 
@@ -148,6 +158,7 @@ export function App() {
           <RoomLobby
             roomCode={activeRoomCode}
             onGameStarted={() => setCurrentView('game')}
+            onCreateCharacter={() => setCurrentView('create-character')}
             onLeave={() => {
               window.history.pushState({}, '', '/');
               setActiveRoomCode('');

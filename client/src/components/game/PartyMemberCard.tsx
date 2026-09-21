@@ -47,13 +47,6 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
           : 'bg-fantasy-card/70 border-fantasy-border/60 hover:border-slate-500'
       }`}
     >
-      {/* Active turn indicator banner */}
-      {isActiveTurn && !isDead && (
-        <div className="absolute -top-2 right-3 z-10 bg-amber-500 text-black text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md animate-bounce">
-          Ходит сейчас
-        </div>
-      )}
-
       {/* Character Identity */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div
@@ -82,7 +75,14 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
         </div>
 
         {/* Turn / Life Status & Inspect Button */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {isActiveTurn && !isDead && (
+            <span className="bg-amber-400 text-slate-950 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />
+              Ходит сейчас
+            </span>
+          )}
+
           {onInspect && (
             <button
               type="button"
