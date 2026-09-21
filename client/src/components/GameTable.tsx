@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DiceRollResult } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useGameSession } from '../hooks/useGameSession';
 import { useNarrativeVoice } from '../hooks/useNarrativeVoice';
+import { soundFx } from '../utils/audio';
 import { GameTableHeader } from './game/GameTableHeader';
 import { PartyHUD } from './game/PartyHUD';
 import { StoryChronicle } from './game/StoryChronicle';
@@ -22,9 +23,10 @@ import { ReactionModal } from './game/ReactionModal';
 interface GameTableProps {
   roomCode: string;
   onLeave: () => void;
+  onExitToCampaigns?: () => void;
 }
 
-export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
+export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitToCampaigns }) => {
   const { user } = useAuth();
   const [attachedRolls, setAttachedRolls] = useState<DiceRollResult[]>([]);
   const [isDiceModalOpen, setIsDiceModalOpen] = useState(false);
@@ -75,9 +77,11 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     longRest,
     submitReaction,
     skipReaction,
+    roomError,
   } = useGameSession(roomCode);
 
   const { loadingLogId, isSpeakingText, toggleVoice } = useNarrativeVoice(roomCode);
+  const lastAutoPlayedLogIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setAttachedRolls([]);
@@ -89,6 +93,31 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     }
   }, [myPlayer?.pendingRoll]);
 
+  // Auto-play the newest DM narrative log if speech is enabled
+  useEffect(() => {
+    if (!room || logs.length === 0) return;
+    const latestLog = logs[logs.length - 1];
+    if (!latestLog || !latestLog.narrativeText) return;
+
+    if (lastAutoPlayedLogIdRef.current === null) {
+      lastAutoPlayedLogIdRef.current = latestLog.id;
+      if (soundFx.getSpeechState()) {
+        toggleVoice(latestLog.id, latestLog.narrativeText);
+      }
+    } else if (lastAutoPlayedLogIdRef.current !== latestLog.id) {
+      lastAutoPlayedLogIdRef.current = latestLog.id;
+      if (soundFx.getSpeechState()) {
+        toggleVoice(latestLog.id, latestLog.narrativeText);
+      }
+    }
+  }, [logs, room?.id, toggleVoice]);
+
+  // Memoize roll broadcasts from other players to avoid unnecessary StoryChronicle re-renders
+  const otherPlayerRolls = useMemo(
+    () => roomRollBroadcasts.filter(b => b.playerId !== user?.id),
+    [roomRollBroadcasts, user?.id]
+  );
+
   // If the room has not started yet (waiting), return to lobby
   useEffect(() => {
     if (room && room.status === 'waiting') {
@@ -96,9 +125,31 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     }
   }, [room?.status, onLeave]);
 
+  if (roomError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+        <div className="bg-red-950/40 border border-red-800/60 p-8 rounded-2xl max-w-md text-center shadow-2xl backdrop-blur-sm">
+          <div className="text-4xl mb-4">🚪</div>
+          <h2 className="text-xl font-cinzel font-bold text-red-200 mb-2">Комната не найдена</h2>
+          <p className="text-sm text-slate-300 mb-6 leading-relaxed">
+            {roomError === 'Комната не найдена'
+              ? 'Эта комната больше не существует или игровая сессия была завершена.'
+              : roomError}
+          </p>
+          <button
+            onClick={onExitToCampaigns || onLeave}
+            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold rounded-xl text-sm transition-all shadow-lg hover:shadow-amber-600/20"
+          >
+            Вернуться к кампаниям
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!room) {
     return (
-      <div className="flex items-center justify-center h-64 text-slate-400">
+      <div className="flex items-center justify-center h-64 text-slate-400 font-rpg">
         Загрузка игрового стола...
       </div>
     );
@@ -187,7 +238,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
             recentActivities={recentActivities}
             isSpeakingText={isSpeakingText}
             onToggleVoice={toggleVoice}
-            activeRoomRolls={roomRollBroadcasts.filter(b => b.playerId !== user?.id)}
+            activeRoomRolls={otherPlayerRolls}
             targetDC={room.targetDC}
             onDismissRoomRoll={dismissRoomRoll}
           />

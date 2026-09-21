@@ -26,6 +26,7 @@ export function useGameSession(roomCode: string) {
     title: string;
     epilogue: string;
   } | null>(null);
+  const [roomError, setRoomError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -38,6 +39,7 @@ export function useGameSession(roomCode: string) {
         setRoom(roomData.room);
         setPlayers(roomData.players);
         setLogs(roomData.logs || []);
+        setRoomError(null);
 
         const me = roomData.players.find((p: RoomPlayer) => p.userId === user?.id);
         if (me) {
@@ -45,8 +47,11 @@ export function useGameSession(roomCode: string) {
           setHasSubmittedThisRound(me.hasActedThisRound);
           if (me.character) setMyCharacter(me.character);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load room data:', err);
+        if (isMounted) {
+          setRoomError(err?.message || 'Комната не найдена');
+        }
       }
     };
 
@@ -496,5 +501,6 @@ export function useGameSession(roomCode: string) {
     longRest,
     submitReaction,
     skipReaction,
+    roomError,
   };
 }

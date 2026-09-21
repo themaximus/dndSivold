@@ -14,7 +14,12 @@ export const NarrativeVoiceButton: React.FC<NarrativeVoiceButtonProps> = ({
 }) => {
   return (
     <button
-      onClick={onToggle}
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
       className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 border ${
         isPlaying
           ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-glow-gold animate-pulse'

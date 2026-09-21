@@ -17,10 +17,15 @@ router.get('/', async (req, res) => {
 
     const safeText = text.slice(0, 10000);
     const { filePath, mood: detectedMood } = await ttsService.synthesize(safeText, mood);
+    const stat = fs.statSync(filePath);
 
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('X-Detected-Mood', detectedMood);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': stat.size,
+      'Accept-Ranges': 'bytes',
+      'X-Detected-Mood': detectedMood,
+      'Cache-Control': 'public, max-age=86400',
+    });
 
     const readStream = fs.createReadStream(filePath);
     readStream.pipe(res);
@@ -40,10 +45,15 @@ router.post('/', async (req, res) => {
 
     const safeText = text.slice(0, 10000);
     const { filePath, mood: detectedMood } = await ttsService.synthesize(safeText, mood);
+    const stat = fs.statSync(filePath);
 
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('X-Detected-Mood', detectedMood);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': stat.size,
+      'Accept-Ranges': 'bytes',
+      'X-Detected-Mood': detectedMood,
+      'Cache-Control': 'public, max-age=86400',
+    });
 
     const readStream = fs.createReadStream(filePath);
     readStream.pipe(res);

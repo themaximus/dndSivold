@@ -28,6 +28,9 @@ export function useNarrativeVoice(roomCode?: string) {
       mood?: any;
       startedBy?: string;
     }) => {
+      if (!soundFx.getSpeechState()) return;
+      if (soundFx.isCurrentlySpeaking(data.narrativeText)) return;
+
       setLoadingLogId(data.logId);
       setSpeakingLogId(data.logId);
       try {
@@ -55,7 +58,10 @@ export function useNarrativeVoice(roomCode?: string) {
 
   const toggleVoice = useCallback(async (logId: string, narrativeText: string) => {
     const socket = getSocket();
-    const isThisSpeaking = soundFx.isCurrentlySpeaking(narrativeText) || speakingLogId === logId;
+    const isThisSpeaking =
+      soundFx.isCurrentlySpeaking(narrativeText) ||
+      speakingLogId === logId ||
+      loadingLogId === logId;
 
     if (isThisSpeaking) {
       soundFx.stopSpeech();
@@ -70,16 +76,21 @@ export function useNarrativeVoice(roomCode?: string) {
     setLoadingLogId(logId);
     setSpeakingLogId(logId);
 
+    // If speech was turned off in the header/navbar, enable it on deliberate user action
+    if (!soundFx.getSpeechState()) {
+      soundFx.toggleSpeech();
+    }
+
     if (roomCode) {
       socket.emit('narrator_play', { roomCode, logId, narrativeText });
-    } else {
-      try {
-        await soundFx.speakNarrative(narrativeText);
-      } finally {
-        setLoadingLogId(null);
-      }
     }
-  }, [roomCode, speakingLogId]);
+
+    try {
+      await soundFx.speakNarrative(narrativeText);
+    } finally {
+      setLoadingLogId(null);
+    }
+  }, [roomCode, speakingLogId, loadingLogId]);
 
   const isSpeakingText = useCallback((text?: string) => {
     return soundFx.isCurrentlySpeaking(text);

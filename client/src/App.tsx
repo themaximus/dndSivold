@@ -199,6 +199,9 @@ export function App() {
             onLeave={() => {
               navigateTo('lobby', activeRoomCode);
             }}
+            onExitToCampaigns={() => {
+              navigateTo('campaigns', '');
+            }}
           />
         )}
       </main>

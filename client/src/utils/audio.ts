@@ -241,7 +241,7 @@ export class NeuralVoiceService {
   private abortController: AbortController | null = null;
   private playbackSessionId: number = 0;
   private lastStartedAt: number = 0;
-  private lastStartedText: string = '';
+  private lastStartedText: string | null = null;
 
   constructor(private ambience: AmbienceSynthesizer) {}
 
@@ -266,6 +266,24 @@ export class NeuralVoiceService {
     });
   }
 
+  private stopAudioOnly(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.onended = null;
+      this.currentAudio.onerror = null;
+      this.currentAudio.currentTime = 0;
+      this.currentAudio = null;
+    }
+    if (this.currentBlobUrl) {
+      URL.revokeObjectURL(this.currentBlobUrl);
+      this.currentBlobUrl = null;
+    }
+  }
+
   public async speak(text: string, isSpeechEnabled: boolean, mood?: AmbienceMood): Promise<boolean> {
     if (!isSpeechEnabled || typeof window === 'undefined') {
       return false;
@@ -275,17 +293,20 @@ export class NeuralVoiceService {
     if (!cleanText) return false;
 
     const now = Date.now();
-    // Prevent duplicate triggers for the exact same text within 2.5 seconds
-    if (this.isSpeaking && this.activeText === cleanText) {
-      if (now - this.lastStartedAt < 2500) {
+    // Prevent duplicate triggers for the exact same text within 3.5 seconds
+    if (
+      (this.isSpeaking || this.lastStartedText === cleanText) &&
+      (this.activeText === cleanText || this.lastStartedText === cleanText)
+    ) {
+      if (now - this.lastStartedAt < 3500) {
         return true;
       }
       this.stop();
       return false;
     }
 
-    // Stop any current audio and cancel in-flight network requests
-    this.stop();
+    // Stop current audio without resetting UI state for the upcoming playback
+    this.stopAudioOnly();
 
     const sessionId = ++this.playbackSessionId;
     this.abortController = new AbortController();
@@ -327,6 +348,7 @@ export class NeuralVoiceService {
       this.currentBlobUrl = blobUrl;
 
       const audio = new Audio(blobUrl);
+      audio.preload = 'auto';
       this.currentAudio = audio;
 
       audio.onended = () => {
@@ -368,40 +390,33 @@ export class NeuralVoiceService {
 
   public stop(): void {
     this.playbackSessionId++;
-    if (this.abortController) {
-      this.abortController.abort();
-      this.abortController = null;
-    }
+    this.stopAudioOnly();
+    this.lastStartedText = null;
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
       } catch (e) {}
       (window as any).__currentDndUtterance = null;
     }
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio.onended = null;
-      this.currentAudio.onerror = null;
-      this.currentAudio.currentTime = 0;
-      this.currentAudio = null;
-    }
-    if (this.currentBlobUrl) {
-      URL.revokeObjectURL(this.currentBlobUrl);
-      this.currentBlobUrl = null;
-    }
     this.notify(false, null);
   }
 
   public getSpeakingState(): boolean {
-    return this.isSpeaking;
+    return this.isSpeaking || !!this.currentAudio;
   }
 
   public isCurrentlySpeaking(text?: string): boolean {
-    if (!this.isSpeaking) return false;
-    if (text) {
-      return this.activeText === text.replace(/<[^>]*>?/gm, '').trim();
+    if (!this.isSpeaking && !this.currentAudio && (!this.lastStartedText || Date.now() - this.lastStartedAt > 10000)) {
+      return false;
     }
-    return this.isSpeaking;
+    if (text) {
+      const clean = text.replace(/<[^>]*>?/gm, '').trim();
+      return (
+        this.activeText === clean ||
+        (this.lastStartedText === clean && Date.now() - this.lastStartedAt < 10000)
+      );
+    }
+    return this.isSpeaking || !!this.currentAudio;
   }
 }
 

@@ -26,7 +26,8 @@ export const StoryChronicle: React.FC<StoryChronicleProps> = ({
   targetDC,
   onDismissRoomRoll,
 }) => {
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevLogsLengthRef = useRef(logs.length);
 
   const rollsToRender = (activeRoomRolls && activeRoomRolls.length > 0)
     ? activeRoomRolls
@@ -35,11 +36,18 @@ export const StoryChronicle: React.FC<StoryChronicleProps> = ({
     : [];
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs, activeRoomRoll, activeRoomRolls]);
+    // Only scroll the internal chronicle container when a NEW log entry is appended
+    if (logs.length > prevLogsLengthRef.current && containerRef.current) {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+    prevLogsLengthRef.current = logs.length;
+  }, [logs.length]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 custom-scrollbar">
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 custom-scrollbar">
       {recentActivities && recentActivities.length > 0 && (
         <div className="space-y-1.5 pb-2 border-b border-slate-800/80 animate-in fade-in">
           {recentActivities.slice(0, 2).map((act) => (
@@ -69,8 +77,6 @@ export const StoryChronicle: React.FC<StoryChronicleProps> = ({
           onDismiss={() => onDismissRoomRoll?.(broadcast.id)}
         />
       ))}
-
-      <div ref={logEndRef} />
     </div>
   );
 };
