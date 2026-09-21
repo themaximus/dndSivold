@@ -1,5 +1,5 @@
-import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem, CharacterReactionRequest } from '../db';
-export { CharacterReactionRequest };
+import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem, CharacterReactionRequest, QuestEntity } from '../db';
+export { CharacterReactionRequest, QuestEntity };
 
 export interface CampaignMapNode {
   id: string;
@@ -132,6 +132,8 @@ export interface AIDMContext {
   turnPlayerName?: string;
   characterReactions?: CharacterReactionRequest[];
   mechanicalDirectives?: Record<string, string>;
+  activeQuests?: QuestEntity[];
+  completedQuests?: QuestEntity[];
 }
 
 export interface PlayerHpUpdate {

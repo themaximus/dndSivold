@@ -187,6 +187,25 @@ export interface CharacterReactionRequest {
   createdAt: string;
 }
 
+export type QuestStatus = 'active' | 'completed' | 'failed' | 'abandoned';
+export type QuestCategory = 'main' | 'side' | 'task' | 'repair' | 'investigation' | 'social';
+
+export interface QuestEntity {
+  id: string;
+  roomId: string;
+  title: string;
+  description: string;
+  category: QuestCategory;
+  status: QuestStatus;
+  giverName?: string;
+  targetName?: string;
+  roundCreated: number;
+  roundCompleted?: number;
+  resolutionNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RoomEntity {
   id: string;
   code: string;
@@ -210,6 +229,7 @@ export interface RoomEntity {
   pendingReactions?: CharacterReactionRequest[];
   itemLedger?: ItemLedgerEntry[];
   worldNPCRegistry?: WorldNPCEntry[];
+  worldQuests?: QuestEntity[];
   genre?: string;
   campaignDuration?: 'short' | 'medium' | 'long';
   campaignMap?: any;
@@ -284,6 +304,7 @@ interface DatabaseSchema {
   gameLogs: GameLogEntity[];
   itemLedgers: ItemLedgerEntry[];
   worldNPCs: WorldNPCEntry[];
+  worldQuests: QuestEntity[];
 }
 
 class Database {
@@ -297,6 +318,7 @@ class Database {
     gameLogs: [],
     itemLedgers: [],
     worldNPCs: [],
+    worldQuests: [],
   };
 
   constructor() {
@@ -320,6 +342,7 @@ class Database {
         this.data = JSON.parse(raw);
         this.data.itemLedgers = this.data.itemLedgers || [];
         this.data.worldNPCs = this.data.worldNPCs || [];
+        this.data.worldQuests = this.data.worldQuests || [];
       } catch (err) {
         console.error('Failed to parse database.json, initializing empty db', err);
         this.save();
@@ -332,6 +355,7 @@ class Database {
           this.data = JSON.parse(raw);
           this.data.itemLedgers = this.data.itemLedgers || [];
           this.data.worldNPCs = this.data.worldNPCs || [];
+          this.data.worldQuests = this.data.worldQuests || [];
         } catch (err) {
           console.error('Failed to initialize from database.default.json, creating empty db', err);
           this.save();
@@ -531,6 +555,76 @@ class Database {
       if (!this.data.worldNPCs) return;
       this.data.worldNPCs = this.data.worldNPCs.filter(wn => !(wn.roomId === roomId && (wn.id === id || wn.name.toLowerCase() === id.toLowerCase())));
       this.save();
+    },
+  };
+
+  // World Quests & Objectives
+  public quests = {
+    findByRoomId: (roomId: string) => (this.data.worldQuests || []).filter(q => q.roomId === roomId),
+    findById: (id: string) => (this.data.worldQuests || []).find(q => q.id === id),
+    create: (entry: QuestEntity) => {
+      if (!this.data.worldQuests) this.data.worldQuests = [];
+      const existingIdx = this.data.worldQuests.findIndex(
+        q => q.roomId === entry.roomId && (q.id === entry.id || q.title.toLowerCase().trim() === entry.title.toLowerCase().trim())
+      );
+      if (existingIdx !== -1) {
+        this.data.worldQuests[existingIdx] = {
+          ...this.data.worldQuests[existingIdx],
+          ...entry,
+          updatedAt: new Date().toISOString(),
+        };
+        this.save();
+        return this.data.worldQuests[existingIdx];
+      }
+      this.data.worldQuests.push(entry);
+      this.save();
+      return entry;
+    },
+    update: (id: string, updates: Partial<QuestEntity>, roomId?: string) => {
+      if (!this.data.worldQuests) this.data.worldQuests = [];
+      const idx = this.data.worldQuests.findIndex(q => q.id === id && (!roomId || q.roomId === roomId));
+      if (idx !== -1) {
+        this.data.worldQuests[idx] = {
+          ...this.data.worldQuests[idx],
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        };
+        this.save();
+        return this.data.worldQuests[idx];
+      }
+      return null;
+    },
+    complete: (roomId: string, questIdOrTitle: string, roundNumber: number, resolutionNote?: string) => {
+      if (!this.data.worldQuests) this.data.worldQuests = [];
+      const questIdLower = questIdOrTitle.toLowerCase().trim();
+      const target = this.data.worldQuests.find(
+        q => q.roomId === roomId && (q.id === questIdOrTitle || q.title.toLowerCase().trim() === questIdLower || questIdLower.includes(q.title.toLowerCase().trim()))
+      );
+      if (target) {
+        target.status = 'completed';
+        target.roundCompleted = roundNumber;
+        if (resolutionNote) target.resolutionNote = resolutionNote;
+        target.updatedAt = new Date().toISOString();
+        this.save();
+        return target;
+      }
+      return null;
+    },
+    fail: (roomId: string, questIdOrTitle: string, roundNumber: number, note?: string) => {
+      if (!this.data.worldQuests) this.data.worldQuests = [];
+      const questIdLower = questIdOrTitle.toLowerCase().trim();
+      const target = this.data.worldQuests.find(
+        q => q.roomId === roomId && (q.id === questIdOrTitle || q.title.toLowerCase().trim() === questIdLower || questIdLower.includes(q.title.toLowerCase().trim()))
+      );
+      if (target) {
+        target.status = 'failed';
+        target.roundCompleted = roundNumber;
+        if (note) target.resolutionNote = note;
+        target.updatedAt = new Date().toISOString();
+        this.save();
+        return target;
+      }
+      return null;
     },
   };
 }

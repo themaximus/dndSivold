@@ -6,3 +6,4 @@ export * from './TurnActionRepository';
 export * from './GameLogRepository';
 export * from './ItemLedgerRepository';
 export * from './WorldNPCRepository';
+export * from './QuestRepository';

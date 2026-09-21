@@ -12,17 +12,20 @@ import {
   itemLedgerRepository,
   IWorldNPCRepository,
   worldNPCRepository,
+  IQuestRepository,
+  questRepository,
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { AIDMResponse, AIDMPrologueContext, AIDMContext, InventoryNotification } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
-import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest, TurnActionEntity } from '../../db';
+import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy, RoomNPC, CharacterReactionRequest, TurnActionEntity, QuestEntity } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
 import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 import { mechanicalArbiter, MechanicalResolution } from './MechanicalArbiter';
 import { socialArbiter, SocialResolutionResult, ContestedReactionResult } from './SocialArbiter';
 import { sessionAuditLogger, RoundAuditRecord } from '../logging/SessionAuditLogger';
+import { questArbiter, QuestArbiter } from './QuestArbiter';
 
 export function sanitizeNarrativeText(text: string): string {
   if (!text) return '';
@@ -81,6 +84,7 @@ export class GameSessionService {
   private tts: ITTSService;
   private itemLedgers: IItemLedgerRepository;
   private worldNPCs: IWorldNPCRepository;
+  private quests: IQuestRepository;
 
   constructor(
     rooms: IRoomRepository = roomRepository,
@@ -90,7 +94,8 @@ export class GameSessionService {
     aiFactory: AIProviderFactory = aiProviderFactory,
     tts: ITTSService = ttsService,
     itemLedgers: IItemLedgerRepository = itemLedgerRepository,
-    worldNPCs: IWorldNPCRepository = worldNPCRepository
+    worldNPCs: IWorldNPCRepository = worldNPCRepository,
+    quests: IQuestRepository = questRepository
   ) {
     this.rooms = rooms;
     this.characters = characters;
@@ -100,6 +105,7 @@ export class GameSessionService {
     this.tts = tts;
     this.itemLedgers = itemLedgers;
     this.worldNPCs = worldNPCs;
+    this.quests = quests;
   }
 
   public reconcileCharacterConditions(characterId: string, roomId?: string): CharacterEntity | null {
@@ -176,6 +182,11 @@ export class GameSessionService {
         });
       }
     }
+
+    // Self-healing: Reconcile and synchronize room quests (ensuring completed tasks are never repeated)
+    const allLogs = this.gameLogs.findByRoomId(room.id);
+    questArbiter.reconcileRoomQuests(room, allLogs, room.loreJournal || []);
+    room.worldQuests = this.quests.findByRoomId(room.id);
 
     const players = this.rooms.findPlayersByRoomId(room.id);
     const populatedPlayers = players.map(p => {
@@ -683,6 +694,11 @@ export class GameSessionService {
       }
     }
 
+    const allLogs = this.gameLogs.findByRoomId(room.id);
+    questArbiter.reconcileRoomQuests(room, allLogs, room.loreJournal || []);
+    const activeQuests = this.quests.getActiveQuests(room.id);
+    const completedQuests = this.quests.getCompletedQuests(room.id);
+
     const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
     const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
 
@@ -711,6 +727,8 @@ export class GameSessionService {
       characterReactions: completedReactions,
       mechanicalDirectives,
       availableLoot: room.availableLoot || [],
+      activeQuests,
+      completedQuests,
     };
 
     try {
@@ -719,6 +737,15 @@ export class GameSessionService {
       console.warn('Primary AI provider failed in turn step, resolving with SimulationAIProvider:', err?.message || err);
       const fallback = new SimulationAIProvider();
       dmResult = await fallback.generateRound(aiContext);
+    }
+
+    // Process procedural quests & sanitize any dilemma hallucinating completed tasks
+    const questRes = questArbiter.processRoundQuests(room, [actingAction], dmResult);
+    if (questRes.sanitizedDilemma) {
+      dmResult.choiceDilemma = questRes.sanitizedDilemma;
+    }
+    if (questRes.sanitizedSituation) {
+      dmResult.currentSituation = questRes.sanitizedSituation;
     }
 
     // Handle Rejected Action
@@ -1410,6 +1437,7 @@ export class GameSessionService {
         activeEnemies: finalEnemies,
         sceneNPCs: finalNPCs,
         loreJournal: room.loreJournal,
+        worldQuests: questRes.allQuests,
         activePlayerUserId: nextActiveUserId,
         pendingReactions: [],
       });
@@ -1436,6 +1464,7 @@ export class GameSessionService {
         activeEnemies: finalEnemies,
         sceneNPCs: finalNPCs,
         loreJournal: room.loreJournal,
+        worldQuests: questRes.allQuests,
         activePlayerUserId: order[0] || undefined,
         pendingReactions: [],
       });
@@ -1584,6 +1613,12 @@ export class GameSessionService {
       }
     }
 
+    // Procedural Quests Reconciliation & Memory Context
+    const allLogs = this.gameLogs.findByRoomId(room.id);
+    questArbiter.reconcileRoomQuests(room, allLogs, room.loreJournal || []);
+    const activeQuests = this.quests.getActiveQuests(room.id);
+    const completedQuests = this.quests.getCompletedQuests(room.id);
+
     // AI Provider resolution with DC, quenta, and milestones context
     const decryptedApiKey = cryptoService.decrypt(room.deepseekApiKey || '');
     const provider = this.aiFactory.getProvider(decryptedApiKey, room.deepseekModel);
@@ -1611,6 +1646,8 @@ export class GameSessionService {
       characterReactions: completedReactions,
       mechanicalDirectives,
       availableLoot: room.availableLoot || [],
+      activeQuests,
+      completedQuests,
     };
 
     try {
@@ -1619,6 +1656,15 @@ export class GameSessionService {
       console.warn('Primary AI provider failed, seamlessly resolving with Procedural Narrative Engine:', err?.message || err);
       const fallback = new SimulationAIProvider();
       dmResult = await fallback.generateRound(aiContext);
+    }
+
+    // Process procedural quests & sanitize any dilemma hallucinating completed tasks
+    const questRes = questArbiter.processRoundQuests(room, currentRoundActions, dmResult);
+    if (questRes.sanitizedDilemma) {
+      dmResult.choiceDilemma = questRes.sanitizedDilemma;
+    }
+    if (questRes.sanitizedSituation) {
+      dmResult.currentSituation = questRes.sanitizedSituation;
     }
 
     // Handle Rejected Action if player's submission was critical absurdity
@@ -2393,6 +2439,7 @@ export class GameSessionService {
       activeEnemies: finalEnemies,
       sceneNPCs: finalNPCs,
       loreJournal: room.loreJournal,
+      worldQuests: questRes.allQuests,
       pendingReactions: [],
     });
     this.rooms.resetPlayersTurn(room.id);

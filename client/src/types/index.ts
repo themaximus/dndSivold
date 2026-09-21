@@ -235,7 +235,27 @@ export interface Room {
   pendingReactions?: CharacterReactionRequest[];
   itemLedger?: ItemLedgerEntry[];
   worldNPCRegistry?: WorldNPCEntry[];
+  worldQuests?: QuestEntity[];
   createdAt: string;
+}
+
+export type QuestStatus = 'active' | 'completed' | 'failed' | 'abandoned';
+export type QuestCategory = 'main' | 'side' | 'task' | 'repair' | 'investigation' | 'social';
+
+export interface QuestEntity {
+  id: string;
+  roomId: string;
+  title: string;
+  description: string;
+  category: QuestCategory;
+  status: QuestStatus;
+  giverName?: string;
+  targetName?: string;
+  roundCreated: number;
+  roundCompleted?: number;
+  resolutionNote?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type ItemLifecycleStatus = 'in_inventory' | 'broken' | 'consumed' | 'dropped';

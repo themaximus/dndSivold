@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RoomEnemy, RoomNPC, NPCDisposition, NPCCombatRole } from '../../types';
+import { RoomEnemy, RoomNPC, NPCDisposition, NPCCombatRole, QuestEntity } from '../../types';
 import {
   Skull,
   Shield,
@@ -15,12 +15,14 @@ import {
   Smile,
   Frown,
   AlertTriangle,
+  Compass,
 } from 'lucide-react';
 
 interface OpponentsHUDProps {
   enemies?: RoomEnemy[];
   enemiesStatus?: string;
   sceneNPCs?: RoomNPC[];
+  quests?: QuestEntity[];
 }
 
 const CONDITION_BADGES: Record<string, { label: string; color: string; desc: string }> = {
@@ -113,6 +115,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   enemies = [],
   enemiesStatus,
   sceneNPCs = [],
+  quests = [],
 }) => {
   const activeEnemies = enemies.filter(e => !isEntityDepartedOrDefeated(e));
   const defeatedEnemies = enemies.filter(e => isEntityDepartedOrDefeated(e));
@@ -128,17 +131,20 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   );
   const allyCombatants = livingNPCs.filter(n => n.combatRole === 'ally_combatant');
 
-  // Read initial tab from URL ?hud=threats|npcs|all if provided
-  const [activeTab, setActiveTab] = useState<'threats' | 'npcs' | 'all'>(() => {
+  const activeQuests = quests.filter(q => q.status === 'active');
+  const completedQuests = quests.filter(q => q.status === 'completed');
+
+  // Read initial tab from URL ?hud=threats|npcs|quests|all if provided
+  const [activeTab, setActiveTab] = useState<'threats' | 'npcs' | 'quests' | 'all'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const hud = params.get('hud');
-      if (hud === 'threats' || hud === 'npcs' || hud === 'all') return hud;
+      if (hud === 'threats' || hud === 'npcs' || hud === 'quests' || hud === 'all') return hud;
     }
     return 'threats';
   });
 
-  const handleTabChange = (tab: 'threats' | 'npcs' | 'all') => {
+  const handleTabChange = (tab: 'threats' | 'npcs' | 'quests' | 'all') => {
     setActiveTab(tab);
     if (typeof window !== 'undefined') {
       try {
@@ -158,13 +164,16 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
           setActiveTab('threats');
         } else if (livingNPCs.length > 0) {
           setActiveTab('npcs');
+        } else if (activeQuests.length > 0) {
+          setActiveTab('quests');
         }
       }
     }
-  }, [activeEnemies.length, livingNPCs.length]);
+  }, [activeEnemies.length, livingNPCs.length, activeQuests.length]);
 
   const showThreats = activeTab === 'threats' || activeTab === 'all';
   const showNPCs = activeTab === 'npcs' || activeTab === 'all';
+  const showQuests = activeTab === 'quests' || activeTab === 'all';
 
   return (
     <div className="bg-fantasy-panel border border-fantasy-border rounded-2xl p-4 shadow-xl flex flex-col min-h-0 h-full overflow-hidden">
@@ -213,18 +222,18 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
       </div>
 
       {/* Tabs Filter */}
-      <div className="grid grid-cols-3 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 mb-3 text-[11px]">
+      <div className="grid grid-cols-4 gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/80 mb-3 text-[11px]">
         <button
           type="button"
           onClick={() => handleTabChange('threats')}
-          className={`flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg font-bold transition-all ${
+          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
             activeTab === 'threats'
               ? 'bg-red-950/70 text-red-200 border border-red-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
           title="Враги и угрозы на поле боя"
         >
-          <Skull className="w-3.5 h-3.5" />
+          <Skull className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">Угрозы</span>
           {activeEnemies.length > 0 && (
             <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-red-800 text-red-100 font-mono">
@@ -236,14 +245,14 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
         <button
           type="button"
           onClick={() => handleTabChange('npcs')}
-          className={`flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg font-bold transition-all ${
+          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
             activeTab === 'npcs'
               ? 'bg-emerald-950/70 text-emerald-200 border border-emerald-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
           title="Нейтральные персонажи и союзники сцены"
         >
-          <Users className="w-3.5 h-3.5" />
+          <Users className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">Спутники</span>
           {livingNPCs.length > 0 && (
             <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono ${
@@ -258,21 +267,39 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
 
         <button
           type="button"
+          onClick={() => handleTabChange('quests')}
+          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
+            activeTab === 'quests'
+              ? 'bg-amber-950/70 text-amber-200 border border-amber-600/50 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+          }`}
+          title="Задачи, квесты и цели отряда"
+        >
+          <Compass className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+          <span className="truncate">Задачи</span>
+          {activeQuests.length > 0 ? (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-800 text-amber-100 font-mono">
+              {activeQuests.length}
+            </span>
+          ) : completedQuests.length > 0 ? (
+            <span className="px-1 py-0.2 rounded-full text-[9px] bg-emerald-900/60 text-emerald-300 font-mono">
+              ✓
+            </span>
+          ) : null}
+        </button>
+
+        <button
+          type="button"
           onClick={() => handleTabChange('all')}
-          className={`flex items-center justify-center gap-1.5 py-1 px-1.5 rounded-lg font-bold transition-all ${
+          className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded-lg font-bold transition-all ${
             activeTab === 'all'
               ? 'bg-indigo-950/70 text-indigo-200 border border-indigo-600/50 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
-          title="Показать всех участников сцены"
+          title="Показать всё"
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <Sparkles className="w-3.5 h-3.5 shrink-0" />
           <span>Все</span>
-          {(activeEnemies.length + livingNPCs.length) > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-slate-700 text-slate-200 font-mono">
-              {activeEnemies.length + livingNPCs.length}
-            </span>
-          )}
         </button>
       </div>
 
@@ -647,6 +674,93 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* 4. QUESTS & OBJECTIVES (when showQuests is true) */}
+            {showQuests && (
+              <div className={`${activeTab === 'all' ? 'pt-3 border-t border-slate-800/80' : ''} space-y-3`}>
+                {/* Active Quests */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-bold font-rpg uppercase text-amber-300 flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      Активные задачи ({activeQuests.length})
+                    </span>
+                  </div>
+
+                  {activeQuests.length === 0 ? (
+                    <div className="p-3 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border text-xs">
+                      <p className="text-slate-300 font-semibold mb-0.5">Нет активных задач</p>
+                      <p className="text-[10px] text-slate-500">Отряд исследует мир без срочных поручений.</p>
+                    </div>
+                  ) : (
+                    activeQuests.map((q) => (
+                      <div
+                        key={q.id}
+                        className="bg-slate-900/80 border border-amber-500/30 hover:border-amber-500/60 rounded-xl p-3 shadow-md transition-all group"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h4 className="text-xs font-bold text-amber-200 group-hover:text-amber-100 leading-snug">
+                            {q.title}
+                          </h4>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono shrink-0 border ${
+                            q.category === 'main' ? 'bg-amber-950/70 text-amber-300 border-amber-600/50' :
+                            q.category === 'repair' ? 'bg-blue-950/70 text-blue-300 border-blue-600/50' :
+                            q.category === 'investigation' ? 'bg-purple-950/70 text-purple-300 border-purple-600/50' :
+                            q.category === 'social' ? 'bg-cyan-950/70 text-cyan-300 border-cyan-600/50' :
+                            'bg-slate-800 text-slate-300 border-slate-700'
+                          }`}>
+                            {q.category === 'main' ? '👑 Основной' :
+                             q.category === 'repair' ? '🔧 Ремонт' :
+                             q.category === 'investigation' ? '🔍 Поиск' :
+                             q.category === 'social' ? '🤝 Диалог' : '⚔️ Задача'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed font-sans mb-1.5">
+                          {q.description}
+                        </p>
+                        {q.giverName && (
+                          <div className="text-[10px] text-amber-400/80 font-mono flex items-center gap-1">
+                            <span>Заказчик: {q.giverName}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Completed Quests */}
+                {completedQuests.length > 0 && (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                    <span className="text-[11px] font-bold font-rpg uppercase text-emerald-400 flex items-center gap-1.5 px-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      Выполнено ({completedQuests.length})
+                    </span>
+
+                    {completedQuests.map((q) => (
+                      <div
+                        key={q.id}
+                        className="bg-emerald-950/20 border border-emerald-800/40 rounded-xl p-2.5 flex flex-col gap-1 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-emerald-300 text-[11px] flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                            {q.title}
+                          </span>
+                          <span className="text-[9px] font-mono text-emerald-400/70 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/50 shrink-0">
+                            Раунд {q.roundCompleted || q.roundCreated}
+                          </span>
+                        </div>
+                        {q.resolutionNote && (
+                          <p className="text-[10px] text-slate-300 italic pl-4.5 leading-tight">
+                            {q.resolutionNote}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </>

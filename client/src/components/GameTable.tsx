@@ -288,6 +288,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
           <OpponentsHUD
             enemies={room.activeEnemies || []}
             sceneNPCs={room.sceneNPCs || []}
+            quests={room.worldQuests || []}
           />
         </div>
       </div>
@@ -342,6 +343,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
         isOpen={isJournalOpen}
         onClose={() => setIsJournalOpen(false)}
         milestones={room.loreJournal || []}
+        quests={room.worldQuests || []}
         campaignTitle={room.title}
       />
 
