@@ -323,6 +323,11 @@ export class GameSessionService {
       this.rooms.addMilestones(room.id, milestones);
     }
 
+    // Process prologue procedural quests
+    if (Array.isArray(prologueResult.questUpdates) && prologueResult.questUpdates.length > 0) {
+      questArbiter.processRoundQuests(room, [], prologueResult);
+    }
+
     // Create prologue log with sanitized narrative
     const cleanPrologueNarrative = sanitizeNarrativeText(prologueResult.narrative);
     const prologueLog = this.gameLogs.create({

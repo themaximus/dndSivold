@@ -108,6 +108,14 @@ export interface InventoryNotification {
   timestamp: string;
 }
 
+export interface QuestUpdate {
+  title: string;
+  description?: string;
+  category?: 'main' | 'side' | 'task' | 'repair' | 'investigation' | 'social';
+  action: 'add' | 'complete' | 'fail';
+  resolutionNote?: string;
+}
+
 export interface AIDMContext {
   apiKey?: string;
   model?: string;
@@ -154,6 +162,7 @@ export interface AIDMResponse {
   sceneNPCs?: RoomNPC[];
   inventoryUpdates?: InventoryUpdate[];
   conditionUpdates?: ConditionUpdate[];
+  questUpdates?: QuestUpdate[];
   ruleViolations?: string[];
   mood?: MoodType;
   nextRoundDC?: number;

@@ -639,46 +639,5 @@
       "returnedInRound": 5
     }
   ],
-  "worldQuests": [
-    {
-      "id": "quest_balthazar_cart_repair",
-      "roomId": "test_room_1790027086526",
-      "title": "Починить повозку Бальтазара",
-      "description": "Отремонтировать сломанную ось и повреждённое колесо повозки торговца Бальтазара",
-      "category": "repair",
-      "status": "completed",
-      "giverName": "Купец Бальтазар",
-      "targetName": "Повозка Бальтазара",
-      "roundCreated": 1,
-      "roundCompleted": 2,
-      "resolutionNote": "Повозка успешно отремонтирована отрядом и готова к дальнейшему пути.",
-      "createdAt": "2026-09-21T21:44:46.528Z",
-      "updatedAt": "2026-09-21T21:44:46.528Z"
-    },
-    {
-      "id": "quest_defeat_wisps",
-      "roomId": "test_room_1790027086526",
-      "title": "Уничтожить призрачные огоньки на тракте",
-      "description": "Рассеять мистические сущности, преграждающие путь каравану",
-      "category": "task",
-      "status": "completed",
-      "targetName": "Призрачные огоньки",
-      "roundCreated": 3,
-      "roundCompleted": 6,
-      "resolutionNote": "Призрачные огоньки рассеяны и уничтожены сокрушительными ударами отряда.",
-      "createdAt": "2026-09-21T21:44:46.530Z",
-      "updatedAt": "2026-09-21T21:44:46.531Z"
-    },
-    {
-      "id": "quest_c347b1c2",
-      "roomId": "test_room_1790027086526",
-      "title": "Сопроводить караван Бальтазара",
-      "description": "Обеспечить безопасный проход торговца через опасные участки тракта",
-      "category": "main",
-      "status": "active",
-      "roundCreated": 6,
-      "createdAt": "2026-09-21T21:44:46.562Z",
-      "updatedAt": "2026-09-21T21:44:46.562Z"
-    }
-  ]
+  "worldQuests": []
 }

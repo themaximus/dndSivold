@@ -105,6 +105,19 @@ export class DMResponseValidator {
             })
           : [],
         conditionUpdates: Array.isArray(parsed.conditionUpdates) ? parsed.conditionUpdates : [],
+        questUpdates: Array.isArray(parsed.questUpdates)
+          ? parsed.questUpdates
+              .filter((q: any) => q && typeof q.title === 'string' && q.title.trim().length > 0)
+              .map((q: any) => ({
+                title: String(q.title).trim(),
+                description: typeof q.description === 'string' ? q.description.trim() : undefined,
+                category: ['main', 'side', 'task', 'repair', 'investigation', 'social'].includes(q.category)
+                  ? q.category
+                  : 'task',
+                action: ['add', 'complete', 'fail'].includes(q.action) ? q.action : 'add',
+                resolutionNote: typeof q.resolutionNote === 'string' ? q.resolutionNote.trim() : undefined,
+              }))
+          : [],
         inventoryUpdates: Array.isArray(parsed.inventoryUpdates)
           ? parsed.inventoryUpdates
               .filter((u: any) => u && u.item && typeof u.item.name === 'string' && u.item.name.trim().length > 0)
@@ -176,6 +189,7 @@ export class DMResponseValidator {
         nextRoundDC: 13,
         nextRoundDCReason: 'Обострение обстановки',
         droppedLoot: [],
+        questUpdates: [],
         newMilestones: [],
         xpAwarded: 25,
       };

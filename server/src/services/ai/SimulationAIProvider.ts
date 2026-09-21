@@ -463,6 +463,42 @@ export class SimulationAIProvider implements IAIProvider {
       narrativeParagraphs.push(`Союзник отряда, ${allyNPC.name}, решительно вступает в схватку и метким выпадом отвлекает внимание противников на себя!`);
     }
 
+    const roundQuestUpdates: Array<{
+      title: string;
+      description?: string;
+      category?: 'main' | 'side' | 'task' | 'repair' | 'investigation' | 'social';
+      action: 'add' | 'complete' | 'fail';
+      resolutionNote?: string;
+    }> = [];
+
+    if (context.activeQuests && context.activeQuests.length > 0) {
+      for (const q of context.activeQuests) {
+        if (isCombat && livingCount === 0 && /(?:бой|сражен|враг|разбойник|засад|отразить)/i.test(q.title)) {
+          roundQuestUpdates.push({
+            title: q.title,
+            action: 'complete',
+            resolutionNote: 'Противники повержены, угроза успешно устранена отрядом.',
+          });
+        } else {
+          const qTitleLower = q.title.toLowerCase();
+          const matchingSuccess = analyzedActions.find(a =>
+            a.isSuccess && (
+              (a.intent === 'heal' && /(?:леч|исцел|помощ|ранен|гонц)/i.test(qTitleLower)) ||
+              (a.intent === 'athletics' && /(?:почин|ремонт|повозк|колес|ось)/i.test(qTitleLower)) ||
+              (a.intent === 'dialogue' && /(?:договор|переговор|страж|мост|купц)/i.test(qTitleLower))
+            )
+          );
+          if (matchingSuccess) {
+            roundQuestUpdates.push({
+              title: q.title,
+              action: 'complete',
+              resolutionNote: `Задача успешно решена действиями героя «${matchingSuccess.characterName}».`,
+            });
+          }
+        }
+      }
+    }
+
     return {
       narrative: narrativeParagraphs.join('\n\n'),
       playerUpdates,
@@ -475,6 +511,7 @@ export class SimulationAIProvider implements IAIProvider {
       nextRoundDC,
       nextRoundDCReason,
       droppedLoot: droppedLoot.length > 0 ? droppedLoot : undefined,
+      questUpdates: roundQuestUpdates.length > 0 ? roundQuestUpdates : undefined,
       newMilestones: newMilestones.length > 0 ? newMilestones : undefined,
       xpAwarded: 35 + (critSuccesses.length * 15),
     };
@@ -523,6 +560,14 @@ export class SimulationAIProvider implements IAIProvider {
         nextRoundDC: 11,
         nextRoundDCReason: 'Осмотр повозки или дружелюбная беседа с купцом',
         requiredCheckStat: 'cha',
+        questUpdates: [
+          {
+            title: 'Помочь каравану купца',
+            description: 'Осмотреть повреждённую повозку и помочь с ремонтом или договориться о пути',
+            category: 'repair',
+            action: 'add',
+          }
+        ],
         newMilestones: [`Начало похода «${title}»: отряд встретил караван Бальтазара на тракте.`],
         xpAwarded: 25,
       };
@@ -555,6 +600,14 @@ export class SimulationAIProvider implements IAIProvider {
         nextRoundDC: 12,
         nextRoundDCReason: 'Первая медицинская помощь или расшифровка печати',
         requiredCheckStat: 'wis',
+        questUpdates: [
+          {
+            title: 'Спасение раненого гонца',
+            description: 'Оказать первую медицинскую помощь вестнику и сохранить запечатанное послание',
+            category: 'task',
+            action: 'add',
+          }
+        ],
         newMilestones: [`Начало похода «${title}»: отряд спас раненого гонца на дороге.`],
         xpAwarded: 25,
       };
@@ -587,6 +640,14 @@ export class SimulationAIProvider implements IAIProvider {
         nextRoundDC: 12,
         nextRoundDCReason: 'Убедительные переговоры со стражей или демонстрация авторитета',
         requiredCheckStat: 'cha',
+        questUpdates: [
+          {
+            title: 'Преодолеть заставу на мосту',
+            description: 'Убедить дозорных пропустить отряд через перевал или договориться со стражей',
+            category: 'social',
+            action: 'add',
+          }
+        ],
         newMilestones: [`Начало похода «${title}»: отряд прибыл на дозорную заставу у моста.`],
         xpAwarded: 25,
       };
@@ -621,6 +682,14 @@ export class SimulationAIProvider implements IAIProvider {
       nextRoundDC: 12,
       nextRoundDCReason: 'Оценка угрозы и первый тактический шаг',
       requiredCheckStat: 'dex',
+      questUpdates: [
+        {
+          title: 'Отразить нападение врагов',
+          description: 'Занять выгодные позиции и нейтрализовать противников',
+          category: 'task',
+          action: 'add',
+        }
+      ],
       newMilestones: [`Начало похода «${title}»: отряд отражает внезапную угрозу.`],
       xpAwarded: 25,
     };
