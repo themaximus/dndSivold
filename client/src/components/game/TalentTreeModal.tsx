@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { Character, CharacterTalentTree, TalentNode } from '../../types';
 import { X, Award, Shield, Sparkles, BookOpen, CheckCircle, Lock, Zap } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { soundFx } from '../../utils/audio';
 
 interface TalentTreeModalProps {
   isOpen: boolean;
@@ -32,6 +34,16 @@ export const TalentTreeModal: React.FC<TalentTreeModalProps> = ({
   const currentXp = character.xp || 0;
   const nextLevelXp = (Math.floor(currentXp / 100) + 1) * 100;
   const xpProgress = currentXp % 100;
+
+  const handleLearnClick = (talentId: string) => {
+    onLearnTalent(talentId);
+    soundFx.playCriticalSuccess();
+    confetti({
+      particleCount: 60,
+      spread: 70,
+      origin: { y: 0.5 },
+    });
+  };
 
   const renderTalentCard = (node: TalentNode, branchTalents: TalentNode[], index: number) => {
     const isLearned = learnedTalents.includes(node.id);
@@ -104,7 +116,7 @@ export const TalentTreeModal: React.FC<TalentTreeModalProps> = ({
             <button
               type="button"
               disabled={!canLearn}
-              onClick={() => onLearnTalent(node.id)}
+              onClick={() => handleLearnClick(node.id)}
               className="px-3 py-1 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-[11px] font-rpg rounded-lg shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
             >
               <Zap className="w-3 h-3" />
@@ -124,9 +136,14 @@ export const TalentTreeModal: React.FC<TalentTreeModalProps> = ({
           <div className="flex items-center gap-3">
             <Award className="w-6 h-6 text-amber-400" />
             <div>
-              <h2 className="text-base font-rpg font-bold text-amber-300">Древо прокачки и талантов</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-rpg font-bold text-amber-300">Древо прокачки и талантов</h2>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  Уровень {character.level}
+                </span>
+              </div>
               <p className="text-xs text-slate-400">
-                Персональный путь развития героя на основе класса, расы и биографии (квенты)
+                {character.race} {character.characterClass} • Прокачивайте таланты для развития способностей и повышения уровня героя
               </p>
             </div>
           </div>

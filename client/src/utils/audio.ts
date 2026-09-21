@@ -136,6 +136,32 @@ export class DiceSoundEffects {
     osc.start();
     osc.stop(ctx.currentTime + 0.3);
   }
+
+  public playLootPickup(isMuted: boolean): void {
+    if (isMuted) return;
+    const ctx = this.contextManager.getContext();
+    if (!ctx) return;
+
+    const notes = [587.33, 880, 1174.66]; // D5, A5, D6 - reward chime
+    const now = ctx.currentTime;
+
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+      gain.gain.setValueAtTime(0.12, now + idx * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.25);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + idx * 0.06);
+      osc.stop(now + idx * 0.06 + 0.28);
+    });
+  }
 }
 
 /**
@@ -387,6 +413,10 @@ export class SoundEffectsFacade {
 
   public playTurnStart(): void {
     this.diceSounds.playTurnStart(this.isMuted);
+  }
+
+  public playLootPickup(): void {
+    this.diceSounds.playLootPickup(this.isMuted);
   }
 
   public setAmbience(mood: AmbienceMood): void {

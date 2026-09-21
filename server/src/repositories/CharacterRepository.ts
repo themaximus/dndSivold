@@ -377,7 +377,14 @@ export class CharacterRepository implements ICharacterRepository {
 
     learned.push(talentId);
 
+    const newLevel = Math.max((char.level || 1) + 1, 1 + learned.length);
+    const newHitDiceMax = Math.max(newLevel, char.hitDiceMax || newLevel);
+    const newHitDiceCurrent = Math.min(newHitDiceMax, (char.hitDiceCurrent ?? (char.level || 1)) + 1);
+
     const updates: Partial<CharacterEntity> = {
+      level: newLevel,
+      hitDiceMax: newHitDiceMax,
+      hitDiceCurrent: newHitDiceCurrent,
       skillPoints: points - 1,
       learnedTalents: learned,
     };

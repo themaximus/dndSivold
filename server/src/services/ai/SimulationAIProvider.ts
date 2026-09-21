@@ -256,6 +256,20 @@ export class SimulationAIProvider implements IAIProvider {
       ? context.activeEnemies.map(e => ({ ...e }))
       : [];
 
+    const anyAttackAction = analyzedActions.find(a => ['melee', 'ranged', 'magic'].includes(a.intent));
+    if (activeEnemies.length === 0 && anyAttackAction) {
+      activeEnemies.push({
+        id: crypto.randomUUID(),
+        name: 'Враждебный противник',
+        type: 'гуманоид',
+        hpCurrent: 25,
+        hpMax: 25,
+        ac: 13,
+        status: 'Обнажил оружие и вступил в бой с отрядом',
+        isDead: false,
+      });
+    }
+
     const successfulAttacks = analyzedActions.filter(a => a.isSuccess && ['melee', 'ranged', 'magic'].includes(a.intent));
     if (activeEnemies.length > 0 && successfulAttacks.length > 0) {
       const targetEnemy = activeEnemies.find(e => !e.isDead && e.hpCurrent > 0);

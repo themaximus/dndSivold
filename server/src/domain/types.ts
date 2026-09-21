@@ -71,6 +71,17 @@ export interface InventoryUpdate {
   };
 }
 
+export interface InventoryNotification {
+  id: string;
+  characterId: string;
+  characterName: string;
+  action: 'add' | 'remove';
+  itemName: string;
+  quantity: number;
+  reason: string;
+  timestamp: string;
+}
+
 export interface AIDMContext {
   apiKey?: string;
   model?: string;

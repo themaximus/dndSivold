@@ -134,16 +134,23 @@ export function setupGameSockets(io: Server) {
 
       const player = roomRepository.findPlayer(room.id, userId);
 
-      // In active gameplay, block roll only if the player has already submitted their turn
-      if (room.status === 'active' && player?.hasActedThisRound) {
+      // In active gameplay, block roll if the player has already submitted their turn OR already rolled this round
+      if (room.status === 'active' && (player?.hasActedThisRound || player?.hasRolledThisRound)) {
         socket.emit('dice_roll_rejected', {
-          message: 'Вы уже завершили свой ход в этом раунде! Ожидайте начала следующего раунда.',
+          message: 'Вы уже совершили бросок кубика для этого хода! Повторный переброс запрещен правилами честной игры.',
         });
         return;
       }
 
       const character = player?.characterId ? characterRepository.findById(player.characterId) : undefined;
       const rollResult = executeServerRoll(data.request, character);
+
+      if (room.status === 'active' && player) {
+        roomRepository.updatePlayer(player.id, {
+          hasRolledThisRound: true,
+          pendingRoll: rollResult,
+        });
+      }
 
       io.to(room.id).emit('dice_rolled', {
         playerId: userId,
@@ -222,6 +229,20 @@ export function setupGameSockets(io: Server) {
                 timestamp: new Date().toISOString(),
               });
 
+              if (turnResolved.inventoryNotifications && turnResolved.inventoryNotifications.length > 0) {
+                turnResolved.inventoryNotifications.forEach(notif => {
+                  io.to(room.id).emit('inventory_notification', notif);
+                  const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                  const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                  io.to(room.id).emit('feed_activity', {
+                    id: crypto.randomUUID(),
+                    type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                    text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                    timestamp: notif.timestamp,
+                  });
+                });
+              }
+
               if (!turnResolved.isRoundComplete) {
                 io.to(room.id).emit('turn_step_resolved', {
                   log: turnResolved.log,
@@ -272,6 +293,20 @@ export function setupGameSockets(io: Server) {
               return;
             }
             if (resolved.log) {
+              if (resolved.inventoryNotifications && resolved.inventoryNotifications.length > 0) {
+                resolved.inventoryNotifications.forEach(notif => {
+                  io.to(room.id).emit('inventory_notification', notif);
+                  const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                  const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                  io.to(room.id).emit('feed_activity', {
+                    id: crypto.randomUUID(),
+                    type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                    text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                    timestamp: notif.timestamp,
+                  });
+                });
+              }
+
               io.to(room.id).emit('round_resolved', {
                 ...resolved,
                 room: sanitizeRoom(resolved.room),
@@ -328,6 +363,17 @@ export function setupGameSockets(io: Server) {
           timestamp: new Date().toISOString(),
         });
 
+        io.to(room.id).emit('inventory_notification', {
+          id: crypto.randomUUID(),
+          characterId: result.character.id,
+          characterName: charName,
+          action: 'add',
+          itemName: result.item.name,
+          quantity: 1,
+          reason: 'Подобран трофей с поля боя',
+          timestamp: new Date().toISOString(),
+        });
+
         const updated = gameSessionService.getRoomAndPlayers(roomCode);
         if (updated) {
           io.to(room.id).emit('room_players_updated', updated.players);
@@ -356,6 +402,17 @@ export function setupGameSockets(io: Server) {
           id: crypto.randomUUID(),
           type: 'item_used',
           text: `🧪 ${result.character.name} использовал предмет: «${result.itemName}»${targetNote}${healNote}`,
+          timestamp: new Date().toISOString(),
+        });
+
+        io.to(room.id).emit('inventory_notification', {
+          id: crypto.randomUUID(),
+          characterId: result.character.id,
+          characterName: result.character.name,
+          action: 'remove',
+          itemName: result.itemName,
+          quantity: 1,
+          reason: result.healAmount > 0 ? `Исцеление (+${result.healAmount} HP)` : 'Использован предмет',
           timestamp: new Date().toISOString(),
         });
 
@@ -569,6 +626,13 @@ export function setupGameSockets(io: Server) {
           if (updated) {
             io.to(room.id).emit('room_players_updated', updated.players);
           }
+
+          io.to(room.id).emit('feed_activity', {
+            id: crypto.randomUUID(),
+            type: 'player_action',
+            text: `⭐ ${updatedChar.name} повысил уровень до ${updatedChar.level}! Изучен новый талант.`,
+            timestamp: new Date().toISOString(),
+          });
         }
       }
     });
@@ -583,6 +647,20 @@ export function setupGameSockets(io: Server) {
         if (room.turnMode === 'turn_by_turn' && room.activePlayerUserId) {
           const turnResolved = await gameSessionService.resolveTurnStep(room.id, room.activePlayerUserId);
           if (turnResolved && turnResolved.log) {
+            if (turnResolved.inventoryNotifications && turnResolved.inventoryNotifications.length > 0) {
+              turnResolved.inventoryNotifications.forEach(notif => {
+                io.to(room.id).emit('inventory_notification', notif);
+                const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                io.to(room.id).emit('feed_activity', {
+                  id: crypto.randomUUID(),
+                  type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                  text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                  timestamp: notif.timestamp,
+                });
+              });
+            }
+
             if (!turnResolved.isRoundComplete) {
               io.to(room.id).emit('turn_step_resolved', {
                 log: turnResolved.log,
@@ -616,6 +694,20 @@ export function setupGameSockets(io: Server) {
             return;
           }
           if (resolved.log) {
+            if (resolved.inventoryNotifications && resolved.inventoryNotifications.length > 0) {
+              resolved.inventoryNotifications.forEach(notif => {
+                io.to(room.id).emit('inventory_notification', notif);
+                const icon = notif.action === 'add' ? '🎒' : '⚠️';
+                const actWord = notif.action === 'add' ? 'получил предмет' : 'потерял/израсходовал';
+                io.to(room.id).emit('feed_activity', {
+                  id: crypto.randomUUID(),
+                  type: notif.action === 'add' ? 'inventory_add' : 'inventory_remove',
+                  text: `${icon} ${notif.characterName} ${actWord}: «${notif.itemName}» (${notif.reason})`,
+                  timestamp: notif.timestamp,
+                });
+              });
+            }
+
             io.to(room.id).emit('round_resolved', {
               ...resolved,
               room: sanitizeRoom(resolved.room),

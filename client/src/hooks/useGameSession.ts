@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Room, RoomPlayer, GameLogEntry, DiceRollResult, Character, CharacterTalentTree, RoomLootItem, FeedActivity, ActionRejectedEvent } from '../types';
+import { Room, RoomPlayer, GameLogEntry, DiceRollResult, Character, CharacterTalentTree, RoomLootItem, FeedActivity, ActionRejectedEvent, InventoryNotification } from '../types';
 import { api } from '../services/api';
 import { getSocket, connectSocket } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +19,7 @@ export function useGameSession(roomCode: string) {
   const [lastDeathSaveMessage, setLastDeathSaveMessage] = useState<string | null>(null);
   const [rejectedAction, setRejectedAction] = useState<ActionRejectedEvent | null>(null);
   const [recentActivities, setRecentActivities] = useState<FeedActivity[]>([]);
+  const [inventoryNotifications, setInventoryNotifications] = useState<InventoryNotification[]>([]);
   const [finishedAdventure, setFinishedAdventure] = useState<{
     finishType: 'cliffhanger' | 'triumph' | 'open_ended';
     title: string;
@@ -144,20 +145,21 @@ export function useGameSession(roomCode: string) {
     });
 
     socket.on('item_used', (data: { characterId: string; character: Character; itemName: string; healAmount: number }) => {
-      if (data.character && myPlayer?.characterId === data.characterId) {
-        setMyCharacter(data.character);
+      if (data.character) {
+        setMyCharacter(prev => (prev && prev.id === data.character.id ? data.character : prev));
+        setPlayers(prev => prev.map(p => (p.characterId === data.character.id ? { ...p, character: data.character } : p)));
       }
     });
 
     socket.on('character_updated', (updatedChar: Character) => {
-      if (myPlayer?.characterId === updatedChar.id) {
-        setMyCharacter(updatedChar);
-      }
+      setMyCharacter(prev => (prev && prev.id === updatedChar.id ? updatedChar : prev));
+      setPlayers(prev => prev.map(p => (p.characterId === updatedChar.id ? { ...p, character: updatedChar } : p)));
     });
 
     socket.on('death_save_result', (data: { characterId: string; character: Character; message: string; state: string }) => {
-      if (myPlayer?.characterId === data.characterId) {
-        setMyCharacter(data.character);
+      if (data.character) {
+        setMyCharacter(prev => (prev && prev.id === data.character.id ? data.character : prev));
+        setPlayers(prev => prev.map(p => (p.characterId === data.character.id ? { ...p, character: data.character } : p)));
         setLastDeathSaveMessage(data.message);
       }
     });
@@ -175,6 +177,13 @@ export function useGameSession(roomCode: string) {
 
     socket.on('feed_activity', (data: FeedActivity) => {
       setRecentActivities(prev => [data, ...prev.slice(0, 9)]);
+    });
+
+    socket.on('inventory_notification', (data: InventoryNotification) => {
+      setInventoryNotifications(prev => [...prev.slice(-4), data]);
+      setTimeout(() => {
+        setInventoryNotifications(prev => prev.filter(n => n.id !== data.id));
+      }, 6000);
     });
 
     socket.on('dm_thinking_failed', (data?: { error?: string }) => {
@@ -207,6 +216,7 @@ export function useGameSession(roomCode: string) {
       socket.off('talents_loaded');
       socket.off('action_rejected');
       socket.off('feed_activity');
+      socket.off('inventory_notification');
       socket.off('adventure_finished');
     };
   }, [roomCode, user?.id, myPlayer?.characterId]);
@@ -371,6 +381,10 @@ export function useGameSession(roomCode: string) {
   const activePlayers = players.filter(p => p.characterId);
   const readyCount = activePlayers.filter(p => p.hasActedThisRound).length;
 
+  const dismissInventoryNotification = useCallback((id: string) => {
+    setInventoryNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
   return {
     room,
     players,
@@ -386,6 +400,8 @@ export function useGameSession(roomCode: string) {
     rejectedAction,
     setRejectedAction,
     recentActivities,
+    inventoryNotifications,
+    dismissInventoryNotification,
     finishedAdventure,
     setFinishedAdventure,
     finishAdventure,

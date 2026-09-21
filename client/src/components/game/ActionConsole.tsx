@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Character, DiceRollResult, RoomEnemy, ActionRejectedEvent } from '../../types';
-import { Dices, Send, Clock, Skull, AlertTriangle, Shield, Swords, Sparkles, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Dices, Send, Clock, Skull, AlertTriangle, Shield, Swords, Sparkles, CheckCircle2, ShieldAlert, Lock } from 'lucide-react';
 
 export interface ActionMeta {
   actionType?: 'attack' | 'check' | 'save' | 'improvise';
@@ -71,26 +71,30 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   const statShort = STAT_LABELS[requiredCheckStat.toLowerCase()] || requiredCheckStat.toUpperCase();
 
   const handleOpenDice = () => {
+    if (!actionText.trim()) {
+      alert('Сначала опишите задуманное действие вашего персонажа, а затем бросьте кубик!');
+      return;
+    }
     onOpenDiceModal({
-      defaultPurpose: `Проверка характеристики (${statShort})`,
+      defaultPurpose: `Проверка характеристики (${statShort}): ${actionText.trim().slice(0, 40)}`,
       defaultStatKey: requiredCheckStat,
     });
   };
 
   const handleSuggestionClick = (suggestion: string) => {
+    if (d20Roll) return;
     setActionText(prev => (prev ? `${prev}. ${suggestion}` : suggestion));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!d20Roll) {
-      alert('Перед завершением хода необходимо совершить бросок кубика d20 для проверки действия!');
-      handleOpenDice();
+    if (!actionText.trim()) {
+      alert('Опишите задуманное действие вашего персонажа!');
       return;
     }
-
-    if (!actionText.trim()) {
-      alert('Опишите действие вашего персонажа!');
+    if (!d20Roll) {
+      alert('Действие описано! Теперь совершите бросок кубика d20 для проверки действия.');
+      handleOpenDice();
       return;
     }
 
@@ -233,7 +237,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
 
       {/* Suggestion Chips & DC indicator Row */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar text-[11px] py-0.5">
+        <div className={`flex items-center gap-1.5 overflow-x-auto custom-scrollbar text-[11px] py-0.5 transition-opacity ${d20Roll ? 'opacity-40 pointer-events-none' : ''}`}>
           <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Подсказки:</span>
           {livingEnemies.length === 0 ? (
             <>
@@ -322,78 +326,101 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       </div>
 
       {/* Main Console Input Row */}
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
-        {/* Dice roll button / result chip */}
-        {d20Roll ? (() => {
-          const isCritSuccess = !!d20Roll.isCriticalSuccess;
-          const isCritFail = !!d20Roll.isCriticalFail;
-          const isSuccess = !isCritFail && (isCritSuccess || (targetDC !== undefined && d20Roll.total >= targetDC));
+      <form onSubmit={handleSubmit} className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          {/* Dice roll button / result chip */}
+          {d20Roll ? (() => {
+            const isCritSuccess = !!d20Roll.isCriticalSuccess;
+            const isCritFail = !!d20Roll.isCriticalFail;
+            const isSuccess = !isCritFail && (isCritSuccess || (targetDC !== undefined && d20Roll.total >= targetDC));
 
-          return (
+            return (
+              <div
+                className={`px-3 py-2 rounded-xl border font-mono text-xs font-bold flex items-center gap-1.5 shrink-0 animate-result-bounce select-none cursor-default ${
+                  isCritSuccess
+                    ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-glow-gold'
+                    : isCritFail
+                    ? 'bg-red-950/60 border-red-500 text-red-300 shadow-glow-crimson'
+                    : isSuccess
+                    ? 'bg-emerald-950/50 border-emerald-400 text-emerald-300 shadow-lg shadow-emerald-500/20'
+                    : 'bg-rose-950/50 border-rose-500 text-rose-300 shadow-lg shadow-rose-500/20'
+                }`}
+                title="Бросок d20 совершен и зафиксирован на этот ход. Переброс запрещен правилами честной игры."
+              >
+                {isCritSuccess ? (
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                ) : isCritFail ? (
+                  <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                ) : isSuccess ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <span className="w-3.5 h-3.5 text-rose-400 font-bold">✗</span>
+                )}
+                <span>
+                  d20: {d20Roll.total} {isCritSuccess ? '★ КРИТ. УСПЕХ' : isCritFail ? '☠ КРИТ. ПРОВАЛ' : isSuccess ? '★ УСПЕХ' : '✗ ПРОВАЛ'}
+                </span>
+              </div>
+            );
+          })() : (
             <button
               type="button"
               onClick={handleOpenDice}
-              className={`px-3 py-2 rounded-xl border font-mono text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 animate-result-bounce ${
-                isCritSuccess
-                  ? 'bg-amber-500/25 border-amber-400 text-amber-300 shadow-glow-gold'
-                  : isCritFail
-                  ? 'bg-red-950/60 border-red-500 text-red-300 shadow-glow-crimson'
-                  : isSuccess
-                  ? 'bg-emerald-950/50 border-emerald-400 text-emerald-300 shadow-lg shadow-emerald-500/20'
-                  : 'bg-rose-950/50 border-rose-500 text-rose-300 shadow-lg shadow-rose-500/20'
-              }`}
-              title="Бросок d20 совершен. Нажмите для повторного просмотра."
+              className="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-rpg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all shrink-0"
+              title="Сначала опишите задуманное действие, затем нажмите для броска d20"
             >
-              {isCritSuccess ? (
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              ) : isCritFail ? (
-                <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-              ) : isSuccess ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <span className="w-3.5 h-3.5 text-rose-400 font-bold">✗</span>
-              )}
-              <span>
-                d20: {d20Roll.total} {isCritSuccess ? '★ КРИТ. УСПЕХ' : isCritFail ? '☠ КРИТ. ПРОВАЛ' : isSuccess ? '★ УСПЕХ' : '✗ ПРОВАЛ'}
-              </span>
+              <Dices className="w-4 h-4" />
+              <span>Бросить d20 [{statShort}]</span>
             </button>
-          );
-        })() : (
-          <button
-            type="button"
-            onClick={handleOpenDice}
-            className="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-rpg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all shrink-0"
-            title="Бросить d20 против проверки мастера"
-          >
-            <Dices className="w-4 h-4" />
-            <span>Бросить d20 [{statShort}]</span>
-          </button>
-        )}
+          )}
 
-        {/* Natural Language Action Input */}
-        <div className="flex-1 relative min-w-0">
-          <input
-            type="text"
-            value={actionText}
-            onChange={(e) => setActionText(e.target.value)}
-            placeholder={
-              livingEnemies.length > 0
-                ? "Шаг 2: Опишите действие героя (свободная тактика, атака, укрытие, трюк, магия)..."
-                : "Шаг 2: Опишите действие героя (диалог с персонажем, осмотр, сделка, помощь, путь)..."
-            }
-            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30"
-          />
+          {/* Natural Language Action Input */}
+          <div className="flex-1 relative min-w-0">
+            <input
+              type="text"
+              value={actionText}
+              onChange={(e) => {
+                if (!d20Roll) setActionText(e.target.value);
+              }}
+              readOnly={!!d20Roll}
+              placeholder={
+                d20Roll
+                  ? "Действие зафиксировано для совершенного броска d20"
+                  : livingEnemies.length > 0
+                  ? "Шаг 1: Опишите действие героя (атака, укрытие, магия, трюк)..."
+                  : "Шаг 1: Опишите действие героя (диалог с NPC, осмотр, сделка, помощь, путь)..."
+              }
+              className={`w-full px-3 py-2 border rounded-xl text-xs sm:text-sm transition-all ${
+                d20Roll
+                  ? 'bg-slate-950/80 border-amber-500/40 text-amber-200 cursor-not-allowed pl-8'
+                  : 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30'
+              }`}
+            />
+            {d20Roll && (
+              <Lock className="w-3.5 h-3.5 text-amber-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            )}
+          </div>
+
+          {/* Submit Turn Button */}
+          <button
+            type="submit"
+            disabled={!d20Roll || !actionText.trim()}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-rpg text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Ход</span>
+          </button>
         </div>
 
-        {/* Submit Turn Button */}
-        <button
-          type="submit"
-          disabled={!d20Roll || !actionText.trim()}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-rpg text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0"
-        >
-          <Send className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Ход</span>
-        </button>
+        {/* Lock Notice underneath input when rolled */}
+        {d20Roll && (
+          <div className="flex items-center justify-between text-[11px] text-amber-300/80 px-1 font-mono">
+            <span className="flex items-center gap-1">
+              <Lock className="w-3 h-3 text-amber-400" />
+              Действие зафиксировано под бросок d20. Для отправки хода нажмите «Ход».
+            </span>
+            <span className="text-slate-500 text-[10px]">Строго 1 попытка за раунд</span>
+          </div>
+        )}
       </form>
     </div>
   );

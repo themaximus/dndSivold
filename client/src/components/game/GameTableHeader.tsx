@@ -6,6 +6,7 @@ interface GameTableHeaderProps {
   room: Room;
   readyCount: number;
   totalActivePlayers: number;
+  characterLevel?: number;
   inventoryCount?: number;
   skillPoints?: number;
   milestonesCount?: number;
@@ -41,6 +42,7 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
   room,
   readyCount,
   totalActivePlayers,
+  characterLevel,
   inventoryCount = 0,
   skillPoints = 0,
   milestonesCount = 0,
@@ -150,6 +152,11 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
           >
             <Award className="w-3.5 h-3.5 text-amber-400" />
             <span>Таланты</span>
+            {characterLevel ? (
+              <span className="px-1.5 py-0.2 bg-slate-800 text-[10px] text-amber-300 rounded font-mono">
+                {characterLevel} ур.
+              </span>
+            ) : null}
             {skillPoints > 0 && (
               <span className="px-1.5 py-0.2 bg-amber-500 text-black font-bold text-[10px] rounded-full">
                 +{skillPoints}

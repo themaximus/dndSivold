@@ -16,6 +16,7 @@ import { AdventureFinishModal } from './game/AdventureFinishModal';
 import { RestModal } from './game/RestModal';
 import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
+import { InventoryToastStack } from './game/InventoryToastStack';
 
 interface GameTableProps {
   roomCode: string;
@@ -54,6 +55,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
     lastDeathSaveMessage,
     rejectedAction,
     recentActivities,
+    inventoryNotifications,
+    dismissInventoryNotification,
     finishedAdventure,
     finishAdventure,
     submitAction,
@@ -74,6 +77,12 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
   useEffect(() => {
     setAttachedRolls([]);
   }, [room?.roundNumber]);
+
+  useEffect(() => {
+    if (myPlayer?.pendingRoll && attachedRolls.length === 0) {
+      setAttachedRolls([myPlayer.pendingRoll]);
+    }
+  }, [myPlayer?.pendingRoll]);
 
   if (!room) {
     return (
@@ -114,6 +123,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         room={room}
         readyCount={readyCount}
         totalActivePlayers={activePlayers.length}
+        characterLevel={myCharacter?.level}
         inventoryCount={myCharacter?.inventory?.length || 0}
         skillPoints={myCharacter?.skillPoints || 0}
         milestonesCount={room.loreJournal?.length || 0}
@@ -257,6 +267,12 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave }) => {
         isHost={room.hostUserId === user?.id}
         onFinishAdventure={finishAdventure}
         onReturnToLobby={onLeave}
+      />
+
+      {/* Floating Inventory Activity Toasts */}
+      <InventoryToastStack
+        notifications={inventoryNotifications}
+        onDismiss={dismissInventoryNotification}
       />
     </div>
   );

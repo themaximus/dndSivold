@@ -11,7 +11,7 @@ import {
 } from '../../repositories';
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
-import { AIDMResponse, AIDMPrologueContext, AIDMContext } from '../../domain/types';
+import { AIDMResponse, AIDMPrologueContext, AIDMContext, InventoryNotification } from '../../domain/types';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { RoomEntity, RoomPlayerEntity, GameLogEntity, CharacterEntity, RoomLootItem, LoreMilestone, RoomEnemy } from '../../db';
 import { talentTreeGenerator } from '../progression/TalentTreeGenerator';
@@ -30,6 +30,7 @@ export interface RoundResolutionResult {
   room: RoomEntity;
   players: RoomPlayerEntity[];
   nextRoundNumber: number;
+  inventoryNotifications?: InventoryNotification[];
   rejectedAction?: {
     characterName: string;
     reason: string;
@@ -43,6 +44,7 @@ export interface TurnStepResolutionResult {
   isRoundComplete: boolean;
   nextActiveUserId?: string;
   nextRoundNumber?: number;
+  inventoryNotifications?: InventoryNotification[];
   rejectedAction?: {
     characterName: string;
     reason: string;
@@ -406,6 +408,7 @@ export class GameSessionService {
 
     // Process Dynamic Inventory Updates
     const itemActivitiesByCharacter: Record<string, string[]> = {};
+    const inventoryNotifications: InventoryNotification[] = [];
     if (Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.length > 0) {
       dmResult.inventoryUpdates.forEach(invUpdate => {
         const target = this.characters.findById(invUpdate.characterId) ||
@@ -422,6 +425,16 @@ export class GameSessionService {
             const reason = invUpdate.reason || `Израсходовано или утрачено в раунде ${room.roundNumber}`;
             this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1, reason);
             itemActivitiesByCharacter[target.id].push(`Потрачено/утрачено: «${cleanItemName}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: target.id,
+              characterName: target.name,
+              action: 'remove',
+              itemName: cleanItemName,
+              quantity: invUpdate.item.quantity || 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           } else if (invUpdate.action === 'add') {
             const reason = invUpdate.reason || (Array.isArray(invUpdate.item.history) && invUpdate.item.history.length > 0 ? invUpdate.item.history[0] : `Получено в раунде ${room.roundNumber}`);
             this.characters.addItemToInventory(target.id, {
@@ -429,6 +442,16 @@ export class GameSessionService {
               name: cleanItemName,
             }, reason);
             itemActivitiesByCharacter[target.id].push(`Получено: «${cleanItemName}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: target.id,
+              characterName: target.name,
+              action: 'add',
+              itemName: cleanItemName,
+              quantity: invUpdate.item.quantity || 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
       });
@@ -460,11 +483,31 @@ export class GameSessionService {
             this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
             if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
             itemActivitiesByCharacter[actingChar.id].push(`Использовано: «${item.name}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: actingChar.id,
+              characterName: actingChar.name,
+              action: 'remove',
+              itemName: item.name,
+              quantity: 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           } else if ((mentionedInAction || mentionedInNarrative) && (breakRegex.test(actionLower) || breakRegex.test(narrativeLower))) {
             const reason = `Сломано или утрачено в ходе событий раунда ${room.roundNumber}`;
             this.characters.removeItemFromInventory(actingChar.id, item.id, 1, reason);
             if (!itemActivitiesByCharacter[actingChar.id]) itemActivitiesByCharacter[actingChar.id] = [];
             itemActivitiesByCharacter[actingChar.id].push(`Сломано/утрачено: «${item.name}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: actingChar.id,
+              characterName: actingChar.name,
+              action: 'remove',
+              itemName: item.name,
+              quantity: 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
       });
@@ -617,6 +660,7 @@ export class GameSessionService {
         players: updated!.players,
         isRoundComplete: false,
         nextActiveUserId,
+        inventoryNotifications,
       };
     } else {
       // Last player in order: complete the round and advance to next round!
@@ -639,6 +683,7 @@ export class GameSessionService {
         players: updated!.players,
         isRoundComplete: true,
         nextRoundNumber: nextRound,
+        inventoryNotifications,
       };
     }
   }
@@ -737,6 +782,7 @@ export class GameSessionService {
 
     // Track item activities per character to include in actions summary and feed
     const itemActivitiesByCharacter: Record<string, string[]> = {};
+    const inventoryNotifications: InventoryNotification[] = [];
 
     // Process Dynamic Inventory Updates (items consumed, lost, broken or acquired)
     if (Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.length > 0) {
@@ -757,6 +803,16 @@ export class GameSessionService {
             const reason = invUpdate.reason || `Израсходовано или утрачено в раунде ${room.roundNumber}`;
             this.characters.removeItemFromInventory(target.id, cleanItemName, invUpdate.item.quantity || 1, reason);
             itemActivitiesByCharacter[target.id].push(`Потрачено/утрачено: «${cleanItemName}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: target.id,
+              characterName: target.name,
+              action: 'remove',
+              itemName: cleanItemName,
+              quantity: invUpdate.item.quantity || 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           } else if (invUpdate.action === 'add') {
             const reason = invUpdate.reason || (Array.isArray(invUpdate.item.history) && invUpdate.item.history.length > 0 ? invUpdate.item.history[0] : `Получено в раунде ${room.roundNumber}`);
             this.characters.addItemToInventory(target.id, {
@@ -764,6 +820,16 @@ export class GameSessionService {
               name: cleanItemName,
             }, reason);
             itemActivitiesByCharacter[target.id].push(`Получено: «${cleanItemName}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: target.id,
+              characterName: target.name,
+              action: 'add',
+              itemName: cleanItemName,
+              quantity: invUpdate.item.quantity || 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
       });
@@ -802,11 +868,31 @@ export class GameSessionService {
             this.characters.removeItemFromInventory(char.id, item.id, 1, reason);
             if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
             itemActivitiesByCharacter[char.id].push(`Использовано: «${item.name}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: char.id,
+              characterName: char.name,
+              action: 'remove',
+              itemName: item.name,
+              quantity: 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           } else if ((mentionedInAction || mentionedInNarrative) && (breakRegex.test(actionLower) || breakRegex.test(narrativeLower))) {
             const reason = `Сломано или утрачено в ходе событий раунда ${room.roundNumber}`;
             this.characters.removeItemFromInventory(char.id, item.id, 1, reason);
             if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
             itemActivitiesByCharacter[char.id].push(`Сломано/утрачено: «${item.name}» (${reason})`);
+            inventoryNotifications.push({
+              id: crypto.randomUUID(),
+              characterId: char.id,
+              characterName: char.name,
+              action: 'remove',
+              itemName: item.name,
+              quantity: 1,
+              reason,
+              timestamp: new Date().toISOString(),
+            });
           }
         }
       });
@@ -1035,6 +1121,7 @@ export class GameSessionService {
       room: updated!.room,
       players: updated!.players,
       nextRoundNumber: nextRound,
+      inventoryNotifications,
     };
   }
 

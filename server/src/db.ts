@@ -137,6 +137,7 @@ export interface RoomPlayerEntity {
   isReady: boolean;
   hasActedThisRound: boolean;
   hasRolledThisRound?: boolean;
+  pendingRoll?: any;
   isOnline: boolean;
   joinedAt: string;
 }

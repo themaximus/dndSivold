@@ -80,6 +80,7 @@ export interface RoomPlayer {
   isReady: boolean;
   hasActedThisRound: boolean;
   hasRolledThisRound?: boolean;
+  pendingRoll?: any;
   isOnline: boolean;
 }
 
@@ -303,4 +304,15 @@ export interface FeedActivity {
 export interface ActionRejectedEvent {
   characterName: string;
   reason: string;
+}
+
+export interface InventoryNotification {
+  id: string;
+  characterId: string;
+  characterName: string;
+  action: 'add' | 'remove';
+  itemName: string;
+  quantity: number;
+  reason: string;
+  timestamp: string;
 }
