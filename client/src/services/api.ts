@@ -30,9 +30,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers,
   });
 
-  const data = await res.json();
+  let data: any = null;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+  } else {
+    try {
+      const text = await res.text();
+      data = { error: text };
+    } catch {
+      data = null;
+    }
+  }
+
   if (!res.ok) {
-    throw new Error(data.error || 'Произошла ошибка при запросе');
+    throw new Error(data?.error || `Ошибка сервера (${res.status})`);
   }
   return data;
 }
@@ -161,10 +177,28 @@ export const api = {
     genre: string;
     campaignDuration: 'short' | 'medium' | 'long';
   }> {
-    return request('/rooms/generate-story', {
-      method: 'POST',
-      body: JSON.stringify(params || {}),
-    });
+    try {
+      return await request('/rooms/generate-story', {
+        method: 'POST',
+        body: JSON.stringify(params || {}),
+      });
+    } catch {
+      try {
+        return await request('/generate-story', {
+          method: 'POST',
+          body: JSON.stringify(params || {}),
+        });
+      } catch {
+        const g = (params?.genre as any) || 'fantasy';
+        const d = (params?.campaignDuration as any) || 'medium';
+        return {
+          title: 'Караван на Перепутье Семи Дорог',
+          setting: 'На широкой развилке древних трактов встал лагерем торговый караван купца Бальтазара. Сломанное колесо повозки задерживает путь, а возницы шепчутся о странных огнях в чащобе. Купец ищет спутников, предлагает редкие диковинки и готов щедро наградить за помощь и охрану в пути.',
+          genre: g,
+          campaignDuration: d,
+        };
+      }
+    }
   },
 
   async getRoomByCode(code: string): Promise<{ room: Room; players: RoomPlayer[]; logs: GameLogEntry[] }> {

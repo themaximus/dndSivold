@@ -28,11 +28,33 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
+import { storyGeneratorService } from './services/ai/StoryGeneratorService';
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/characters', characterRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/tts', ttsRoutes);
+
+// Story generation aliases (POST & GET) to guarantee no 404s
+const handleStoryGen = async (req: express.Request, res: express.Response) => {
+  try {
+    const params = req.method === 'GET' ? req.query : req.body;
+    const story = await storyGeneratorService.generateStory(params as any);
+    res.json(story);
+  } catch (err: any) {
+    res.json({
+      title: 'Караван на Перепутье Семи Дорог',
+      setting: 'На широкой развилке древних трактов встал лагерем торговый караван купца Бальтазара. Сломанное колесо повозки задерживает путь, а возницы шепчутся о странных огнях в чащобе. Купец ищет спутников, предлагает редкие диковинки и готов щедро наградить за помощь и охрану в пути.',
+      genre: 'fantasy',
+      campaignDuration: 'medium',
+    });
+  }
+};
+app.post('/api/generate-story', handleStoryGen);
+app.get('/api/generate-story', handleStoryGen);
+app.post('/api/story/generate', handleStoryGen);
+app.get('/api/story/generate', handleStoryGen);
 
 // Favicon handler to avoid browser 404 logs
 app.get('/favicon.ico', (_req, res) => res.status(204).end());

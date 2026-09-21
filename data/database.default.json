@@ -113,6 +113,12 @@
       "username": "player_extra_1789922737632",
       "passwordHash": "$2a$10$rZ.Pv8WHC3kZHV0CrtYysuMeA0Iy0J5FNziiGEU7TEtf/dHEFIk/2",
       "createdAt": "2026-09-20T16:45:37.758Z"
+    },
+    {
+      "id": "3f29d37d-7129-40e3-a9c7-42c14eae2741",
+      "username": "tester_1790001249429",
+      "passwordHash": "$2a$10$YU2UQBvBSv4Ht5Mm0R7aKO.hiHRP.BHwe1f/y0iYeXTyYReoLylwi",
+      "createdAt": "2026-09-21T14:34:09.707Z"
     }
   ],
   "characters": [

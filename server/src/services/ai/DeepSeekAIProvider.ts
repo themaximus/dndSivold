@@ -27,27 +27,35 @@ export class DeepSeekAIProvider implements IAIProvider {
   }
 
   public async generateRaw(prompt: string): Promise<string> {
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.8,
-        response_format: { type: 'json_object' },
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`DeepSeek API error ${response.status}: ${response.statusText} (${errText})`);
+    try {
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.8,
+          response_format: { type: 'json_object' },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`DeepSeek API error ${response.status}: ${response.statusText} (${errText})`);
+      }
+
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || '';
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || '';
   }
 
   private async executeChatCompletion(systemPrompt: string, userPrompt: string): Promise<AIDMResponse> {

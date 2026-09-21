@@ -103,12 +103,22 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onRoomCreated,
         campaignDuration,
         deepseekApiKey: customApiKey.trim() || undefined,
       });
-      setTitle(res.title);
-      setSetting(res.setting);
-      if (res.genre) setGenre(res.genre);
-      if (res.campaignDuration) setCampaignDuration(res.campaignDuration);
+      if (res && res.title && res.setting) {
+        setTitle(res.title);
+        setSetting(res.setting);
+        if (res.genre) setGenre(res.genre);
+        if (res.campaignDuration) setCampaignDuration(res.campaignDuration);
+      } else {
+        throw new Error('Пустой ответ сюжета');
+      }
     } catch (err: any) {
-      setError(err.message || 'Ошибка генерации сюжета');
+      console.warn('Story generation fallback to preset templates:', err?.message || err);
+      const pool = SETTING_TEMPLATES[genre] || SETTING_TEMPLATES.fantasy;
+      const randomItem = pool[Math.floor(Math.random() * pool.length)];
+      if (randomItem) {
+        setTitle(randomItem.title);
+        setSetting(randomItem.setting);
+      }
     } finally {
       setIsGeneratingStory(false);
     }

@@ -9,14 +9,15 @@ export class GeminiAIProvider implements IAIProvider {
   private apiKey: string;
   private primaryModel: string;
   private candidateModels = [
-    'gemini-3.1-flash-lite',
-    'gemini-3.6-flash',
-    'gemini-flash-lite-latest',
-    'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-pro',
+    'gemini-2.5-flash-lite',
   ];
 
-  constructor(apiKey: string, model: string = 'gemini-3.1-flash-lite') {
+  constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
     this.apiKey = apiKey;
     this.primaryModel = model;
   }
@@ -42,6 +43,8 @@ export class GeminiAIProvider implements IAIProvider {
     }
 
     for (const model of modelsToTry) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
         const response = await fetch(endpoint, {
@@ -56,6 +59,7 @@ export class GeminiAIProvider implements IAIProvider {
               temperature: 0.8,
             },
           }),
+          signal: controller.signal,
         });
 
         if (response.ok) {
@@ -64,6 +68,8 @@ export class GeminiAIProvider implements IAIProvider {
         }
       } catch {
         continue;
+      } finally {
+        clearTimeout(timeout);
       }
     }
     throw new Error('Gemini raw generation failed across all candidate models');
