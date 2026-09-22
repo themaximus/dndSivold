@@ -30,6 +30,6 @@ export const config = {
   deepseekApiKey: process.env.DEEPSEEK_API_KEY || '',
   deepseekModel: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
   geminiApiKey: process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY,
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
   dataDir: resolveDataDir(),
 };

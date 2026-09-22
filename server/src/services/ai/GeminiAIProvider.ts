@@ -9,13 +9,14 @@ export class GeminiAIProvider implements IAIProvider {
   private apiKey: string;
   private primaryModel: string;
   private candidateModels = [
+    'gemini-3.5-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash-lite',
   ];
 
-  constructor(apiKey: string, model: string = 'gemini-3.6-flash') {
+  constructor(apiKey: string, model: string = 'gemini-3.5-flash') {
     this.apiKey = apiKey;
-    this.primaryModel = model || 'gemini-3.6-flash';
+    this.primaryModel = model || 'gemini-3.5-flash';
   }
 
   public async generatePrologue(context: AIDMPrologueContext): Promise<AIDMResponse> {
@@ -38,34 +39,39 @@ export class GeminiAIProvider implements IAIProvider {
       modelsToTry = [this.primaryModel, ...modelsToTry.filter(m => m !== this.primaryModel)];
     }
 
-    for (const model of modelsToTry) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              response_mime_type: 'application/json',
-              temperature: 0.8,
+    for (let pass = 1; pass <= 2; pass++) {
+      for (const model of modelsToTry) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-          }),
-          signal: controller.signal,
-        });
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                response_mime_type: 'application/json',
+                temperature: 0.8,
+              },
+            }),
+            signal: controller.signal,
+          });
 
-        if (response.ok) {
-          const data = await response.json();
-          return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (response.ok) {
+            const data = await response.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          }
+        } catch {
+          continue;
+        } finally {
+          clearTimeout(timeout);
         }
-      } catch {
-        continue;
-      } finally {
-        clearTimeout(timeout);
+      }
+      if (pass < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
     }
     throw new Error('Gemini raw generation failed across all candidate models');
@@ -80,54 +86,70 @@ export class GeminiAIProvider implements IAIProvider {
     }
 
     let lastError: Error | null = null;
+    const maxPasses = 2;
 
-    for (const model of modelsToTry) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 35000);
+    for (let pass = 1; pass <= maxPasses; pass++) {
+      for (const model of modelsToTry) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 35000);
 
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [{ text: fullPromptText }],
-              },
-            ],
-            generationConfig: {
-              response_mime_type: 'application/json',
-              temperature: 0.75,
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-          }),
-          signal: controller.signal,
-        });
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [{ text: fullPromptText }],
+                },
+              ],
+              generationConfig: {
+                response_mime_type: 'application/json',
+                temperature: 0.75,
+              },
+            }),
+            signal: controller.signal,
+          });
 
-        if (!response.ok) {
-          const errText = await response.text();
-          let parsedMsg = errText.slice(0, 160);
-          try {
-            const errObj = JSON.parse(errText);
-            if (errObj.error?.message) {
-              parsedMsg = errObj.error.message;
-            }
-          } catch {}
-          console.warn(`Gemini model ${model} status ${response.status}: ${parsedMsg}`);
-          lastError = new Error(`Google Gemini (${model}): ${parsedMsg}`);
-          continue; // failover to next model
+          if (!response.ok) {
+            const errText = await response.text();
+            let parsedMsg = errText.slice(0, 160);
+            try {
+              const errObj = JSON.parse(errText);
+              if (errObj.error?.message) {
+                parsedMsg = errObj.error.message;
+              }
+            } catch {}
+            console.warn(`Gemini model ${model} (pass ${pass}) status ${response.status}: ${parsedMsg}`);
+            lastError = new Error(`Google Gemini (${model}): ${parsedMsg}`);
+            continue; // failover to next model
+          }
+
+          const data = await response.json();
+          const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          return dmResponseValidator.validateAndParse(rawContent);
+        } catch (err: any) {
+          console.warn(`Gemini model ${model} (pass ${pass}) failed:`, err?.message || err);
+          lastError = err;
+        } finally {
+          clearTimeout(timeout);
         }
+      }
 
-        const data = await response.json();
-        const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        return dmResponseValidator.validateAndParse(rawContent);
-      } catch (err: any) {
-        console.warn(`Gemini model ${model} failed:`, err?.message || err);
-        lastError = err;
-      } finally {
-        clearTimeout(timeout);
+      // If all models in this pass failed due to transient high demand, wait and retry once
+      const isTransientOverload =
+        lastError &&
+        (lastError.message.includes('high demand') ||
+          lastError.message.includes('503') ||
+          lastError.message.includes('429') ||
+          lastError.message.includes('temporarily'));
+
+      if (pass < maxPasses && isTransientOverload) {
+        console.warn(`[GeminiAIProvider] Transient overload spike detected, waiting 1500ms before retry pass ${pass + 1}...`);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
     }
 

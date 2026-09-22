@@ -183,7 +183,8 @@ router.get('/my', authMiddleware, (req: Request, res: Response): void => {
 
 // GET /api/rooms/:code - Get room details by code
 router.get('/:code', authMiddleware, (req: Request, res: Response): void => {
-  const room = db.rooms.findByCode(req.params.code);
+  const codeOrId = req.params.code?.trim();
+  const room = db.rooms.findByCode(codeOrId) || db.rooms.findById(codeOrId);
   if (!room) {
     res.status(404).json({ error: 'Комната не найдена' });
     return;
@@ -209,7 +210,14 @@ router.post('/:code/join', authMiddleware, (req: Request, res: Response): void =
       return;
     }
 
-    const result = gameSessionService.joinRoom(req.params.code, userId, user.username);
+    const codeOrId = req.params.code?.trim();
+    const room = db.rooms.findByCode(codeOrId) || db.rooms.findById(codeOrId);
+    if (!room) {
+      res.status(404).json({ error: 'Комната не найдена' });
+      return;
+    }
+
+    const result = gameSessionService.joinRoom(room.code, userId, user.username);
     if (!result) {
       res.status(404).json({ error: 'Комната не найдена' });
       return;
@@ -228,7 +236,8 @@ router.post('/:code/join', authMiddleware, (req: Request, res: Response): void =
 // POST /api/rooms/:code/settings - Update room settings (host only)
 router.post('/:code/settings', authMiddleware, (req: Request, res: Response): void => {
   const userId = (req as any).userId;
-  const room = db.rooms.findByCode(req.params.code);
+  const codeOrId = req.params.code?.trim();
+  const room = db.rooms.findByCode(codeOrId) || db.rooms.findById(codeOrId);
   if (!room) {
     res.status(404).json({ error: 'Комната не найдена' });
     return;

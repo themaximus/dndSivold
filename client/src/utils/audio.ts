@@ -377,6 +377,8 @@ export class NeuralVoiceService {
       } catch (playErr: any) {
         if (playErr.name === 'NotAllowedError') {
           console.info('[Audio] Playback paused waiting for user interaction (Browser Autoplay Policy). Click "Голос DM" to listen.');
+        } else if (playErr.name === 'AbortError') {
+          // Play request was interrupted by newer user action or pause; normal browser audio lifecycle
         } else {
           console.warn('Audio play prevented by browser policy or audio device issue:', playErr);
         }
@@ -386,8 +388,8 @@ export class NeuralVoiceService {
         return false;
       }
     } catch (err: any) {
-      if (err.name === 'AbortError' && sessionId !== this.playbackSessionId) {
-        // Request was deliberately aborted by a newer action; silently exit
+      if (err.name === 'AbortError' || err?.message?.includes('abort')) {
+        // Request was cancelled by a newer action or route change; silently exit
         return false;
       }
       console.warn('Neural voice synthesis request failed:', err?.message || err);
