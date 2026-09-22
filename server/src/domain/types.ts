@@ -10,6 +10,9 @@ import {
   SearchedObjectType,
   EnvironmentObjectEntity,
   EnvironmentObjectState,
+  SpatialEntitySnapshot,
+  SpatialZoneEntity,
+  VehicleManifest,
 } from '../db';
 export {
   CharacterReactionRequest,
@@ -19,6 +22,9 @@ export {
   SearchedObjectType,
   EnvironmentObjectEntity,
   EnvironmentObjectState,
+  SpatialEntitySnapshot,
+  SpatialZoneEntity,
+  VehicleManifest,
 };
 
 export type EntityFaction = 'party' | 'allied' | 'neutral' | 'hostile';
@@ -93,6 +99,8 @@ export interface SceneProjectionViewModel {
   searchedObjects: SearchedObjectEntry[];// Containers / vehicles / rooms with "searched" status
   worldArchive: WorldNPCEntry[];         // Departed / historical NPCs
   environmentObjects?: EnvironmentObjectEntity[]; // Interactive environment objects (vehicles, gates, etc.)
+  currentZoneName?: string;              // e.g. "Перепутье Семи Дорог" or "Ровный тракт"
+  spatialZones?: SpatialZoneEntity[];    // Known persistent world zones
   activeCombat: boolean;
   currentSituation: string;
   choiceDilemma?: string;
@@ -114,6 +122,7 @@ export type ActionIntentClass =
   | 'flee_retreat'
   | 'environment_interaction'
   | 'rest_recovery'
+  | 'location_return'
   | 'general_action';
 
 export interface ActionIntentDTO {
@@ -128,6 +137,7 @@ export interface ActionIntentDTO {
   targetEntityId?: string;              // Resolved exact UUID from SceneEntityManager!
   targetEntityName?: string;
   targetObjectKey?: string;             // Resolved searched object key
+  targetZoneKey?: string;               // Resolved target zone for location return/movement
   usedItemId?: string;                  // Resolved item ID from character inventory
   usedItemName?: string;
   confidence: number;
@@ -278,6 +288,10 @@ export interface AIDMContext {
   searchedObjects?: SearchedObjectEntry[];
   worldNPCRegistry?: WorldNPCEntry[];
   environmentObjects?: EnvironmentObjectEntity[];
+  currentZoneName?: string;
+  currentZoneKey?: string;
+  spatialZones?: SpatialZoneEntity[];
+  vehicleManifest?: VehicleManifest;
 }
 
 export interface DepartedNPCEntry {

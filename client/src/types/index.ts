@@ -260,6 +260,44 @@ export interface EnvironmentObjectEntity {
   updatedAt: string;
 }
 
+export interface SpatialEntitySnapshot {
+  entityId: string;
+  canonicalName: string;
+  role?: string;
+  faction: string;
+  combatRole: string;
+  lifecycle: string;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  status: string;
+  conditions: string[];
+  leftAtRound: number;
+  heldItems?: string[];
+  narrativeStateNote?: string;
+}
+
+export interface SpatialZoneEntity {
+  id: string;
+  roomId: string;
+  zoneKey: string;
+  name: string;
+  description?: string;
+  isCurrent: boolean;
+  firstVisitedRound: number;
+  lastVisitedRound: number;
+  leftEntities: SpatialEntitySnapshot[];
+  environmentObjects?: EnvironmentObjectEntity[];
+  searchedObjects?: SearchedObjectEntry[];
+  threatsPresent?: string[];
+}
+
+export interface VehicleManifest {
+  vehicleKey: string;
+  driverName?: string;
+  passengerNames: string[];
+}
+
 export interface SceneProjectionViewModel {
   threats: ProjectedEntityView[];
   allies: ProjectedEntityView[];
@@ -267,6 +305,8 @@ export interface SceneProjectionViewModel {
   searchedObjects: SearchedObjectEntry[];
   worldArchive: WorldNPCEntry[];
   environmentObjects?: EnvironmentObjectEntity[];
+  currentZoneName?: string;
+  spatialZones?: SpatialZoneEntity[];
   activeCombat: boolean;
   currentSituation: string;
   choiceDilemma?: string;
@@ -305,6 +345,9 @@ export interface Room {
   worldQuests?: QuestEntity[];
   searchedObjectsRegistry?: SearchedObjectEntry[];
   environmentObjects?: EnvironmentObjectEntity[];
+  currentZoneKey?: string;
+  spatialZones?: SpatialZoneEntity[];
+  vehicleManifest?: VehicleManifest;
   sceneProjection?: SceneProjectionViewModel;
   sceneEntities?: any[];
   createdAt: string;

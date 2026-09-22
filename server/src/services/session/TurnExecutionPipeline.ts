@@ -41,6 +41,7 @@ import { inventoryLedgerService } from './InventoryLedgerService';
 import { narrativeSynthesizer } from './NarrativeSynthesizer';
 import { roomSessionManager } from './RoomSessionManager';
 import { episodicMemoryCompressor } from '../ai/EpisodicMemoryCompressor';
+import { systemLocator } from './ServiceLocator';
 
 export interface RoundResolutionResult {
   log?: GameLogEntity;
@@ -160,7 +161,9 @@ export class TurnExecutionPipeline {
   }): Promise<TurnStepResolutionResult | RoundResolutionResult> {
     const { room, isTurnByTurn, actingUserId, actionsToResolve, completedReactions } = params;
 
-    // 1. Ensure entities exist and have UUIDs
+    // 1. Ensure entities exist and have UUIDs, and ensure spatial zones
+    const spatialEngine = systemLocator.get('spatialLocationEngine');
+    spatialEngine.ensureCurrentZone(room);
     sceneEntityManager.ensureSceneEntities(room);
 
     const allPlayers = this.rooms.findPlayersByRoomId(room.id);
@@ -189,7 +192,8 @@ export class TurnExecutionPipeline {
         room.sceneNPCs || [],
         room.targetDC || 12,
         roomSearched,
-        room.environmentObjects || []
+        room.environmentObjects || [],
+        room
       );
 
       // Advance environment object stage on successful staged progress
@@ -268,6 +272,10 @@ export class TurnExecutionPipeline {
       searchedObjects: roomSearched,
       worldNPCRegistry: this.worldNPCs.findByRoomId(room.id),
       environmentObjects: room.environmentObjects,
+      currentZoneName: room.spatialZones?.find((z) => z.isCurrent || z.zoneKey === room.currentZoneKey)?.name || 'Текущая локация',
+      currentZoneKey: room.currentZoneKey,
+      spatialZones: room.spatialZones ? [...room.spatialZones] : [],
+      vehicleManifest: room.vehicleManifest,
     };
 
     // 5. Invoke AI Narrative Synthesizer
@@ -389,7 +397,45 @@ export class TurnExecutionPipeline {
 
     // 11. Synchronize Scene Entities & Projection (with hostile transitions and dynamic status)
     sceneEntityManager.processRoundEntities(room, dmResult, actionsToResolve, mechanicalResolutions);
-    const sceneProjection = room.sceneProjection || sceneEntityManager.buildSceneProjection(room);
+
+    // 11b. Actions Summary & Spatial Transition Evacuation
+    const actionsSummary = this.formatActionsSummary(
+      actionsToResolve,
+      room.targetDC || 12,
+      itemActivities,
+      completedReactionsList
+    );
+
+    const transitionCheck = spatialEngine.detectLocationTransition(
+      actionsSummary,
+      dmResult.narrative || '',
+      room
+    );
+
+    if (transitionCheck.isTransition && transitionCheck.toZoneKey) {
+      const travelerNames: string[] = activeCharacters.map((c) => c.name);
+      if (room.vehicleManifest?.passengerNames) {
+        travelerNames.push(...room.vehicleManifest.passengerNames);
+      }
+      if (room.vehicleManifest?.driverName) {
+        travelerNames.push(room.vehicleManifest.driverName);
+      }
+      if (/бальтазар/i.test(dmResult.narrative || '') || /бальтазар/i.test(actionsSummary)) {
+        travelerNames.push('Бальтазар', 'купец Бальтазар');
+      }
+
+      spatialEngine.evacuateNonTravelers(
+        room,
+        room.currentZoneKey || 'crossroads_seven_roads',
+        transitionCheck.toZoneKey,
+        travelerNames,
+        dmResult.narrative || ''
+      );
+      // Re-synchronize legacy arrays after evacuation of non-travelers
+      sceneEntityManager.syncLegacyArrays(room);
+    }
+
+    const sceneProjection = sceneEntityManager.buildSceneProjection(room);
 
     // 12. Determine turn/round progression
     let isRoundComplete = false;
@@ -423,13 +469,6 @@ export class TurnExecutionPipeline {
     }
 
     // 13. Create Game Log
-    const actionsSummary = this.formatActionsSummary(
-      actionsToResolve,
-      room.targetDC || 12,
-      itemActivities,
-      completedReactionsList
-    );
-
     const createdLoot =
       dmResult.droppedLoot && dmResult.droppedLoot.length > 0
         ? dmResult.droppedLoot.map((l) => ({
@@ -490,6 +529,9 @@ export class TurnExecutionPipeline {
       worldNPCRegistry: room.worldNPCRegistry,
       worldQuests: room.worldQuests,
       environmentObjects: room.environmentObjects,
+      currentZoneKey: room.currentZoneKey,
+      spatialZones: room.spatialZones,
+      vehicleManifest: room.vehicleManifest,
     });
 
     if (isRoundComplete) {

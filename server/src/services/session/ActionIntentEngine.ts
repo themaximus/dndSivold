@@ -1,6 +1,7 @@
 import { TurnActionEntity, CharacterEntity, RoomEntity } from '../../db';
 import { ActionIntentDTO, ActionIntentClass, SceneEntity } from '../../domain/types';
 import { sceneEntityManager, extractSearchTokens } from './SceneEntityManager';
+import { systemLocator } from './ServiceLocator';
 
 export class ActionIntentEngine {
   /**
@@ -28,6 +29,14 @@ export class ActionIntentEngine {
     // 4. Resolve used item from character's inventory
     const usedItem = this.resolveUsedItem(physicalText, character);
 
+    // 5. Resolve target zone if location return
+    let targetZoneKey: string | undefined;
+    if (intentClass === 'location_return') {
+      const spatialEngine = systemLocator.get('spatialLocationEngine');
+      const ret = spatialEngine.detectLocationReturn(rawText, room);
+      targetZoneKey = ret.targetZoneKey;
+    }
+
     return {
       actorUserId: action.playerId,
       actorCharacterId: action.characterId,
@@ -40,6 +49,7 @@ export class ActionIntentEngine {
       targetEntityId: targetEntity?.entityId,
       targetEntityName: targetEntity?.canonicalName,
       targetObjectKey,
+      targetZoneKey,
       usedItemId: usedItem?.id,
       usedItemName: usedItem?.name,
       confidence: 1.0,
@@ -147,6 +157,11 @@ export class ActionIntentEngine {
     // 6. Fleeing / retreat
     if (/(?:бегств|убега(?:ю|ем)|отступа(?:ю|ем)|беж(?:им|у)|уход(?:им|у)\s+из\s+боя|драпа(?:ем|ть))/i.test(text)) {
       return 'flee_retreat';
+    }
+
+    // 7. Location Return / Backtracking
+    if (/(?:возвраща(?:юсь|емся)|вернуть(?:ся|ем)|назад\s+на\s+развилк|разворачива(?:ю|ем)|еду\s+назад|мчусь\s+назад|к\s+послушник|обратно\s+на)/i.test(text)) {
+      return 'location_return';
     }
 
     // 7. Combat attack

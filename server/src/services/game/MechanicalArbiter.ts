@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition, SearchedObjectEntry, EnvironmentObjectEntity } from '../../db';
+import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition, SearchedObjectEntry, EnvironmentObjectEntity, RoomEntity } from '../../db';
 import { calculateModifier } from '../dndRules';
 import { itemLedgerRepository } from '../../repositories/ItemLedgerRepository';
 import { systemLocator } from '../session/ServiceLocator';
@@ -102,9 +102,11 @@ export class MechanicalArbiter {
     currentNPCs: RoomNPC[],
     roomDC: number = 12,
     searchedObjects: SearchedObjectEntry[] = [],
-    environmentObjects: EnvironmentObjectEntity[] = []
+    environmentObjects: EnvironmentObjectEntity[] = [],
+    room?: RoomEntity
   ): MechanicalResolution {
     const actionText = action.actionText || '';
+    const activeRoom: any = room || { id: (action as any).roomId || '', environmentObjects };
 
     // Anti-infinite loot: Check if the action is attempting to search an already exhausted/searched object
     const matchingSearched = this.findMatchingSearchedObject(actionText, searchedObjects);
@@ -114,8 +116,7 @@ export class MechanicalArbiter {
 
     // Physical Affordance & World Consistency: Check if the action targets an environment object
     const affordanceService = systemLocator.get('sceneAffordanceService');
-    const dummyRoom: any = { id: (action as any).roomId || '', environmentObjects };
-    const matchingEnvObj = affordanceService.findMatchingObject(actionText, dummyRoom);
+    const matchingEnvObj = affordanceService.findMatchingObject(actionText, activeRoom);
 
     if (matchingEnvObj && !matchingEnvObj.isOperational) {
       const demandsOperation = affordanceService.isActionDemandingOperationalFunction(actionText, matchingEnvObj);
@@ -124,6 +125,20 @@ export class MechanicalArbiter {
       if (demandsOperation || isAdvancingPrereq) {
         return this.resolveStagedAffordanceAction(action, character, matchingEnvObj, roomDC);
       }
+    }
+
+    // Spatial Navigation: Check for location return / backtracking
+    const spatialEngine = systemLocator.get('spatialLocationEngine');
+    const returnCheck = spatialEngine.detectLocationReturn(actionText, activeRoom);
+    if (returnCheck.isReturn && returnCheck.targetZoneKey) {
+      return this.resolveLocationReturnAction(
+        action,
+        character,
+        returnCheck.targetZoneKey,
+        returnCheck.targetZoneName || 'Предыдущая локация',
+        roomDC,
+        activeRoom
+      );
     }
 
     const intent = this.classifyIntent(actionText, action.actionType);
@@ -1489,6 +1504,44 @@ ${!isDisengage && oppAttackHit ? `- ⚠️ Однако без действия 
       consumedItems: [],
       promptDirective: result.promptDirective,
       auditNotes: result.auditNote,
+    };
+  }
+
+  /**
+   * Resolves backtracking actions: returns to previously left location,
+   * simulates time delta, and restores evacuated entities to the active scene HUD.
+   */
+  private resolveLocationReturnAction(
+    action: TurnActionEntity,
+    character: CharacterEntity | undefined,
+    targetZoneKey: string,
+    targetZoneName: string,
+    roomDC: number,
+    room: RoomEntity
+  ): MechanicalResolution {
+    const d20 = action.diceRolls && action.diceRolls.length > 0 ? action.diceRolls[0] : null;
+    const rollTotal = d20 ? d20.total : 10;
+    const isSuccess = rollTotal >= (roomDC || 12) || (d20?.isCriticalSuccess ?? false);
+
+    const spatialEngine = systemLocator.get('spatialLocationEngine');
+    const simResult = spatialEngine.simulateTimeDeltaOnReturn(room, targetZoneKey);
+
+    const promptDirective = isSuccess
+      ? `🧭 МАНЕВР ВОЗВРАЩЕНИЯ В ЛОКАЦИЮ «${targetZoneName}»: УСПЕХ (d20: ${rollTotal} >= СЛ ${roomDC}).\n` +
+        `Герою удаётся развернуть повозку / прорваться обратно сквозь туман к покинутому месту.\n` +
+        simResult.promptDirective
+      : `🧭 ПОПЫТКА ВОЗВРАЩЕНИЯ В ЛОКАЦИЮ «${targetZoneName}»: ЗАТРУДНЕНИЕ (d20: ${rollTotal} < СЛ ${roomDC}).\n` +
+        `Дорогу размыло или преградили завалы/твари. Отряд с трудом пробивается назад.\n` +
+        simResult.promptDirective;
+
+    return {
+      actionId: action.id,
+      characterId: action.characterId,
+      characterName: character?.name || action.characterName,
+      actionType: 'location_return',
+      consumedItems: [],
+      promptDirective,
+      auditNotes: `Location return to ${targetZoneKey}: ${isSuccess ? 'Success' : 'Partial'}. ${simResult.auditNote}`,
     };
   }
 }

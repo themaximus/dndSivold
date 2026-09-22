@@ -139,6 +139,8 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   const worldNPCRegistry = projection?.worldArchive && projection.worldArchive.length > 0 ? projection.worldArchive : rawWorldNPCRegistry;
   const searchedObjects = projection?.searchedObjects && projection.searchedObjects.length > 0 ? projection.searchedObjects : rawSearchedObjects;
   const environmentObjects = projection?.environmentObjects && projection.environmentObjects.length > 0 ? projection.environmentObjects : rawEnvironmentObjects;
+  const spatialZones = projection?.spatialZones || [];
+  const totalLeftEntities = spatialZones.reduce((acc, z) => acc + (z.leftEntities?.length || 0), 0);
 
   let activeEnemies: RoomEnemy[];
   let defeatedEnemies: RoomEnemy[];
@@ -306,16 +308,26 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
           </div>
         </div>
 
-        {/* Global state pill */}
-        {activeEnemies.length > 0 ? (
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-red-950/60 text-red-300 border border-red-500/50 flex items-center gap-1">
-            <Swords className="w-3 h-3 animate-spin" /> Бой
-          </span>
-        ) : (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> Спокойно
-          </span>
-        )}
+        {/* Global state pill & Location badge */}
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {projection?.currentZoneName && (
+            <span
+              className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-indigo-950/70 text-indigo-300 border border-indigo-500/40 flex items-center gap-1 shadow-sm"
+              title="Текущая локация отряда"
+            >
+              📍 {projection.currentZoneName}
+            </span>
+          )}
+          {activeEnemies.length > 0 ? (
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-red-950/60 text-red-300 border border-red-500/50 flex items-center gap-1">
+              <Swords className="w-3 h-3 animate-spin" /> Бой
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Спокойно
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Tabs Filter */}
@@ -403,9 +415,9 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
         >
           <div className="relative">
             <History className="w-3.5 h-3.5 text-purple-400" />
-            {(worldNPCRegistry.length > 0 || searchedObjects.length > 0) && (
+            {(worldNPCRegistry.length > 0 || searchedObjects.length > 0 || totalLeftEntities > 0) && (
               <span className="absolute -top-1.5 -right-2.5 px-1 py-0.2 rounded-full text-[8px] bg-purple-900/90 text-purple-200 font-mono leading-none">
-                {worldNPCRegistry.length + searchedObjects.length}
+                {worldNPCRegistry.length + searchedObjects.length + totalLeftEntities}
               </span>
             )}
           </div>
@@ -1001,13 +1013,13 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
             )}
 
             {/* 5. WORLD HISTORY & SEARCHED OBJECTS (when showHistory is true) */}
-            {showHistory && (activeTab !== 'all' || worldNPCRegistry.length > 0 || searchedObjects.length > 0) && (
+            {showHistory && (activeTab !== 'all' || worldNPCRegistry.length > 0 || searchedObjects.length > 0 || spatialZones.length > 0) && (
               <div className={`${activeTab === 'all' ? 'pt-3 border-t border-slate-800/80' : ''} space-y-3`}>
-                {activeTab === 'history' && worldNPCRegistry.length === 0 && searchedObjects.length === 0 ? (
+                {activeTab === 'history' && worldNPCRegistry.length === 0 && searchedObjects.length === 0 && spatialZones.length === 0 ? (
                   <div className="p-4 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border">
                     <History className="w-6 h-6 mx-auto mb-2 text-purple-400/70" />
                     <p className="text-xs font-bold text-slate-300 mb-1">Архив мира пуст</p>
-                    <p className="text-[11px] text-slate-500">Пока нет выбывших персонажей или исследованных объектов в летописи.</p>
+                    <p className="text-[11px] text-slate-500">Пока нет выбывших персонажей, обысканных объектов или покинутых зон в летописи.</p>
                   </div>
                 ) : (
                   <>
@@ -1107,6 +1119,70 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                             </div>
                           ))
                         )}
+                      </div>
+                    )}
+
+                    {/* Spatial Zones & Left-Behind Entities */}
+                    {(activeTab === 'history' || spatialZones.length > 0) && spatialZones.length > 0 && (
+                      <div className={`space-y-2 ${(worldNPCRegistry.length > 0 || searchedObjects.length > 0) ? 'pt-2 border-t border-slate-800/80' : ''}`}>
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[11px] font-bold font-rpg uppercase text-indigo-300 flex items-center gap-1.5">
+                            <Compass className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            Локации мира и оставленные герои ({spatialZones.length})
+                          </span>
+                        </div>
+
+                        {spatialZones.map((z) => (
+                          <div
+                            key={z.id}
+                            className={`border rounded-xl p-2.5 space-y-1.5 shadow-sm transition-all ${
+                              z.isCurrent
+                                ? 'bg-indigo-950/40 border-indigo-500/50'
+                                : 'bg-slate-900/80 border-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="font-bold text-xs flex items-center gap-1.5 text-slate-200">
+                                <span>{z.isCurrent ? '📍' : '🗺️'}</span>
+                                <span>{z.name}</span>
+                              </span>
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                                  z.isCurrent
+                                    ? 'bg-indigo-900/70 text-indigo-200 border-indigo-600/50'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                                }`}
+                              >
+                                {z.isCurrent ? 'Текущая' : `Р${z.lastVisitedRound} • Покинута`}
+                              </span>
+                            </div>
+
+                            {z.leftEntities && z.leftEntities.length > 0 ? (
+                              <div className="space-y-1 pl-3 border-l-2 border-amber-600/40 ml-1 mt-1">
+                                <span className="text-[9px] uppercase tracking-wider text-amber-400/80 font-mono block">
+                                  Оставлены на месте ({z.leftEntities.length}):
+                                </span>
+                                {z.leftEntities.map((le) => (
+                                  <div
+                                    key={le.entityId}
+                                    className="text-[11px] flex items-center justify-between gap-2 text-slate-300 bg-slate-950/40 px-2 py-1 rounded"
+                                  >
+                                    <span className="text-amber-200 font-medium truncate">
+                                      👤 {le.canonicalName}
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 italic font-mono shrink-0">
+                                      {le.status} (Р{le.leftAtRound})
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-slate-500 italic pl-1">
+                                Оставленных персонажей в этой локации нет.
+                              </p>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </>

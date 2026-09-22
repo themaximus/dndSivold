@@ -1053,7 +1053,181 @@ async function runTests() {
   assert.strictEqual(finalDriveEval.isNowOperational, true);
   console.log('✅ Prerequisite completion verified: wagon is now 100% operational and usable for escape!\n');
 
-  console.log('🎉 ALL 23 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 24: Spatial separation & Passenger manifest (Leaving behind non-travelers)
+  // ----------------------------------------------------
+  console.log('Test 24: Spatial separation & Passenger manifest (Evacuating left-behind entities)');
+  const spatialEngine = systemLocator.get('spatialLocationEngine');
+  const spatialRoom: RoomEntity = {
+    id: 'room_spatial_test_1',
+    code: 'SPATIAL1',
+    hostUserId: 'user_1',
+    title: 'Побег на повозке',
+    setting: 'Фэнтези',
+    status: 'active',
+    roundNumber: 2,
+    currentSituation: 'Повозка готова мчать прочь с развилки',
+    sceneEntities: [],
+    sceneNPCs: [],
+    activeEnemies: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  spatialEngine.ensureCurrentZone(spatialRoom, 'Перепутье Семи Дорог');
+  assert.strictEqual(spatialRoom.currentZoneKey, 'crossroads_seven_roads');
+
+  // Register characters and NPCs in crossroads
+  const acolyte = sem.registerEntity(spatialRoom, {
+    name: 'Беглый послушник',
+    role: 'Раненый гонец',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    hpCurrent: 2,
+    hpMax: 15,
+    status: 'Без сознания в высокой траве у развилки',
+  });
+
+  const balthazarEntity = sem.registerEntity(spatialRoom, {
+    name: 'Купец Бальтазар',
+    role: 'Торговец',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    hpCurrent: 18,
+    hpMax: 18,
+    status: 'Сидит в кузове повозки',
+  });
+
+  // Player "Кирильчик" drives wagon away onto the highway
+  const wagonDepartureNarrative = 'Кирильчик резко бьет поводьями... повозка срывается с места и вылетает на ровный тракт. А раненый послушник так и остался лежать в траве.';
+  const evacuated = spatialEngine.evacuateNonTravelers(
+    spatialRoom,
+    'crossroads_seven_roads',
+    'highway_road',
+    ['Кирильчик', 'Бальтазар', 'Купец Бальтазар'],
+    wagonDepartureNarrative
+  );
+
+  assert.strictEqual(evacuated.length, 1, 'Only acolyte should be evacuated/left behind');
+  assert.strictEqual(evacuated[0].canonicalName, 'Беглый послушник');
+  assert.strictEqual(evacuated[0].leftAtRound, 2);
+  assert.strictEqual(spatialRoom.currentZoneKey, 'highway_road', 'Room current zone must now be highway_road');
+
+  // Check crossroads zone registry
+  const crossroadsZone = spatialRoom.spatialZones?.find((z) => z.zoneKey === 'crossroads_seven_roads');
+  assert.ok(crossroadsZone, 'Crossroads zone must exist');
+  assert.strictEqual(crossroadsZone.leftEntities.length, 1, 'Crossroads must remember the acolyte in leftEntities');
+  assert.strictEqual(crossroadsZone.leftEntities[0].canonicalName, 'Беглый послушник');
+
+  // Active projection in the new zone MUST NOT contain the departed acolyte!
+  const highwayProjection = sem.buildSceneProjection(spatialRoom);
+  const acolyteInProjection = highwayProjection.sceneNPCs.find((n) => n.name === 'Беглый послушник');
+  assert.strictEqual(acolyteInProjection, undefined, 'Acolyte MUST NOT be present in active scene projection on highway');
+
+  // Legacy sceneNPCs array MUST NOT contain the acolyte
+  const acolyteInLegacy = spatialRoom.sceneNPCs?.find((n) => n.name === 'Беглый послушник');
+  assert.strictEqual(acolyteInLegacy, undefined, 'Acolyte MUST NOT be present in room.sceneNPCs');
+
+  // Balthazar (traveler) MUST be present in the active scene projection
+  const balthazarInProjection = highwayProjection.sceneNPCs.find((n) => n.name.includes('Бальтазар'));
+  assert.ok(balthazarInProjection, 'Balthazar must travel with party and appear in active scene');
+  assert.strictEqual(highwayProjection.currentZoneName, 'Ровный тракт');
+  console.log('✅ Spatial separation verified: acolyte removed from HUD and preserved in crossroads registry.\n');
+
+  // ----------------------------------------------------
+  // Test 25: Backtracking Return & Fatal Time Delta Simulation (Delta >= 2 rounds)
+  // ----------------------------------------------------
+  console.log('Test 25: Backtracking Return & Fatal Time Delta Simulation (Delta >= 2 rounds)');
+  // Fast-forward to round 4 (party spent 2 rounds on highway: 4 - 2 = 2)
+  spatialRoom.roundNumber = 4;
+
+  const returnAction: any = {
+    id: 'act_return_1',
+    characterId: 'char_test_1',
+    characterName: 'Кирильчик',
+    actionText: 'Разворачиваю повозку и возвращаюсь назад на развилку к послушнику!',
+    actionType: 'check',
+    diceRolls: [{ diceType: 'd20', rolls: [15], modifier: 0, total: 15, isCriticalSuccess: false, isCriticalFail: false, purpose: 'Разворот' }],
+  };
+
+  // 1. Intent engine detects return
+  const returnIntent = aie.parseActionIntent(returnAction, undefined, spatialRoom);
+  assert.strictEqual(returnIntent.intentClass, 'location_return', 'Intent must be classified as location_return');
+  assert.strictEqual(returnIntent.targetZoneKey, 'crossroads_seven_roads', 'Target zone must resolve to crossroads');
+
+  // 2. Mechanical Arbiter evaluates return and executes simulation
+  const arbiter = systemLocator.get('mechanicalArbiter');
+  const returnRes = arbiter.evaluateAction(
+    returnAction,
+    undefined,
+    [],
+    [],
+    12,
+    [],
+    [],
+    spatialRoom
+  );
+
+  assert.strictEqual(returnRes.actionType, 'location_return');
+  assert.ok(returnRes.promptDirective.includes('СИМУЛЯЦИЯ ВОЗВРАЩЕНИЯ'), 'Prompt directive must include return simulation header');
+  assert.ok(
+    returnRes.promptDirective.includes('погиб') || returnRes.promptDirective.includes('Мёртв'),
+    'Acolyte must be simulated as dead after 2 rounds of abandonment'
+  );
+  assert.ok(returnRes.promptDirective.includes('медный ключ'), 'Prompt directive must mention dropped key');
+
+  // Acolyte should now be re-hydrated back into room.sceneEntities as defeated
+  const rehydratedAcolyte = spatialRoom.sceneEntities?.find((e) => e.canonicalName === 'Беглый послушник');
+  assert.ok(rehydratedAcolyte, 'Acolyte must be re-hydrated into room.sceneEntities');
+  assert.strictEqual(rehydratedAcolyte.lifecycle, 'defeated', 'Acolyte lifecycle must be defeated');
+  assert.strictEqual(rehydratedAcolyte.stats.hpCurrent, 0, 'Acolyte HP must be 0');
+  assert.strictEqual(spatialRoom.currentZoneKey, 'crossroads_seven_roads', 'Party must now be back at crossroads');
+
+  // Re-build projection: defeated acolyte is visible in scene
+  const returnProjection = sem.buildSceneProjection(spatialRoom);
+  assert.strictEqual(returnProjection.currentZoneName, 'Перепутье Семи Дорог');
+  console.log('✅ Fatal time delta verified: acolyte found dead with key after 2 rounds of absence.\n');
+
+  // ----------------------------------------------------
+  // Test 26: Rapid Return (Delta = 1 round) Allows Rescue Opportunity
+  // ----------------------------------------------------
+  console.log('Test 26: Rapid Return (Delta = 1 round) Allows Rescue Opportunity');
+  const rapidRoom: RoomEntity = {
+    id: 'room_rapid_test',
+    code: 'RAPID1',
+    hostUserId: 'user_1',
+    title: 'Быстрый возврат',
+    setting: 'Фэнтези',
+    status: 'active',
+    roundNumber: 2,
+    currentSituation: 'Развилка дорог',
+    sceneEntities: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  spatialEngine.ensureCurrentZone(rapidRoom, 'Перепутье Семи Дорог');
+  sem.registerEntity(rapidRoom, {
+    name: 'Беглый послушник',
+    role: 'Раненый гонец',
+    hpCurrent: 2,
+    hpMax: 15,
+    status: 'Без сознания в траве',
+  });
+
+  // Depart at round 2
+  spatialEngine.evacuateNonTravelers(rapidRoom, 'crossroads_seven_roads', 'highway_road', ['Воин']);
+
+  // Immediately return in round 3 (delta = 1 round)
+  rapidRoom.roundNumber = 3;
+  const simRapid = spatialEngine.simulateTimeDeltaOnReturn(rapidRoom, 'crossroads_seven_roads');
+
+  assert.strictEqual(simRapid.restoredEntities.length, 1);
+  const rapidAcolyte = simRapid.restoredEntities[0];
+  assert.strictEqual(rapidAcolyte.stats.hpCurrent, 1, 'Acolyte must have 1 HP clinging to life');
+  assert.strictEqual(rapidAcolyte.lifecycle, 'active', 'Acolyte is still alive/active');
+  assert.ok(simRapid.promptDirective.includes('ещё дышит') || simRapid.promptDirective.includes('При смерти'), 'Prompt directive must indicate rescue opportunity');
+  console.log('✅ Rapid return verified: 1 round delta leaves entity alive at 1 HP for immediate medical triage.\n');
+
+  console.log('🎉 ALL 26 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

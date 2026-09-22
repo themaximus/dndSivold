@@ -13,6 +13,7 @@ import { SocialArbiter, socialArbiter } from '../game/SocialArbiter';
 import { EpisodicMemoryCompressor, episodicMemoryCompressor } from '../ai/EpisodicMemoryCompressor';
 import { StreamingAIService, streamingAIService } from '../ai/StreamingAIService';
 import { SceneAffordanceService, sceneAffordanceService } from './SceneAffordanceService';
+import { SpatialLocationEngine, spatialLocationEngine } from './SpatialLocationEngine';
 import { db } from '../../db';
 
 /**
@@ -35,6 +36,7 @@ export interface SessionServiceMap {
   episodicMemoryCompressor: EpisodicMemoryCompressor;
   streamingAIService: StreamingAIService;
   sceneAffordanceService: SceneAffordanceService;
+  spatialLocationEngine: SpatialLocationEngine;
 }
 
 /**
@@ -72,6 +74,7 @@ export class ServiceLocator {
     this.factories.set('episodicMemoryCompressor', () => episodicMemoryCompressor);
     this.factories.set('streamingAIService', () => streamingAIService);
     this.factories.set('sceneAffordanceService', () => sceneAffordanceService);
+    this.factories.set('spatialLocationEngine', () => spatialLocationEngine);
   }
 
   /**

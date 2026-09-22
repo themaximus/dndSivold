@@ -98,7 +98,7 @@ export class SceneEntityManager {
             },
             role: enemy.type || 'Противник',
             status: enemy.status || 'В бою',
-            location: { roomId: room.id },
+            location: { roomId: room.id, zoneId: room.currentZoneKey },
             narrativeNotes: [],
             createdAt: new Date().toISOString(),
           };
@@ -141,7 +141,7 @@ export class SceneEntityManager {
             role: npc.role || 'Персонаж',
             status: npc.status || 'Присутствует',
             disposition: npc.disposition || 'neutral',
-            location: { roomId: room.id },
+            location: { roomId: room.id, zoneId: room.currentZoneKey },
             narrativeNotes: npc.trustNotes ? [...npc.trustNotes] : [],
             createdAt: new Date().toISOString(),
           };
@@ -208,7 +208,7 @@ export class SceneEntityManager {
       role: params.role || 'Персонаж',
       status: params.status || 'Присутствует в сцене',
       disposition: params.disposition || (params.faction === 'hostile' ? 'hostile' : 'neutral'),
-      location: { roomId: room.id },
+      location: { roomId: room.id, zoneId: room.currentZoneKey },
       narrativeNotes: params.narrativeNotes ? [...params.narrativeNotes] : [],
       createdAt: new Date().toISOString(),
     };
@@ -918,6 +918,11 @@ export class SceneEntityManager {
         continue; // Departed entities do not appear in active scene views
       }
 
+      // If spatial zones are configured, exclude entities left in other zones
+      if (entity.location?.zoneId && room.currentZoneKey && entity.location.zoneId !== room.currentZoneKey) {
+        continue;
+      }
+
       if (entity.faction === 'hostile') {
         legacyEnemies.push({
           id: entity.entityId,
@@ -973,6 +978,11 @@ export class SceneEntityManager {
         continue;
       }
 
+      // If spatial zones are configured, exclude entities left in other zones
+      if (entity.location?.zoneId && room.currentZoneKey && entity.location.zoneId !== room.currentZoneKey) {
+        continue;
+      }
+
       const projected: ProjectedEntityView = {
         entityId: entity.entityId,
         name: entity.canonicalName,
@@ -1003,6 +1013,9 @@ export class SceneEntityManager {
 
     const activeCombat = threats.some((t) => !t.isDead && t.hpCurrent > 0);
 
+    const currentZone = room.spatialZones?.find((z) => z.isCurrent || z.zoneKey === room.currentZoneKey);
+    const currentZoneName = currentZone?.name || (room.currentZoneKey ? 'Текущая локация' : undefined);
+
     const projection: SceneProjectionViewModel = {
       threats,
       allies,
@@ -1010,6 +1023,8 @@ export class SceneEntityManager {
       searchedObjects: room.searchedObjectsRegistry ? [...room.searchedObjectsRegistry] : [],
       worldArchive: room.worldNPCRegistry ? [...room.worldNPCRegistry] : [],
       environmentObjects: room.environmentObjects ? [...room.environmentObjects] : [],
+      currentZoneName,
+      spatialZones: room.spatialZones ? [...room.spatialZones] : [],
       activeCombat,
       currentSituation: room.currentSituation || '',
       roomDC: room.targetDC,
