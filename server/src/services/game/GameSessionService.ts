@@ -31,7 +31,9 @@ import {
 } from '../session/SceneEntityManager';
 import { sanitizeNarrativeText } from '../session/NarrativeSynthesizer';
 
-export { sanitizeNarrativeText, RoundResolutionResult, TurnStepResolutionResult };
+import { ServiceLocator, systemLocator, SystemLocator } from '../session/ServiceLocator';
+
+export { sanitizeNarrativeText, RoundResolutionResult, TurnStepResolutionResult, ServiceLocator, systemLocator, SystemLocator };
 
 /**
  * Backward-compatible entity comparison helper.
@@ -74,7 +76,7 @@ export function isSameEntity(
 /**
  * GameSessionService (Thin Facade)
  *
- * Exposes a unified API delegating to specialized micro-domain services:
+ * Exposes a unified API delegating to specialized micro-domain services via SystemLocator:
  * - RoomSessionManager: Room lifecycle, players, character selection, turn modes.
  * - TurnExecutionPipeline: Atomic turn & round execution, AI synthesis, state persistence.
  * - InventoryLedgerService: Loot pickups, consumables, ledger durability, searched containers.
@@ -82,24 +84,49 @@ export function isSameEntity(
  * - SceneEntityManager: Universal UUID tracking, alias resolution, scene projection.
  */
 export class GameSessionService {
-  private sessionManager: RoomSessionManager;
-  private executionPipeline: TurnExecutionPipeline;
-  private inventoryService: InventoryLedgerService;
-  private progressionService: CharacterProgressionService;
-  private entityManager: SceneEntityManager;
+  private locator: ServiceLocator;
 
   constructor(
-    sessionManager: RoomSessionManager = roomSessionManager,
-    executionPipeline: TurnExecutionPipeline = turnExecutionPipeline,
-    inventoryService: InventoryLedgerService = inventoryLedgerService,
-    progressionService: CharacterProgressionService = characterProgressionService,
-    entityManager: SceneEntityManager = sceneEntityManager
+    sessionManagerOrLocator?: RoomSessionManager | ServiceLocator,
+    executionPipeline?: TurnExecutionPipeline,
+    inventoryService?: InventoryLedgerService,
+    progressionService?: CharacterProgressionService,
+    entityManager?: SceneEntityManager
   ) {
-    this.sessionManager = sessionManager;
-    this.executionPipeline = executionPipeline;
-    this.inventoryService = inventoryService;
-    this.progressionService = progressionService;
-    this.entityManager = entityManager;
+    if (sessionManagerOrLocator instanceof ServiceLocator) {
+      this.locator = sessionManagerOrLocator;
+    } else {
+      this.locator = systemLocator;
+      if (sessionManagerOrLocator) this.locator.register('roomSessionManager', sessionManagerOrLocator);
+      if (executionPipeline) this.locator.register('turnExecutionPipeline', executionPipeline);
+      if (inventoryService) this.locator.register('inventoryLedgerService', inventoryService);
+      if (progressionService) this.locator.register('characterProgressionService', progressionService);
+      if (entityManager) this.locator.register('sceneEntityManager', entityManager);
+    }
+  }
+
+  public get sessionManager(): RoomSessionManager {
+    return this.locator.get('roomSessionManager');
+  }
+
+  public get executionPipeline(): TurnExecutionPipeline {
+    return this.locator.get('turnExecutionPipeline');
+  }
+
+  public get inventoryService(): InventoryLedgerService {
+    return this.locator.get('inventoryLedgerService');
+  }
+
+  public get progressionService(): CharacterProgressionService {
+    return this.locator.get('characterProgressionService');
+  }
+
+  public get entityManager(): SceneEntityManager {
+    return this.locator.get('sceneEntityManager');
+  }
+
+  public getLocator(): ServiceLocator {
+    return this.locator;
   }
 
   // --- Session & Room Lifecycle ---

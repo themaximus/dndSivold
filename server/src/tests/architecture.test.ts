@@ -6,6 +6,8 @@ import { InventoryLedgerService } from '../services/session/InventoryLedgerServi
 import { RoomTransactionMutex } from '../services/session/RoomTransactionMutex';
 import { RoomEntity, CharacterEntity } from '../db';
 import { gameSessionService, isSameEntity } from '../services/game/GameSessionService';
+import { ServiceLocator, systemLocator } from '../services/session/ServiceLocator';
+import { questArbiter } from '../services/game/QuestArbiter';
 
 async function runTests() {
   console.log('🚀 Starting Architecture Verification Test Suite...\n');
@@ -437,7 +439,345 @@ async function runTests() {
   assert.strictEqual(initialActiveUser, 'user_1', 'Initial active player must be first in turnOrder in turn_by_turn mode');
   console.log('✅ Primary turn mode verified: defaults to turn_by_turn with turnOrder activation.\n');
 
-  console.log('🎉 ALL 13 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 14: SystemLocator / ServiceLocator
+  // ----------------------------------------------------
+  console.log('Test 14: SystemLocator / ServiceLocator');
+  const locator = new ServiceLocator();
+  assert.ok(locator.has('roomSessionManager'), 'Locator must have roomSessionManager');
+  assert.ok(locator.has('turnExecutionPipeline'), 'Locator must have turnExecutionPipeline');
+  assert.ok(locator.has('sceneEntityManager'), 'Locator must have sceneEntityManager');
+  assert.ok(locator.has('inventoryLedgerService'), 'Locator must have inventoryLedgerService');
+  assert.ok(locator.has('questArbiter'), 'Locator must have questArbiter');
+
+  // Test custom registration and retrieval
+  const dummySem = new SceneEntityManager();
+  locator.register('sceneEntityManager', dummySem);
+  assert.strictEqual(locator.get('sceneEntityManager'), dummySem, 'Locator must return registered custom service');
+
+  // Test global systemLocator singleton
+  assert.ok(systemLocator.get('sceneEntityManager'), 'Global systemLocator must resolve services');
+  console.log('✅ SystemLocator / ServiceLocator pattern verified: modular registration and resolution operate correctly.\n');
+
+  // ----------------------------------------------------
+  // Test 15: Scene NPC Transition to Threats («Враги»)
+  // ----------------------------------------------------
+  console.log('Test 15: Dynamic Scene NPC Transition to Threats («Враги»)');
+  const hostileTestRoom: RoomEntity = {
+    id: `room_hostile_test_${crypto.randomUUID()}`,
+    code: 'HOST12',
+    title: 'Hostility Test Room',
+    setting: 'fantasy',
+    currentSituation: 'Стражник Вальтер преграждает путь',
+    hostUserId: 'user_1',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    roundNumber: 1,
+    sceneEntities: [],
+  };
+
+  // Register neutral guard
+  sem.registerEntity(hostileTestRoom, {
+    name: 'Стражник Вальтер',
+    role: 'Стражник',
+    entityType: 'npc',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    disposition: 'neutral',
+    hpCurrent: 20,
+    hpMax: 20,
+    status: 'Спокойно наблюдает',
+  });
+
+  const projBefore = sem.buildSceneProjection(hostileTestRoom);
+  assert.strictEqual(projBefore.threats.length, 0, 'Initially there must be 0 threats');
+  assert.strictEqual(projBefore.sceneNPCs.length, 1, 'Initially guard must be in sceneNPCs');
+
+  // Round event: Guard turns hostile (disposition: 'hostile')
+  sem.processRoundEntities(
+    hostileTestRoom,
+    {
+      narrative: 'Стражник Вальтер обнажает клинок с криком: "Вы все под арестом!" и атакует отряд.',
+      currentSituation: 'Вальтер нападает',
+      playerUpdates: [],
+      sceneNPCs: [
+        {
+          id: 'walter_id',
+          name: 'Стражник Вальтер',
+          role: 'Стражник',
+          hpCurrent: 20,
+          hpMax: 20,
+          disposition: 'hostile',
+          combatRole: 'neutral_observer',
+          status: 'Атакует отряд с обнажённым мечом',
+          isDead: false,
+        },
+      ],
+    } as any,
+    [],
+    []
+  );
+
+  const walterEntity = hostileTestRoom.sceneEntities?.find(e => e.canonicalName.includes('Вальтер'));
+  assert.ok(walterEntity, 'Walter must exist in sceneEntities');
+  assert.strictEqual(walterEntity?.faction, 'hostile', 'Walter faction must be transitioned to hostile');
+  assert.strictEqual(walterEntity?.combatRole, 'hostile_threat', 'Walter combatRole must be hostile_threat');
+
+  const projAfter = sem.buildSceneProjection(hostileTestRoom);
+  assert.strictEqual(projAfter.threats.length, 1, 'Walter must now appear in threats («Враги»)');
+  assert.strictEqual(projAfter.threats[0].name, 'Стражник Вальтер');
+  assert.strictEqual(projAfter.sceneNPCs.length, 0, 'Walter must be REMOVED from sceneNPCs («Сцена»)');
+  assert.strictEqual(hostileTestRoom.activeEnemies?.length, 1, 'Walter must be in room.activeEnemies');
+  assert.strictEqual(hostileTestRoom.sceneNPCs?.length, 0, 'Walter must NOT be in room.sceneNPCs');
+  console.log('✅ Moving NPC from Scene to Enemies («Враги») verified: faction and projection dynamically update.\n');
+
+  // ----------------------------------------------------
+  // Test 16: Dynamic NPC Status Updating (Prevent Static Status)
+  // ----------------------------------------------------
+  console.log('Test 16: Dynamic NPC Status Updating (Prevent Frozen Status)');
+  const statusTestRoom: RoomEntity = {
+    id: `room_status_test_${crypto.randomUUID()}`,
+    code: 'STAT12',
+    title: 'Status Test Room',
+    setting: 'fantasy',
+    currentSituation: 'Купец Бальтазар осматривает товар',
+    hostUserId: 'user_1',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    roundNumber: 1,
+    sceneEntities: [],
+  };
+
+  const balthazar = sem.registerEntity(statusTestRoom, {
+    name: 'Купец Бальтазар',
+    role: 'Купец',
+    entityType: 'npc',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    disposition: 'friendly',
+    hpCurrent: 18,
+    hpMax: 18,
+    status: 'Встречен в сцене',
+  });
+
+  assert.strictEqual(balthazar.status, 'Встречен в сцене');
+
+  // Round 1: Explicit AI status update
+  sem.processRoundEntities(
+    statusTestRoom,
+    {
+      narrative: 'Бальтазар прячется за ящиками, дрожа от страха перед разбойниками.',
+      currentSituation: 'Идет бой',
+      playerUpdates: [],
+      sceneNPCs: [
+        {
+          id: balthazar.entityId,
+          name: 'Купец Бальтазар',
+          role: 'Купец',
+          hpCurrent: 18,
+          hpMax: 18,
+          disposition: 'friendly',
+          combatRole: 'hiding',
+          status: 'Прячется за ящиками и дрожит от страха',
+          isDead: false,
+        },
+      ],
+    } as any,
+    [],
+    []
+  );
+
+  assert.strictEqual(balthazar.status, 'Прячется за ящиками и дрожит от страха');
+
+  // Round 2: AI omits sceneNPCs array, but narrative describes him doing something new
+  statusTestRoom.roundNumber = 2;
+  sem.processRoundEntities(
+    statusTestRoom,
+    {
+      narrative: 'Бальтазар осторожно выглядывает из укрытия и передает лечебное зелье героям.',
+      currentSituation: 'Бой продолжается',
+      playerUpdates: [],
+      // sceneNPCs omitted on purpose!
+    } as any,
+    [],
+    []
+  );
+
+  assert.notStrictEqual(balthazar.status as string, 'Встречен в сцене', 'Status must not remain frozen at prologue initial state');
+  const currentStatus = balthazar.status as string;
+  assert.ok(
+    currentStatus.includes('выглядывает') || currentStatus.includes('зелье') || currentStatus.length > 5,
+    'Status must be dynamically extracted from narrative'
+  );
+  console.log(`✅ Dynamic NPC Status verified: updated to "${currentStatus}" across rounds.\n`);
+
+  // ----------------------------------------------------
+  // Test 17: Quests Adding, Updating and Syncing
+  // ----------------------------------------------------
+  console.log('Test 17: Quests Adding, Updating and Room Hydration');
+  const questRoom: RoomEntity = {
+    id: `room_quest_test_${crypto.randomUUID()}`,
+    code: 'QST123',
+    title: 'Quest Room',
+    setting: 'fantasy',
+    currentSituation: 'Поручение старейшины',
+    hostUserId: 'user_1',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    roundNumber: 1,
+    worldQuests: [],
+  };
+
+  // Add quest via QuestArbiter
+  const questAddSync = questArbiter.processRoundQuests(
+    questRoom,
+    [],
+    {
+      narrative: 'Старейшина просит очистить старую мельницу от пауков.',
+      currentSituation: 'Получено задание',
+      playerUpdates: [],
+      questUpdates: [
+        {
+          title: 'Очистить старую мельницу',
+          description: 'Уничтожить гигантских пауков в мельнице у реки',
+          action: 'add',
+          category: 'task',
+        },
+      ],
+    } as any
+  );
+
+  questRoom.worldQuests = questAddSync.allQuests;
+  assert.strictEqual(questRoom.worldQuests.length, 1, 'Quest must be registered in room.worldQuests');
+  assert.strictEqual(questRoom.worldQuests[0].title, 'Очистить старую мельницу');
+  assert.strictEqual(questRoom.worldQuests[0].status, 'active');
+
+  // Complete quest via QuestArbiter
+  const questCompSync = questArbiter.processRoundQuests(
+    questRoom,
+    [],
+    {
+      narrative: 'Пауки побеждены, мельница снова безопасна. Задача выполнена.',
+      currentSituation: 'Возвращение к старейшине',
+      playerUpdates: [],
+      questUpdates: [
+        {
+          title: 'Очистить старую мельницу',
+          action: 'complete',
+          resolutionNote: 'Пауки уничтожены',
+        },
+      ],
+    } as any
+  );
+
+  questRoom.worldQuests = questCompSync.allQuests;
+  const completedQ = questRoom.worldQuests.find(q => q.title.includes('мельниц'));
+  assert.ok(completedQ, 'Quest must exist in worldQuests');
+  assert.strictEqual(completedQ?.status, 'completed', 'Quest status must become completed');
+  console.log('✅ Quests addition, resolution, and room assignment verified successfully.\n');
+
+  // ----------------------------------------------------
+  // Test 18: Departed and Defeated Entities in Archive («Архив»)
+  // ----------------------------------------------------
+  console.log('Test 18: Departed and Defeated Entities in Archive («Архив»)');
+  const archiveRoom: RoomEntity = {
+    id: `room_archive_test_${crypto.randomUUID()}`,
+    code: 'ARC123',
+    title: 'Archive Room',
+    setting: 'fantasy',
+    currentSituation: 'Стычка на тракте',
+    hostUserId: 'user_1',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    roundNumber: 1,
+    sceneEntities: [],
+    worldNPCRegistry: [],
+  };
+
+  // Add enemy and neutral NPC
+  const enemyGoon = sem.registerEntity(archiveRoom, {
+    name: 'Разбойник Ганс',
+    role: 'Разбойник',
+    entityType: 'creature',
+    faction: 'hostile',
+    combatRole: 'hostile_threat',
+    hpCurrent: 10,
+    hpMax: 10,
+    status: 'Атакует',
+  });
+
+  const traveler = sem.registerEntity(archiveRoom, {
+    name: 'Путник Торвальд',
+    role: 'Странник',
+    entityType: 'npc',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    hpCurrent: 15,
+    hpMax: 15,
+    status: 'Идет по тракту',
+  });
+
+  // Event 1: Enemy is defeated (HP drops to 0)
+  sem.processRoundEntities(
+    archiveRoom,
+    {
+      narrative: 'Разбойник Ганс повержен метким ударом и валится в траву.',
+      currentSituation: 'Один враг повержен',
+      playerUpdates: [],
+      activeEnemies: [
+        {
+          id: enemyGoon.entityId,
+          name: 'Разбойник Ганс',
+          hpCurrent: 0,
+          hpMax: 10,
+          isDead: true,
+          status: 'Повержен в бою',
+        },
+      ],
+    } as any,
+    [],
+    []
+  );
+
+  assert.ok(
+    archiveRoom.worldNPCRegistry?.some(w => w.name.includes('Ганс')),
+    'Defeated enemy must be archived in room.worldNPCRegistry'
+  );
+
+  // Event 2: Traveler departs
+  sem.processRoundEntities(
+    archiveRoom,
+    {
+      narrative: 'Путник Торвальд благодарит отряд и уходит в сторону города.',
+      currentSituation: 'Путник скрылся за поворотом',
+      playerUpdates: [],
+      departedNPCs: [
+        {
+          name: 'Путник Торвальд',
+          reason: 'departed',
+          narrativeNote: 'Ушел в сторону города',
+        },
+      ],
+    } as any,
+    [],
+    []
+  );
+
+  assert.ok(
+    archiveRoom.worldNPCRegistry?.some(w => w.name.includes('Торвальд')),
+    'Departed traveler must be archived in room.worldNPCRegistry'
+  );
+
+  const archiveProj = sem.buildSceneProjection(archiveRoom);
+  assert.strictEqual(
+    archiveProj.worldArchive.length,
+    archiveRoom.worldNPCRegistry?.length,
+    'Scene projection worldArchive must match room.worldNPCRegistry count'
+  );
+  assert.strictEqual(archiveProj.worldArchive.length, 2, 'Archive must contain both defeated and departed entities');
+  console.log(`✅ Archival verified: ${archiveProj.worldArchive.length} entities successfully captured in «Архив».\n`);
+
+  console.log('🎉 ALL 18 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

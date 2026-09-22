@@ -338,7 +338,8 @@ export class TurnExecutionPipeline {
     }
 
     // 9. Quests
-    questArbiter.processRoundQuests(room, actionsToResolve, dmResult);
+    const questSync = questArbiter.processRoundQuests(room, actionsToResolve, dmResult);
+    room.worldQuests = questSync.allQuests;
 
     // 10. Milestones & Dropped Loot
     if (dmResult.newMilestones && dmResult.newMilestones.length > 0) {
@@ -366,9 +367,9 @@ export class TurnExecutionPipeline {
       this.rooms.addLoot(room.id, lootItems);
     }
 
-    // 11. Synchronize Scene Entities & Projection
-    sceneEntityManager.syncLegacyArrays(room);
-    const sceneProjection = sceneEntityManager.buildSceneProjection(room);
+    // 11. Synchronize Scene Entities & Projection (with hostile transitions and dynamic status)
+    sceneEntityManager.processRoundEntities(room, dmResult, actionsToResolve, mechanicalResolutions);
+    const sceneProjection = room.sceneProjection || sceneEntityManager.buildSceneProjection(room);
 
     // 12. Determine turn/round progression
     let isRoundComplete = false;
@@ -463,8 +464,11 @@ export class TurnExecutionPipeline {
       pendingReactions: [],
       sceneEntities: room.sceneEntities,
       sceneProjection,
+      activeEnemies: room.activeEnemies,
+      sceneNPCs: room.sceneNPCs,
       searchedObjectsRegistry: room.searchedObjectsRegistry,
       worldNPCRegistry: room.worldNPCRegistry,
+      worldQuests: room.worldQuests,
     });
 
     if (isRoundComplete) {

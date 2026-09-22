@@ -15,7 +15,9 @@ import {
   RoomNPC,
   WorldNPCEntry,
   SearchedObjectEntry,
+  TurnActionEntity,
 } from '../../db';
+import { IWorldNPCRepository, worldNPCRepository } from '../../repositories';
 
 /**
  * Universal Russian word stemmer for entity alias resolution.
@@ -46,6 +48,12 @@ export function extractSearchTokens(text: string): string[] {
 }
 
 export class SceneEntityManager {
+  private worldNPCs: IWorldNPCRepository;
+
+  constructor(worldNPCs: IWorldNPCRepository = worldNPCRepository) {
+    this.worldNPCs = worldNPCs;
+  }
+
   /**
    * Generates an immutable UUID for a new scene entity.
    */
@@ -548,38 +556,39 @@ export class SceneEntityManager {
   }
 
   /**
-   * Saves a departed entity to worldNPCRegistry in the room.
+   * Authoritatively archives an entity (departed, left behind, or defeated) into
+   * room.worldNPCRegistry and the underlying persistent repository.
    */
-  private archiveToWorldRegistry(
+  public archiveEntity(
     room: RoomEntity,
     entity: SceneEntity,
     reason: string,
     narrativeNote?: string
-  ): void {
+  ): WorldNPCEntry {
     if (!room.worldNPCRegistry) {
       room.worldNPCRegistry = [];
     }
 
     const existingIndex = room.worldNPCRegistry.findIndex(
-      (w) => w.id === entity.entityId || w.name.toLowerCase() === entity.canonicalName.toLowerCase()
+      (w) => w.id === entity.entityId || w.name.toLowerCase().trim() === entity.canonicalName.toLowerCase().trim()
     );
 
     const record: WorldNPCEntry = {
       id: entity.entityId,
       roomId: room.id,
       name: entity.canonicalName,
-      role: entity.role || 'Персонаж',
+      role: entity.role || (entity.faction === 'hostile' ? 'Противник' : 'Персонаж'),
       hpCurrent: entity.stats.hpCurrent,
       hpMax: entity.stats.hpMax,
       ac: entity.stats.ac,
-      disposition: entity.disposition || 'neutral',
+      disposition: entity.disposition || (entity.faction === 'hostile' ? 'hostile' : 'neutral'),
       affinity: 0,
       status: entity.status,
       combatRole:
         entity.combatRole === 'ally_combatant' || entity.combatRole === 'hiding' || entity.combatRole === 'fled'
           ? entity.combatRole
           : 'neutral_observer',
-      notes: entity.narrativeNotes || [],
+      notes: entity.narrativeNotes ? [...entity.narrativeNotes] : [],
       departureRound: room.roundNumber || 1,
       departureReason: reason,
       narrativeNote: narrativeNote || entity.status,
@@ -591,6 +600,307 @@ export class SceneEntityManager {
     } else {
       room.worldNPCRegistry.push(record);
     }
+
+    try {
+      this.worldNPCs.archiveNPC(
+        room.id,
+        {
+          id: entity.entityId,
+          name: entity.canonicalName,
+          role: record.role,
+          type: record.role,
+          hpCurrent: entity.stats.hpCurrent,
+          hpMax: entity.stats.hpMax,
+          ac: entity.stats.ac,
+          disposition: record.disposition as any,
+          combatRole: record.combatRole as any,
+          status: entity.status,
+          conditions: [...entity.stats.conditions],
+          isDead: entity.lifecycle === 'defeated' || entity.stats.hpCurrent <= 0,
+        } as any,
+        reason,
+        room.roundNumber || 1,
+        narrativeNote || entity.status
+      );
+    } catch (err) {
+      // Fail-safe in case repo is in-memory or stubbed
+    }
+
+    return record;
+  }
+
+  /**
+   * Internal backwards-compatible alias for archiveEntity.
+   */
+  private archiveToWorldRegistry(
+    room: RoomEntity,
+    entity: SceneEntity,
+    reason: string,
+    narrativeNote?: string
+  ): void {
+    this.archiveEntity(room, entity, reason, narrativeNote);
+  }
+
+  /**
+   * Extracts dynamic narrative status from round narrative text for an entity.
+   * Ensures NPC status reflects current scene happenings rather than staying static.
+   */
+  public extractDynamicStatusFromNarrative(entity: SceneEntity, text: string): string | null {
+    if (!text || !text.trim()) return null;
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const tokens = [
+      entity.canonicalName.toLowerCase().trim(),
+      ...entity.aliases.map((a) => a.toLowerCase().trim()),
+      ...extractSearchTokens(entity.canonicalName),
+    ].filter((t) => t.length >= 3);
+
+    for (const sentence of sentences) {
+      const clean = sentence.trim();
+      if (clean.length < 8 || clean.length > 180) continue;
+      const lower = clean.toLowerCase();
+      const matched = tokens.some((t) => lower.includes(t));
+      if (matched) {
+        // Return cleaned sentence stripped of markdown symbols
+        return clean.replace(/^[-—*#\s]+/, '').trim();
+      }
+    }
+
+    if (entity.stats.hpCurrent < entity.stats.hpMax) {
+      return `Ранен в бою (ОЗ: ${entity.stats.hpCurrent}/${entity.stats.hpMax})`;
+    }
+
+    return null;
+  }
+
+  /**
+   * Authoritative round processor for scene entities.
+   * Handles:
+   * 1. Faction transition from neutral/ally to threats (when hostile, attacked, or hostile action)
+   * 2. Dynamic status updating (from explicit AI sceneNPCs or narrative extraction)
+   * 3. Syncing enemy states (HP, conditions, defeated)
+   * 4. Auto-archiving fallen/defeated entities into worldNPCRegistry
+   * 5. Synchronization of legacy activeEnemies/sceneNPCs and projection
+   */
+  public processRoundEntities(
+    room: RoomEntity,
+    dmResult: AIDMResponse,
+    actionsToResolve: TurnActionEntity[] = [],
+    mechanicalResolutions: any[] = []
+  ): void {
+    this.ensureSceneEntities(room);
+
+    const updatedEntityIds = new Set<string>();
+
+    // 1. Process explicit activeEnemies from AI
+    if (dmResult.activeEnemies && Array.isArray(dmResult.activeEnemies)) {
+      for (const enemy of dmResult.activeEnemies) {
+        if (!enemy || !enemy.name) continue;
+        const existing = this.findEntityByMatch(room.sceneEntities!, enemy.name, enemy.id);
+        if (existing) {
+          existing.faction = 'hostile';
+          existing.combatRole = 'hostile_threat';
+          existing.disposition = 'hostile';
+          if (enemy.status && enemy.status.trim()) {
+            existing.status = enemy.status.trim();
+          }
+          if (enemy.hpCurrent !== undefined) {
+            existing.stats.hpCurrent = Math.max(0, enemy.hpCurrent);
+          }
+          if (enemy.hpMax !== undefined) {
+            existing.stats.hpMax = Math.max(existing.stats.hpMax, enemy.hpMax);
+          }
+          if (enemy.ac !== undefined) {
+            existing.stats.ac = enemy.ac;
+          }
+          if (enemy.conditions && Array.isArray(enemy.conditions)) {
+            for (const c of enemy.conditions) {
+              if (!existing.stats.conditions.includes(c)) existing.stats.conditions.push(c);
+            }
+          }
+          if (enemy.isDead || existing.stats.hpCurrent <= 0) {
+            existing.lifecycle = 'defeated';
+          }
+          existing.updatedAt = new Date().toISOString();
+          updatedEntityIds.add(existing.entityId);
+        } else {
+          const newEnt = this.registerEntity(room, {
+            name: enemy.name,
+            role: enemy.type || 'Враг',
+            entityType: 'creature',
+            faction: 'hostile',
+            combatRole: 'hostile_threat',
+            disposition: 'hostile',
+            hpCurrent: enemy.hpCurrent ?? 20,
+            hpMax: enemy.hpMax ?? 20,
+            ac: enemy.ac ?? 12,
+            status: enemy.status || 'В бою с отрядом',
+          });
+          updatedEntityIds.add(newEnt.entityId);
+        }
+      }
+    }
+
+    // 2. Process explicit sceneNPCs from AI
+    if (dmResult.sceneNPCs && Array.isArray(dmResult.sceneNPCs)) {
+      for (const npc of dmResult.sceneNPCs) {
+        if (!npc || !npc.name) continue;
+        const existing = this.findEntityByMatch(room.sceneEntities!, npc.name, npc.id);
+        if (existing) {
+          // If NPC turned hostile in sceneNPCs
+          if (npc.disposition === 'hostile') {
+            existing.faction = 'hostile';
+            existing.combatRole = 'hostile_threat';
+            existing.disposition = 'hostile';
+          } else {
+            if (npc.disposition) existing.disposition = npc.disposition;
+            if (npc.combatRole === 'ally_combatant') {
+              existing.combatRole = 'ally_combatant';
+              existing.faction = 'allied';
+            } else if (
+              existing.faction === 'hostile' &&
+              (npc.disposition === 'friendly' || npc.disposition === 'neutral')
+            ) {
+              // De-escalated / surrendered
+              existing.faction = 'neutral';
+              existing.combatRole = 'neutral_observer';
+            }
+          }
+
+          // DYNAMIC STATUS UPDATE: Never keep status static!
+          if (npc.status && npc.status.trim()) {
+            existing.status = npc.status.trim();
+          }
+
+          if (npc.hpCurrent !== undefined) {
+            existing.stats.hpCurrent = Math.max(0, npc.hpCurrent);
+          }
+          if (npc.hpMax !== undefined) {
+            existing.stats.hpMax = Math.max(existing.stats.hpMax, npc.hpMax);
+          }
+          if (npc.ac !== undefined) {
+            existing.stats.ac = npc.ac;
+          }
+          if (npc.conditions && Array.isArray(npc.conditions)) {
+            for (const c of npc.conditions) {
+              if (!existing.stats.conditions.includes(c)) existing.stats.conditions.push(c);
+            }
+          }
+          if (npc.isDead || existing.stats.hpCurrent <= 0) {
+            existing.lifecycle = 'defeated';
+          }
+          if (npc.trustNotes && Array.isArray(npc.trustNotes)) {
+            if (!existing.narrativeNotes) existing.narrativeNotes = [];
+            existing.narrativeNotes.push(...npc.trustNotes);
+          }
+          existing.updatedAt = new Date().toISOString();
+          updatedEntityIds.add(existing.entityId);
+        } else {
+          // Brand new NPC mentioned in sceneNPCs array
+          const faction: EntityFaction =
+            npc.disposition === 'hostile'
+              ? 'hostile'
+              : npc.combatRole === 'ally_combatant'
+              ? 'allied'
+              : 'neutral';
+          const combatRole: EntityCombatRole =
+            npc.disposition === 'hostile' ? 'hostile_threat' : npc.combatRole || 'neutral_observer';
+          const newEnt = this.registerEntity(room, {
+            name: npc.name,
+            role: npc.role || 'Персонаж',
+            entityType: 'npc',
+            faction,
+            combatRole,
+            disposition: npc.disposition || 'neutral',
+            hpCurrent: npc.hpCurrent ?? 15,
+            hpMax: npc.hpMax ?? 15,
+            ac: npc.ac ?? 11,
+            status: npc.status || 'Присутствует в сцене',
+          });
+          updatedEntityIds.add(newEnt.entityId);
+        }
+      }
+    }
+
+    // 3. Process Player Hostile Actions & Damage against NPCs
+    if (Array.isArray(mechanicalResolutions)) {
+      for (const res of mechanicalResolutions) {
+        if (res.targetUpdate && (res.targetUpdate.targetType === 'npc' || res.targetUpdate.targetType === 'enemy')) {
+          const ent = this.findEntityByMatch(
+            room.sceneEntities!,
+            res.targetUpdate.targetName || '',
+            res.targetUpdate.targetId
+          );
+          if (ent) {
+            if (res.targetUpdate.damage > 0 || (res.damageRolled && res.damageRolled > 0)) {
+              ent.faction = 'hostile';
+              ent.combatRole = 'hostile_threat';
+              ent.disposition = 'hostile';
+              if (res.targetUpdate.newStatus) {
+                ent.status = res.targetUpdate.newStatus;
+              } else if (!ent.status.toLowerCase().includes('атак')) {
+                ent.status = 'Враждебен: атакован отрядом, вступает в бой';
+              }
+            }
+            updatedEntityIds.add(ent.entityId);
+          }
+        }
+      }
+    }
+
+    for (const action of actionsToResolve) {
+      const meta = (action as any).meta;
+      if (action.actionType === 'attack' || meta?.actionType === 'attack') {
+        const targetQuery = meta?.targetEnemyName || meta?.targetEnemyId;
+        if (targetQuery) {
+          const ent = this.findEntityByMatch(room.sceneEntities!, targetQuery);
+          if (ent && ent.faction !== 'hostile') {
+            ent.faction = 'hostile';
+            ent.combatRole = 'hostile_threat';
+            ent.disposition = 'hostile';
+            ent.status = 'Враждебен: атакован игроком, вступает в бой';
+            updatedEntityIds.add(ent.entityId);
+          }
+        }
+      }
+    }
+
+    // 4. Narrative Dynamic Status Fallback: If an entity was NOT updated explicitly by AI sceneNPCs,
+    // extract their current action/state from narrative so status is never frozen!
+    const narrativeText = `${dmResult.narrative || ''}\n${dmResult.currentSituation || ''}`;
+    for (const entity of room.sceneEntities!) {
+      if (entity.lifecycle === 'departed' || entity.lifecycle === 'archived') continue;
+
+      if (!updatedEntityIds.has(entity.entityId)) {
+        const dynamicStatus = this.extractDynamicStatusFromNarrative(entity, narrativeText);
+        if (dynamicStatus) {
+          entity.status = dynamicStatus;
+        }
+      }
+    }
+
+    // 5. Departures & Archival
+    this.handleNPCDepartures(
+      room,
+      dmResult.narrative || '',
+      dmResult.currentSituation || '',
+      dmResult.departedNPCs
+    );
+
+    // 6. Auto-archive any defeated/killed entities (HP <= 0 or lifecycle === 'defeated')
+    for (const entity of room.sceneEntities!) {
+      if (entity.lifecycle === 'defeated' || entity.stats.hpCurrent <= 0) {
+        this.archiveEntity(
+          room,
+          entity,
+          'defeated',
+          `Повержен в бою в раунде ${room.roundNumber || 1}. ${entity.status}`
+        );
+      }
+    }
+
+    // 7. Sync legacy arrays and build projection
+    this.syncLegacyArrays(room);
+    this.buildSceneProjection(room);
   }
 
   /**

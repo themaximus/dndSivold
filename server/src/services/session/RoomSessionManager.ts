@@ -8,6 +8,10 @@ import {
   turnActionRepository,
   IGameLogRepository,
   gameLogRepository,
+  IQuestRepository,
+  questRepository,
+  IWorldNPCRepository,
+  worldNPCRepository,
 } from '../../repositories';
 import {
   RoomEntity,
@@ -22,6 +26,7 @@ import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
 import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { sceneEntityManager } from './SceneEntityManager';
 import { narrativeSynthesizer } from './NarrativeSynthesizer';
+import { questArbiter } from '../game/QuestArbiter';
 
 export class RoomSessionManager {
   private rooms: IRoomRepository;
@@ -29,19 +34,25 @@ export class RoomSessionManager {
   private turnActions: ITurnActionRepository;
   private gameLogs: IGameLogRepository;
   private aiFactory: AIProviderFactory;
+  private quests: IQuestRepository;
+  private worldNPCs: IWorldNPCRepository;
 
   constructor(
     rooms: IRoomRepository = roomRepository,
     characters: ICharacterRepository = characterRepository,
     turnActions: ITurnActionRepository = turnActionRepository,
     gameLogs: IGameLogRepository = gameLogRepository,
-    aiFactory: AIProviderFactory = aiProviderFactory
+    aiFactory: AIProviderFactory = aiProviderFactory,
+    quests: IQuestRepository = questRepository,
+    worldNPCs: IWorldNPCRepository = worldNPCRepository
   ) {
     this.rooms = rooms;
     this.characters = characters;
     this.turnActions = turnActions;
     this.gameLogs = gameLogs;
     this.aiFactory = aiFactory;
+    this.quests = quests;
+    this.worldNPCs = worldNPCs;
   }
 
   public reconcileCharacterConditions(characterId: string, roomId?: string): CharacterEntity | null {
@@ -110,6 +121,14 @@ export class RoomSessionManager {
     sceneEntityManager.ensureSceneEntities(room);
     sceneEntityManager.syncLegacyArrays(room);
     sceneEntityManager.buildSceneProjection(room);
+
+    // Hydrate quests and world registry from repositories
+    if (!room.worldQuests || room.worldQuests.length === 0) {
+      room.worldQuests = this.quests.findByRoomId(room.id);
+    }
+    if (!room.worldNPCRegistry || room.worldNPCRegistry.length === 0) {
+      room.worldNPCRegistry = this.worldNPCs.findByRoomId(room.id);
+    }
 
     const players = this.rooms.findPlayersByRoomId(room.id);
     const playersWithCharacters = players.map((p) => {
@@ -226,6 +245,24 @@ export class RoomSessionManager {
       room.campaignPlot ||
       'Генеральная сюжетная арка: исследование тайны, нарастание угрозы, кульминация.';
 
+    // Process prologue entities & enemies into room.sceneEntities
+    sceneEntityManager.processRoundEntities(room, prologueResult, [], []);
+
+    // Process prologue quests
+    const questSync = questArbiter.processRoundQuests(room, [], prologueResult);
+    let worldQuests = questSync.allQuests;
+
+    // If no quest exists yet, create an initial main quest from the prologue situation
+    if (worldQuests.length === 0) {
+      const initialTitle = 'Оценить обстановку и выжить';
+      const initialDesc =
+        prologueResult.currentSituation ||
+        'Осмотреться, установить контакт со спутниками и приготовиться к неизвестному.';
+      const createdQuest = this.quests.createOrGetQuest(room.id, initialTitle, initialDesc, 'main', 1);
+      worldQuests = [createdQuest];
+    }
+    room.worldQuests = worldQuests;
+
     const partyPlayers = this.rooms.findPlayersByRoomId(room.id).filter((p) => p.characterId);
     const turnOrder = partyPlayers.map((p) => p.userId);
 
@@ -239,6 +276,12 @@ export class RoomSessionManager {
       campaignPlot,
       turnOrder,
       activePlayerUserId: (room.turnMode || 'turn_by_turn') === 'turn_by_turn' ? turnOrder[0] : undefined,
+      sceneEntities: room.sceneEntities,
+      sceneProjection: room.sceneProjection,
+      activeEnemies: room.activeEnemies,
+      sceneNPCs: room.sceneNPCs,
+      worldQuests: room.worldQuests,
+      worldNPCRegistry: room.worldNPCRegistry,
     });
 
     // Create initial log
