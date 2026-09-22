@@ -171,7 +171,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     );
   }
 
-  const isTurnByTurn = room.turnMode === 'turn_by_turn';
+  const isTurnByTurn = (room.turnMode || 'turn_by_turn') === 'turn_by_turn';
   const isMyTurn = !isTurnByTurn || !room.activePlayerUserId || room.activePlayerUserId === user?.id;
   const activePlayer = players.find(p => p.userId === room.activePlayerUserId);
   const activePlayerName = activePlayer?.character?.name || activePlayer?.username || 'Игрок';

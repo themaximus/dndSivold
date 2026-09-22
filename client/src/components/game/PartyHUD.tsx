@@ -15,11 +15,12 @@ export const PartyHUD: React.FC<PartyHUDProps> = ({
   players,
   currentUserId,
   activePlayerUserId,
-  turnMode = 'simultaneous',
+  turnMode = 'turn_by_turn',
 }) => {
   const [inspectedCharacter, setInspectedCharacter] = useState<Character | null>(null);
 
   const activeCount = players.filter(p => p.characterId).length;
+  const isTurnByTurn = (turnMode || 'turn_by_turn') === 'turn_by_turn';
 
   return (
     <>
@@ -31,7 +32,7 @@ export const PartyHUD: React.FC<PartyHUDProps> = ({
             Отряд героев ({activeCount})
           </h3>
           <div className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300">
-            {turnMode === 'turn_by_turn' ? (
+            {isTurnByTurn ? (
               <span className="flex items-center gap-1 text-amber-400" title="Пошаговый режим: игроки ходят строго по очереди">
                 <ListOrdered className="w-3 h-3" /> По очереди
               </span>
@@ -46,7 +47,7 @@ export const PartyHUD: React.FC<PartyHUDProps> = ({
         {/* Member Cards */}
         <div className="space-y-3 overflow-y-auto flex-1 pr-1 custom-scrollbar">
           {players.map(p => {
-            const isActiveTurn = turnMode === 'turn_by_turn' && activePlayerUserId === p.userId;
+            const isActiveTurn = isTurnByTurn && activePlayerUserId === p.userId;
             return (
               <PartyMemberCard
                 key={p.id || p.userId}

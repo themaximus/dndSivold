@@ -157,6 +157,7 @@ export const api = {
     setting: string;
     genre?: string;
     campaignDuration?: 'short' | 'medium' | 'long';
+    turnMode?: 'simultaneous' | 'turn_by_turn';
     deepseekApiKey?: string;
     deepseekModel?: string;
   }): Promise<Room> {

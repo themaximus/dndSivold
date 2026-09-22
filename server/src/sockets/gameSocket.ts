@@ -395,7 +395,7 @@ export function setupGameSockets(io: Server) {
 
       // If all pending reactions are completed, proceed to DM resolution
       if (allCompleted) {
-        if (room.turnMode === 'turn_by_turn') {
+        if ((room.turnMode || 'turn_by_turn') === 'turn_by_turn') {
           io.to(room.id).emit('dm_thinking');
           try {
             const turnResolved = await gameSessionService.resolveTurnStep(room.id, initiatorUserId, completedReactions);
@@ -519,7 +519,7 @@ export function setupGameSockets(io: Server) {
       });
 
       if (allCompleted) {
-        if (room.turnMode === 'turn_by_turn') {
+        if ((room.turnMode || 'turn_by_turn') === 'turn_by_turn') {
           io.to(room.id).emit('dm_thinking');
           try {
             const turnResolved = await gameSessionService.resolveTurnStep(room.id, initiatorUserId, completedReactions);
@@ -951,7 +951,7 @@ export function setupGameSockets(io: Server) {
 
       io.to(room.id).emit('dm_thinking');
       try {
-        if (room.turnMode === 'turn_by_turn' && room.activePlayerUserId) {
+        if ((room.turnMode || 'turn_by_turn') === 'turn_by_turn' && room.activePlayerUserId) {
           const turnResolved = await gameSessionService.resolveTurnStep(room.id, room.activePlayerUserId);
           if (turnResolved && turnResolved.log) {
             if (turnResolved.inventoryNotifications && turnResolved.inventoryNotifications.length > 0) {

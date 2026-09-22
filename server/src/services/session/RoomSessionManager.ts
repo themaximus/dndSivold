@@ -238,7 +238,7 @@ export class RoomSessionManager {
       requiredCheckStat: startCheckStat,
       campaignPlot,
       turnOrder,
-      activePlayerUserId: room.turnMode === 'turn_by_turn' ? turnOrder[0] : undefined,
+      activePlayerUserId: (room.turnMode || 'turn_by_turn') === 'turn_by_turn' ? turnOrder[0] : undefined,
     });
 
     // Create initial log
@@ -389,8 +389,9 @@ export class RoomSessionManager {
 
     let shouldResolveRound = false;
     let nextActiveUserId: string | undefined;
+    const isTurnByTurn = (room.turnMode || 'turn_by_turn') === 'turn_by_turn';
 
-    if (room.turnMode === 'turn_by_turn') {
+    if (isTurnByTurn) {
       const order =
         room.turnOrder && room.turnOrder.length > 0
           ? room.turnOrder.filter((uid) => targetPlayers.some((p) => p.userId === uid))
@@ -419,7 +420,7 @@ export class RoomSessionManager {
       shouldResolveRound: waitingForReactions ? false : shouldResolveRound,
       waitingForReactions,
       pendingReactions,
-      isTurnByTurn: room.turnMode === 'turn_by_turn',
+      isTurnByTurn,
       nextActiveUserId,
     };
   }
@@ -462,7 +463,7 @@ export class RoomSessionManager {
     const targetPlayers = onlineActive.length > 0 ? onlineActive : playersWithChar;
     const readyPlayers = targetPlayers.filter((p) => p.hasActedThisRound);
     const shouldResolveRound =
-      room.turnMode === 'simultaneous' && targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
+      (room.turnMode || 'turn_by_turn') === 'simultaneous' && targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
 
     return {
       room: updatedRoom,
@@ -504,7 +505,7 @@ export class RoomSessionManager {
     const targetPlayers = onlineActive.length > 0 ? onlineActive : playersWithChar;
     const readyPlayers = targetPlayers.filter((p) => p.hasActedThisRound);
     const shouldResolveRound =
-      room.turnMode === 'simultaneous' && targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
+      (room.turnMode || 'turn_by_turn') === 'simultaneous' && targetPlayers.length > 0 && readyPlayers.length === targetPlayers.length;
 
     return {
       room: updatedRoom,

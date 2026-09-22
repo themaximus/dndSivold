@@ -53,7 +53,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   requiredCheckStat = 'dex',
   isMyTurn = true,
   activePlayerName,
-  turnMode = 'simultaneous',
+  turnMode = 'turn_by_turn',
   character,
   attachedRolls,
   lastDeathSaveMessage,

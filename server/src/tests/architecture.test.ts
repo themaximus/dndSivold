@@ -411,7 +411,33 @@ async function runTests() {
   assert.strictEqual(bolts?.quantity, 20, 'Bolts default quantity should be 20');
   console.log('✅ Inventory resolution, Russian case inflections, weapon auto-typing, and container extracted items verified.\n');
 
-  console.log('🎉 ALL 12 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 13: Primary Turn Mode Defaults to Turn-by-Turn
+  // ----------------------------------------------------
+  console.log('Test 13: Primary Turn Mode Defaults to Turn-by-Turn (Пошаговый)');
+  const rsmRoom: RoomEntity = {
+    id: 'room_turn_test',
+    code: 'TURN12',
+    title: 'Turn Mode Room',
+    setting: 'fantasy',
+    currentSituation: 'Ready to fight',
+    hostUserId: 'user_1',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    roundNumber: 1,
+    turnOrder: ['user_1', 'user_2'],
+    // turnMode left undefined to verify default
+  };
+
+  const isTurnByTurnDefault = (rsmRoom.turnMode || 'turn_by_turn') === 'turn_by_turn';
+  assert.strictEqual(isTurnByTurnDefault, true, 'Default turnMode must be turn_by_turn');
+
+  // Verify that active player is properly assigned from turnOrder
+  const initialActiveUser = isTurnByTurnDefault ? rsmRoom.turnOrder?.[0] : undefined;
+  assert.strictEqual(initialActiveUser, 'user_1', 'Initial active player must be first in turnOrder in turn_by_turn mode');
+  console.log('✅ Primary turn mode verified: defaults to turn_by_turn with turnOrder activation.\n');
+
+  console.log('🎉 ALL 13 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

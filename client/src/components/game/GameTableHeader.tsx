@@ -196,22 +196,23 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
         {/* Turn Mode Selector / Indicator */}
         {isHost && onToggleTurnMode ? (
           <button
-            onClick={() => onToggleTurnMode(room.turnMode === 'turn_by_turn' ? 'simultaneous' : 'turn_by_turn')}
+            onClick={() => onToggleTurnMode((room.turnMode || 'turn_by_turn') === 'turn_by_turn' ? 'simultaneous' : 'turn_by_turn')}
             className={`px-3 py-1.5 border rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm ${
-              room.turnMode === 'turn_by_turn'
-                ? 'bg-purple-950/50 border-purple-500/60 text-purple-200 hover:bg-purple-900/60'
-                : 'bg-fantasy-card hover:bg-slate-800 border-fantasy-border text-slate-300 hover:text-amber-300'
+              (room.turnMode || 'turn_by_turn') === 'turn_by_turn'
+                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 hover:bg-amber-500/30'
+                : 'bg-fantasy-card hover:bg-slate-800 border-fantasy-border text-slate-400 hover:text-slate-200'
             }`}
-            title={`Режим ходов: ${room.turnMode === 'turn_by_turn' ? 'По очереди (нажмите, чтобы переключить на общий ход)' : 'Общий ход (нажмите, чтобы переключить на поочередный ход)'}`}
+            title={`Режим ходов: ${(room.turnMode || 'turn_by_turn') === 'turn_by_turn' ? 'Пошаговый (основной) — нажмите для переключения на общий ход' : 'Общий ход (вторичный) — нажмите для переключения на пошаговый ход'}`}
           >
-            {room.turnMode === 'turn_by_turn' ? (
+            {(room.turnMode || 'turn_by_turn') === 'turn_by_turn' ? (
               <>
-                <ListOrdered className="w-3.5 h-3.5 text-purple-400" />
+                <ListOrdered className="w-3.5 h-3.5 text-amber-400" />
                 <span>По очереди</span>
+                <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Основной</span>
               </>
             ) : (
               <>
-                <Users className="w-3.5 h-3.5 text-amber-400" />
+                <Users className="w-3.5 h-3.5 text-slate-400" />
                 <span>Общий ход</span>
               </>
             )}
@@ -219,20 +220,20 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
         ) : (
           <div
             className={`px-3 py-1.5 border rounded-xl text-xs font-medium flex items-center gap-1.5 ${
-              room.turnMode === 'turn_by_turn'
-                ? 'bg-purple-950/30 border-purple-500/40 text-purple-300'
-                : 'bg-fantasy-card border-fantasy-border text-slate-300'
+              (room.turnMode || 'turn_by_turn') === 'turn_by_turn'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                : 'bg-fantasy-card border-fantasy-border text-slate-400'
             }`}
-            title={`Режим ходов: ${room.turnMode === 'turn_by_turn' ? 'По очереди' : 'Общий ход'}`}
+            title={`Режим ходов: ${(room.turnMode || 'turn_by_turn') === 'turn_by_turn' ? 'Пошаговый (основной)' : 'Общий ход (вторичный)'}`}
           >
-            {room.turnMode === 'turn_by_turn' ? (
+            {(room.turnMode || 'turn_by_turn') === 'turn_by_turn' ? (
               <>
-                <ListOrdered className="w-3.5 h-3.5 text-purple-400" />
+                <ListOrdered className="w-3.5 h-3.5 text-amber-400" />
                 <span>По очереди</span>
               </>
             ) : (
               <>
-                <Users className="w-3.5 h-3.5 text-amber-400" />
+                <Users className="w-3.5 h-3.5 text-slate-400" />
                 <span>Общий ход</span>
               </>
             )}

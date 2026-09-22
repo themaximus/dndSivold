@@ -238,7 +238,7 @@ export class TurnExecutionPipeline {
       sceneNPCs: room.sceneNPCs,
       actions: actionsToResolve,
       previousHistory: previousLogs.slice(-4),
-      turnMode: room.turnMode,
+      turnMode: room.turnMode || 'turn_by_turn',
       turnPlayerName: isTurnByTurn
         ? actionsToResolve[0]?.characterName || 'Игрок'
         : undefined,
@@ -477,7 +477,7 @@ export class TurnExecutionPipeline {
       roomId: room.id,
       roundNumber: room.roundNumber,
       timestamp: new Date().toISOString(),
-      turnMode: room.turnMode || 'simultaneous',
+      turnMode: room.turnMode || 'turn_by_turn',
       charactersSnapshot: activeCharacters.map((c) => {
         const fresh = this.characters.findById(c.id) || c;
         return {

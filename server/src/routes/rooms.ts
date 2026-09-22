@@ -63,7 +63,7 @@ router.post('/generateStory', async (req: Request, res: Response): Promise<void>
 router.post('/', authMiddleware, (req: Request, res: Response): void => {
   try {
     const userId = (req as any).userId;
-    const { title, setting, genre, campaignDuration, deepseekApiKey, deepseekModel } = req.body;
+    const { title, setting, genre, campaignDuration, turnMode, deepseekApiKey, deepseekModel } = req.body;
 
     if (!title || !setting) {
       res.status(400).json({ error: 'Название и описание сеттинга обязательны для создания комнаты' });
@@ -86,6 +86,7 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
       setting: setting.trim(),
       genre: genre || 'fantasy',
       campaignDuration: campaignDuration || 'medium',
+      turnMode: turnMode === 'simultaneous' ? 'simultaneous' : 'turn_by_turn',
       status: 'waiting',
       roundNumber: 1,
       currentSituation: 'Отряд собрался вместе перед началом опасного пути. Осмотритесь и подготовьтесь к первому действию.',

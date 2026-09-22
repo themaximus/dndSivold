@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
-import { Sparkles, Key, Compass, Shield, ArrowLeft, Dices, Clock, Swords } from 'lucide-react';
+import { Sparkles, Key, Compass, Shield, ArrowLeft, Dices, Clock, Swords, ListOrdered, Users } from 'lucide-react';
 
 interface CreateRoomModalProps {
   onRoomCreated: (code: string) => void;
@@ -72,6 +72,7 @@ const SETTING_TEMPLATES: Record<string, Array<{ title: string; setting: string }
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onRoomCreated, onCancel }) => {
   const [genre, setGenre] = useState('fantasy');
   const [campaignDuration, setCampaignDuration] = useState<'short' | 'medium' | 'long'>('medium');
+  const [turnMode, setTurnMode] = useState<'simultaneous' | 'turn_by_turn'>('turn_by_turn');
   const [title, setTitle] = useState(SETTING_TEMPLATES.fantasy[0].title);
   const [setting, setSetting] = useState(SETTING_TEMPLATES.fantasy[0].setting);
   const [customApiKey, setCustomApiKey] = useState('');
@@ -140,6 +141,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onRoomCreated,
         setting,
         genre,
         campaignDuration,
+        turnMode,
         deepseekApiKey: customApiKey.trim() || undefined,
       });
       onRoomCreated(room.code);
@@ -248,6 +250,60 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onRoomCreated,
                   <div className="text-[11px] text-slate-400">{d.desc}</div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Turn Mode Selection */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+              Режим ходов отряда
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setTurnMode('turn_by_turn')}
+                className={`p-3.5 rounded-xl border text-left transition-all ${
+                  turnMode === 'turn_by_turn'
+                    ? 'bg-amber-500/15 border-amber-500 text-amber-300 shadow-glow-gold'
+                    : 'bg-fantasy-card border-fantasy-border text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 font-bold text-sm text-slate-200">
+                    <ListOrdered className="w-4 h-4 text-amber-400" />
+                    <span>Пошаговый режим</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Основной
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Герои ходят строго по очереди один за другим. ИИ детально реагирует на каждое действие и передает ход следующему игроку.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTurnMode('simultaneous')}
+                className={`p-3.5 rounded-xl border text-left transition-all ${
+                  turnMode === 'simultaneous'
+                    ? 'bg-slate-700/50 border-amber-500/40 text-amber-300'
+                    : 'bg-fantasy-card border-fantasy-border text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 font-bold text-sm text-slate-200">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    <span>Общий ход</span>
+                  </div>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                    Вторичный
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Все игроки одновременно отправляют заявки, после чего ИИ разом разрешает действия всей группы.
+                </p>
+              </button>
             </div>
           </div>
 

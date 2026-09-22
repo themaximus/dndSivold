@@ -416,7 +416,7 @@ export class DMPromptBuilder {
       ? context.previousHistory.slice(-3).map((h, i) => `[Предыдущее событие ${i + 1}]:\n${h}`).join('\n\n')
       : 'События только разворачиваются.';
 
-    const turnGuidance = context.turnMode === 'turn_by_turn' && context.actions.length === 1
+    const turnGuidance = (context.turnMode || 'turn_by_turn') === 'turn_by_turn' && context.actions.length === 1
       ? `\n\n🎯 ОСОБАЯ ИНСТРУКЦИЯ ДЛЯ ПОШАГОВОГО РЕЖИМА (ХОД ЗА ХОДОМ):
 Сейчас совершает свой индивидуальный ход герой «${context.actions[0].characterName}».
 Разыграй конкретно последствия ЕГО действия вперед:

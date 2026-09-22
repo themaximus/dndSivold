@@ -431,35 +431,36 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                       Режим ходов отряда
                     </h5>
                     <p className="text-[11px] text-slate-400">
-                      {room.turnMode === 'turn_by_turn'
-                        ? 'Пошаговый: игроки ходят строго по очереди один за другим'
-                        : 'Одновременный: все игроки заявляют действия одновременно в рамках раунда'}
+                      {(room.turnMode || 'turn_by_turn') === 'turn_by_turn'
+                        ? 'Пошаговый (основной): игроки ходят строго по очереди один за другим'
+                        : 'Общий ход (вторичный): все игроки заявляют действия одновременно в рамках раунда'}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => handleSetTurnMode('simultaneous')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                        room.turnMode !== 'turn_by_turn'
-                          ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                          : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
-                      }`}
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      <span>Общий ход</span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => handleSetTurnMode('turn_by_turn')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                        room.turnMode === 'turn_by_turn'
-                          ? 'bg-purple-600 text-white shadow-md font-bold'
+                        (room.turnMode || 'turn_by_turn') === 'turn_by_turn'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
                           : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
                       }`}
                     >
                       <ListOrdered className="w-3.5 h-3.5" />
                       <span>По очереди</span>
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-black/20 uppercase">Основной</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetTurnMode('simultaneous')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                        (room.turnMode || 'turn_by_turn') === 'simultaneous'
+                          ? 'bg-slate-700 text-amber-300 shadow-md font-bold border border-amber-500/40'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Общий ход</span>
                     </button>
                   </div>
                 </div>
