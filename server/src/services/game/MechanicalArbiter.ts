@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition, SearchedObjectEntry } from '../../db';
 import { calculateModifier } from '../dndRules';
 import { itemLedgerRepository } from '../../repositories/ItemLedgerRepository';
+import { systemLocator } from '../session/ServiceLocator';
 
 export type ThreatLevel = 'low' | 'moderate' | 'high' | 'deadly';
 
@@ -150,6 +151,14 @@ export class MechanicalArbiter {
     }
   }
 
+  private get intentEngine() {
+    return systemLocator.get('actionIntentEngine');
+  }
+
+  private get inventoryLedger() {
+    return systemLocator.get('inventoryLedgerService');
+  }
+
   /**
    * Extracts dialogue / spoken text from physical narrative action.
    * Separates what characters say (inside quotes or after speech verbs)
@@ -162,42 +171,11 @@ export class MechanicalArbiter {
     hasSecondPersonAddress: boolean;
     addressedTargetName?: string;
   } {
-    const raw = (text || '').trim();
-    const spokenDialogue: string[] = [];
-    const quoteRegex = /(?:«([^»]+)»|"([^"]+)"|“([^”]+)”)/g;
-    let match: RegExpExecArray | null;
-    let cleanPhysical = raw;
-
-    while ((match = quoteRegex.exec(raw)) !== null) {
-      const quoteText = match[1] || match[2] || match[3];
-      if (quoteText && quoteText.trim()) {
-        spokenDialogue.push(quoteText.trim());
-      }
-    }
-
-    if (spokenDialogue.length > 0) {
-      cleanPhysical = raw.replace(quoteRegex, ' ').replace(/\s+/g, ' ').trim();
-    }
-
-    const isSpeechVerbOnly = /^(говор(ю|ит)|крич(у|ит)|шепч(у|ет)|восклица(ю|ет)|обраща(юсь|ется)|обратившись|произнош(у|ит)|заявля(ю|ет))(\s.*)?$/i.test(cleanPhysical);
-    const isPureSpeech = spokenDialogue.length > 0 && (cleanPhysical.length === 0 || isSpeechVerbOnly);
-    const hasSecondPersonAddress = /(?:^|[^\p{L}\p{N}_])(теб[яе]|тобой|ты|вас|вам|вами|вы)(?:$|[^\p{L}\p{N}_])/iu.test(raw);
-
-    let addressedTargetName: string | undefined;
-    const nameAddressMatch = raw.match(/^(?:«|")?([А-Яа-яЁёA-Za-z]+)[,!:]/);
-    if (nameAddressMatch && nameAddressMatch[1]) {
-      const candidate = nameAddressMatch[1].trim();
-      if (!/^(я|мы|он|она|они|вы|ты|что|как|стой|стойте|эй|но|а|о)$/i.test(candidate)) {
-        addressedTargetName = candidate;
-      }
-    }
-
+    const res = this.intentEngine.extractSpeechAndAction(text);
+    const hasSecondPersonAddress = /(?:^|[^\p{L}\p{N}_])(теб[яе]|тобой|ты|вас|вам|вами|вы)(?:$|[^\p{L}\p{N}_])/iu.test(text || '');
     return {
-      spokenDialogue,
-      physicalAction: cleanPhysical,
-      isPureSpeech,
+      ...res,
       hasSecondPersonAddress,
-      addressedTargetName,
     };
   }
 
@@ -1433,40 +1411,7 @@ ${!isDisengage && oppAttackHit ? `- ⚠️ Однако без действия 
     actionText: string,
     searchedObjects: SearchedObjectEntry[]
   ): SearchedObjectEntry | undefined {
-    if (!searchedObjects || searchedObjects.length === 0) return undefined;
-    const textLower = (actionText || '').toLowerCase();
-
-    // Check if the action conveys search / investigation / looting / unlocking intent
-    const isSearchIntent = /(обыск|поиск|искать|ищу|обшар|переры(ть|л|ваю)|вскры(ть|л|ваю)|провер(ить|яю|ка)|осмотр|исследовать|лут|loot|search|investigat)/i.test(textLower);
-    if (!isSearchIntent) return undefined;
-
-    return searchedObjects.find(obj => {
-      const objNameLower = (obj.targetName || '').toLowerCase();
-      // 1. Direct substring match
-      if (textLower.includes(objNameLower)) return true;
-
-      // 2. Word stems match (handles Russian inflections: повозка -> повозку/повозке, сундук -> сундука, etc.)
-      const words = objNameLower.split(/[\s,()]+/).filter(w => w.length >= 3);
-      for (const w of words) {
-        const stem = w.replace(/[аяоеуыиью]+$/i, '');
-        if (stem.length >= 3 && textLower.includes(stem)) {
-          return true;
-        }
-      }
-
-      // 3. Target type synonyms
-      if (obj.targetType === 'vehicle' && /(повозк|телег|фургон|арб[аеыу]|wagon|cart)/i.test(textLower)) {
-        return true;
-      }
-      if (obj.targetType === 'room' && /(комнат|помещени|зал|трактир|хижин|подвал|комнату|room)/i.test(textLower)) {
-        return true;
-      }
-      if (obj.targetType === 'container' && /(сундук|ящик|шкаф|сейф|бочк|короб|chest|box)/i.test(textLower)) {
-        return true;
-      }
-
-      return false;
-    });
+    return this.inventoryLedger.findMatchingSearchedObject(actionText, searchedObjects);
   }
 
   /**

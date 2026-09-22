@@ -94,6 +94,49 @@ export class InventoryLedgerService {
   }
 
   /**
+   * Checks if action text targets an already searched/exhausted object, vehicle, room, or container.
+   */
+  public findMatchingSearchedObject(
+    actionText: string,
+    searchedObjects: SearchedObjectEntry[]
+  ): SearchedObjectEntry | undefined {
+    if (!searchedObjects || searchedObjects.length === 0) return undefined;
+    const textLower = (actionText || '').toLowerCase();
+
+    // Check if the action conveys search / investigation / looting / unlocking intent
+    const isSearchIntent = /(обыск|поиск|искать|ищу|обшар|переры(ть|л|ваю)|вскры(ть|л|ваю)|провер(ить|яю|ка)|осмотр|исследовать|лут|loot|search|investigat)/i.test(textLower);
+    if (!isSearchIntent) return undefined;
+
+    return searchedObjects.find((obj) => {
+      const objNameLower = (obj.targetName || '').toLowerCase();
+      // 1. Direct substring match
+      if (textLower.includes(objNameLower)) return true;
+
+      // 2. Word stems match (handles Russian inflections: повозка -> повозку/повозке, сундук -> сундука, etc.)
+      const words = objNameLower.split(/[\s,()]+/).filter((w) => w.length >= 3);
+      for (const w of words) {
+        const stem = w.replace(/[аяоеуыиью]+$/i, '');
+        if (stem.length >= 3 && textLower.includes(stem)) {
+          return true;
+        }
+      }
+
+      // 3. Target type synonyms
+      if (obj.targetType === 'vehicle' && /(повозк|телег|фургон|арб[аеыу]|wagon|cart)/i.test(textLower)) {
+        return true;
+      }
+      if (obj.targetType === 'room' && /(комнат|помещени|зал|трактир|хижин|подвал|комнату|room)/i.test(textLower)) {
+        return true;
+      }
+      if (obj.targetType === 'container' && /(сундук|ящик|шкаф|сейф|бочк|короб|chest|box)/i.test(textLower)) {
+        return true;
+      }
+
+      return false;
+    });
+  }
+
+  /**
    * Applies inventory updates from AI or DM resolution, recording ledger entries.
    */
   /**

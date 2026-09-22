@@ -10,11 +10,15 @@ import { RoomTransactionMutex, roomTransactionMutex } from './RoomTransactionMut
 import { SessionAuditLogger, sessionAuditLogger } from '../logging/SessionAuditLogger';
 import { MechanicalArbiter, mechanicalArbiter } from '../game/MechanicalArbiter';
 import { SocialArbiter, socialArbiter } from '../game/SocialArbiter';
+import { EpisodicMemoryCompressor, episodicMemoryCompressor } from '../ai/EpisodicMemoryCompressor';
+import { StreamingAIService, streamingAIService } from '../ai/StreamingAIService';
+import { db } from '../../db';
 
 /**
  * Registry map of all domain and session services.
  */
 export interface SessionServiceMap {
+  database: typeof db;
   roomSessionManager: RoomSessionManager;
   turnExecutionPipeline: TurnExecutionPipeline;
   sceneEntityManager: SceneEntityManager;
@@ -27,6 +31,8 @@ export interface SessionServiceMap {
   sessionAuditLogger: SessionAuditLogger;
   mechanicalArbiter: MechanicalArbiter;
   socialArbiter: SocialArbiter;
+  episodicMemoryCompressor: EpisodicMemoryCompressor;
+  streamingAIService: StreamingAIService;
 }
 
 /**
@@ -38,27 +44,31 @@ export interface SessionServiceMap {
  */
 export class ServiceLocator {
   private services: Map<keyof SessionServiceMap, any> = new Map();
+  private factories: Map<keyof SessionServiceMap, () => any> = new Map();
 
   constructor() {
     this.registerDefaults();
   }
 
   /**
-   * Registers default singleton implementations.
+   * Registers default singleton factories lazily.
    */
   public registerDefaults(): void {
-    this.services.set('roomSessionManager', roomSessionManager);
-    this.services.set('turnExecutionPipeline', turnExecutionPipeline);
-    this.services.set('sceneEntityManager', sceneEntityManager);
-    this.services.set('inventoryLedgerService', inventoryLedgerService);
-    this.services.set('characterProgressionService', characterProgressionService);
-    this.services.set('actionIntentEngine', actionIntentEngine);
-    this.services.set('narrativeSynthesizer', narrativeSynthesizer);
-    this.services.set('questArbiter', questArbiter);
-    this.services.set('roomTransactionMutex', roomTransactionMutex);
-    this.services.set('sessionAuditLogger', sessionAuditLogger);
-    this.services.set('mechanicalArbiter', mechanicalArbiter);
-    this.services.set('socialArbiter', socialArbiter);
+    this.factories.set('database', () => db);
+    this.factories.set('roomSessionManager', () => roomSessionManager);
+    this.factories.set('turnExecutionPipeline', () => turnExecutionPipeline);
+    this.factories.set('sceneEntityManager', () => sceneEntityManager);
+    this.factories.set('inventoryLedgerService', () => inventoryLedgerService);
+    this.factories.set('characterProgressionService', () => characterProgressionService);
+    this.factories.set('actionIntentEngine', () => actionIntentEngine);
+    this.factories.set('narrativeSynthesizer', () => narrativeSynthesizer);
+    this.factories.set('questArbiter', () => questArbiter);
+    this.factories.set('roomTransactionMutex', () => roomTransactionMutex);
+    this.factories.set('sessionAuditLogger', () => sessionAuditLogger);
+    this.factories.set('mechanicalArbiter', () => mechanicalArbiter);
+    this.factories.set('socialArbiter', () => socialArbiter);
+    this.factories.set('episodicMemoryCompressor', () => episodicMemoryCompressor);
+    this.factories.set('streamingAIService', () => streamingAIService);
   }
 
   /**
@@ -72,18 +82,23 @@ export class ServiceLocator {
    * Retrieves a strongly-typed service instance.
    */
   public get<K extends keyof SessionServiceMap>(key: K): SessionServiceMap[K] {
-    const service = this.services.get(key);
-    if (!service) {
-      throw new Error(`[ServiceLocator] Service '${String(key)}' is not registered.`);
+    if (this.services.has(key)) {
+      return this.services.get(key);
     }
-    return service;
+    const factory = this.factories.get(key);
+    if (factory) {
+      const instance = factory();
+      this.services.set(key, instance);
+      return instance;
+    }
+    throw new Error(`[ServiceLocator] Service '${String(key)}' is not registered.`);
   }
 
   /**
    * Checks if a service is registered.
    */
   public has<K extends keyof SessionServiceMap>(key: K): boolean {
-    return this.services.has(key);
+    return this.services.has(key) || this.factories.has(key);
   }
 
   /**

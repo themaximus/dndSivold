@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { DiceRollResult } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useGameSession } from '../hooks/useGameSession';
@@ -9,16 +9,34 @@ import { PartyHUD } from './game/PartyHUD';
 import { StoryChronicle } from './game/StoryChronicle';
 import { ActionConsole } from './game/ActionConsole';
 import { LootDropsBar } from './game/LootDropsBar';
-import { InventoryModal } from './game/InventoryModal';
-import { TalentTreeModal } from './game/TalentTreeModal';
-import { CampaignJournalModal } from './game/CampaignJournalModal';
-import { DndGuideModal } from './game/DndGuideModal';
-import { AdventureFinishModal } from './game/AdventureFinishModal';
-import { RestModal } from './game/RestModal';
-import { DiceRollerModal } from './DiceRollerModal';
 import { OpponentsHUD } from './game/OpponentsHUD';
 import { InventoryToastStack } from './game/InventoryToastStack';
-import { ReactionModal } from './game/ReactionModal';
+
+// Lazy-loaded modals for performance & code-splitting
+const InventoryModal = React.lazy(() =>
+  import('./game/InventoryModal').then((m) => ({ default: m.InventoryModal }))
+);
+const TalentTreeModal = React.lazy(() =>
+  import('./game/TalentTreeModal').then((m) => ({ default: m.TalentTreeModal }))
+);
+const CampaignJournalModal = React.lazy(() =>
+  import('./game/CampaignJournalModal').then((m) => ({ default: m.CampaignJournalModal }))
+);
+const DndGuideModal = React.lazy(() =>
+  import('./game/DndGuideModal').then((m) => ({ default: m.DndGuideModal }))
+);
+const AdventureFinishModal = React.lazy(() =>
+  import('./game/AdventureFinishModal').then((m) => ({ default: m.AdventureFinishModal }))
+);
+const RestModal = React.lazy(() =>
+  import('./game/RestModal').then((m) => ({ default: m.RestModal }))
+);
+const DiceRollerModal = React.lazy(() =>
+  import('./DiceRollerModal').then((m) => ({ default: m.DiceRollerModal }))
+);
+const ReactionModal = React.lazy(() =>
+  import('./game/ReactionModal').then((m) => ({ default: m.ReactionModal }))
+);
 
 interface GameTableProps {
   roomCode: string;
@@ -296,85 +314,87 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
         </div>
       </div>
 
-      {/* Dice Roller Modal for the active roller */}
-      {isDiceModalOpen && (
-        <DiceRollerModal
-          roomCode={roomCode}
-          character={myCharacter || undefined}
-          defaultStatKey={diceModalOpts.defaultStatKey || room.requiredCheckStat}
-          targetDC={room.targetDC}
-          initialPurpose={diceModalOpts.defaultPurpose}
-          initialAdvantage={diceModalOpts.defaultAdvantage}
-          initialDisadvantage={diceModalOpts.defaultDisadvantage}
-          onClose={() => setIsDiceModalOpen(false)}
-          onRollComplete={handleAttachRoll}
+      <Suspense fallback={null}>
+        {/* Dice Roller Modal for the active roller */}
+        {isDiceModalOpen && (
+          <DiceRollerModal
+            roomCode={roomCode}
+            character={myCharacter || undefined}
+            defaultStatKey={diceModalOpts.defaultStatKey || room.requiredCheckStat}
+            targetDC={room.targetDC}
+            initialPurpose={diceModalOpts.defaultPurpose}
+            initialAdvantage={diceModalOpts.defaultAdvantage}
+            initialDisadvantage={diceModalOpts.defaultDisadvantage}
+            onClose={() => setIsDiceModalOpen(false)}
+            onRollComplete={handleAttachRoll}
+          />
+        )}
+
+        {/* Rest Modal (Short & Long Rest D&D 5e) */}
+        <RestModal
+          isOpen={isRestOpen}
+          character={myCharacter}
+          isCombat={(room.activeEnemies || []).some(e => !e.isDead && e.hpCurrent > 0)}
+          currentRound={room.roundNumber}
+          onClose={() => setIsRestOpen(false)}
+          onShortRest={shortRest}
+          onLongRest={longRest}
         />
-      )}
 
-      {/* Rest Modal (Short & Long Rest D&D 5e) */}
-      <RestModal
-        isOpen={isRestOpen}
-        character={myCharacter}
-        isCombat={(room.activeEnemies || []).some(e => !e.isDead && e.hpCurrent > 0)}
-        currentRound={room.roundNumber}
-        onClose={() => setIsRestOpen(false)}
-        onShortRest={shortRest}
-        onLongRest={longRest}
-      />
+        {/* Inventory Modal */}
+        <InventoryModal
+          isOpen={isInventoryOpen}
+          onClose={() => setIsInventoryOpen(false)}
+          character={myCharacter}
+          onUseItem={useItem}
+          onEquipWeapon={equipWeapon}
+        />
 
-      {/* Inventory Modal */}
-      <InventoryModal
-        isOpen={isInventoryOpen}
-        onClose={() => setIsInventoryOpen(false)}
-        character={myCharacter}
-        onUseItem={useItem}
-        onEquipWeapon={equipWeapon}
-      />
+        {/* Talent Progression Tree Modal */}
+        <TalentTreeModal
+          isOpen={isTalentsOpen}
+          onClose={() => setIsTalentsOpen(false)}
+          character={myCharacter}
+          tree={talentTree}
+          onFetchTalents={fetchTalents}
+          onLearnTalent={learnTalent}
+        />
 
-      {/* Talent Progression Tree Modal */}
-      <TalentTreeModal
-        isOpen={isTalentsOpen}
-        onClose={() => setIsTalentsOpen(false)}
-        character={myCharacter}
-        tree={talentTree}
-        onFetchTalents={fetchTalents}
-        onLearnTalent={learnTalent}
-      />
+        {/* Campaign Lore Milestones Journal Modal */}
+        <CampaignJournalModal
+          isOpen={isJournalOpen}
+          onClose={() => setIsJournalOpen(false)}
+          milestones={room.loreJournal || []}
+          quests={room.worldQuests || []}
+          campaignTitle={room.title}
+        />
 
-      {/* Campaign Lore Milestones Journal Modal */}
-      <CampaignJournalModal
-        isOpen={isJournalOpen}
-        onClose={() => setIsJournalOpen(false)}
-        milestones={room.loreJournal || []}
-        quests={room.worldQuests || []}
-        campaignTitle={room.title}
-      />
+        {/* Authentic D&D 5e Guide Modal */}
+        <DndGuideModal
+          isOpen={isGuideOpen}
+          onClose={() => setIsGuideOpen(false)}
+        />
 
-      {/* Authentic D&D 5e Guide Modal */}
-      <DndGuideModal
-        isOpen={isGuideOpen}
-        onClose={() => setIsGuideOpen(false)}
-      />
+        {/* Adventure Finale / Session Cliffhanger Modal */}
+        <AdventureFinishModal
+          isOpen={isFinishModalOpen || !!finishedAdventure || room.status === 'finished'}
+          onClose={() => setIsFinishModalOpen(false)}
+          room={room}
+          isHost={room.hostUserId === user?.id}
+          onFinishAdventure={finishAdventure}
+          onReturnToLobby={onLeave}
+        />
 
-      {/* Adventure Finale / Session Cliffhanger Modal */}
-      <AdventureFinishModal
-        isOpen={isFinishModalOpen || !!finishedAdventure || room.status === 'finished'}
-        onClose={() => setIsFinishModalOpen(false)}
-        room={room}
-        isHost={room.hostUserId === user?.id}
-        onFinishAdventure={finishAdventure}
-        onReturnToLobby={onLeave}
-      />
-
-      {/* Reaction Prompt Modal for Mentioned Characters */}
-      <ReactionModal
-        isOpen={!!pendingReactionForMe}
-        reactionRequest={pendingReactionForMe || null}
-        character={myCharacter}
-        targetDC={room.targetDC || 12}
-        onSubmit={submitReaction}
-        onSkip={skipReaction}
-      />
+        {/* Reaction Prompt Modal for Mentioned Characters */}
+        <ReactionModal
+          isOpen={!!pendingReactionForMe}
+          reactionRequest={pendingReactionForMe || null}
+          character={myCharacter}
+          targetDC={room.targetDC || 12}
+          onSubmit={submitReaction}
+          onSkip={skipReaction}
+        />
+      </Suspense>
 
       {/* Floating Inventory Activity Toasts */}
       <InventoryToastStack

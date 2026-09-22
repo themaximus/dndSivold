@@ -108,31 +108,9 @@ const COMBAT_ROLE_CONFIG: Record<NPCCombatRole, { label: string; color: string; 
 };
 
 const isEntityDepartedOrDefeated = (e: { isDead?: boolean; hpCurrent?: number; status?: string; combatRole?: string }) => {
-  // 1. Defeated / Fallen / Zero HP
   if (e.isDead || (e.hpCurrent !== undefined && e.hpCurrent <= 0)) return true;
   const s = (e.status || '').toLowerCase();
-  if (/(повержен|без сознания|не подает признаков|мертв|убит|погиб)/i.test(s)) return true;
-
-  // 2. Left behind / stayed back at crossroads / previous location
-  if (/(остал(?:ся|ась|ись)|позади|на\s+развилк|в\s+лагер|на\s+мест|у\s+повозк|далек[оа]\s+позади|не\s+последовал|отстал|бросил\s+преследован)/i.test(s)) {
-    return true;
-  }
-
-  // 3. Hiding in bushes, under carts, behind trees/rocks is IN THE SCENE, NOT DEPARTED!
-  if (e.combatRole === 'hiding') return false;
-  if (/(в куст|в заросл|под повозк|под телег|за дерев|за кам|в укрыти|в тен|спрятался|затаился|укрылся)/i.test(s)) return false;
-
-  // 4. Only departed if EXPLICITLY moved to another location / traveled far away
-  if (/(покинул\s+локацию|ушел\s+в\s+(?:город|деревню|лагерь|горы|другую\s+локацию)|уехал\s+вдаль|скрылся\s+за\s+горизонтом|ушел\s+прочь\s+по\s+тракту|удалился\s+из\s+этих\s+мест)/i.test(s)) {
-    return true;
-  }
-
-  // 5. Combat fled role only if actually escaped out of the entire area
-  if (e.combatRole === 'fled' && /(скрылся\s+вдалеке|убежал\s+прочь|покинул\s+локацию|ушел\s+за\s+горизонт)/i.test(s)) {
-    return true;
-  }
-
-  return false;
+  return /(повержен|без сознания|не подает признаков|мертв|убит|погиб|покинул локацию|ушел прочь)/i.test(s);
 };
 
 const isSameEntity = (
@@ -140,99 +118,10 @@ const isSameEntity = (
   b?: { id?: string; name?: string; role?: string; type?: string }
 ): boolean => {
   if (!a || !b) return false;
-
-  // 1. Direct ID match
   if (a.id && b.id && a.id === b.id) return true;
-
-  const nameA = (a.name || '').trim();
-  const nameB = (b.name || '').trim();
-  if (!nameA && !nameB) return false;
-
-  // 2. Direct normalized exact match
-  const normA = nameA.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ').replace(/\s+/g, ' ').trim();
-  const normB = nameB.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (normA && normA === normB) return true;
-
-  // 3. Numeric distinction: "Бандит 1" vs "Бандит 2" must NEVER match!
-  const numA = normA.match(/\b(\d+)\b/);
-  const numB = normB.match(/\b(\d+)\b/);
-  if (numA && numB && numA[1] !== numB[1]) {
-    return false;
-  }
-
-  // 4. Stemming & tokenization
-  const stem = (word: string) => {
-    return word.toLowerCase()
-      .replace(/ец$/g, 'ц')
-      .replace(/(а|я|о|е|у|ю|ы|и|е|ом|ем|ам|ям|ами|ями|ах|ях|ого|его|ому|ему|ым|им|ой|ей|ую|юю|ое|ее|ые|ие|ов|ев)$/g, '');
-  };
-
-  const getTokens = (str: string) => {
-    return str.toLowerCase()
-      .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length >= 3)
-      .map(stem)
-      .filter(s => s.length >= 3);
-  };
-
-  const tokensA = getTokens(normA);
-  const tokensB = getTokens(normB);
-
-  // Cross-field: also include role/type
-  const roleA = ((a.role || '') + ' ' + (a.type || '')).trim();
-  const roleB = ((b.role || '') + ' ' + (b.type || '')).trim();
-  const roleTokensA = getTokens(roleA);
-  const roleTokensB = getTokens(roleB);
-
-  // Direct stem overlap between names
-  for (const tA of tokensA) {
-    for (const tB of tokensB) {
-      if (tA === tB || (tA.length >= 4 && tB.length >= 4 && (tA.includes(tB) || tB.includes(tA)))) {
-        return true;
-      }
-    }
-  }
-
-  // Cross-name-and-role stem match (e.g. enemy name "Посланник стражи" vs NPC name "Раненый гонец" role "Посланник стражи")
-  for (const tA of tokensA) {
-    if (tA.length >= 4) {
-      for (const tB of roleTokensB) {
-        if (tA === tB || tA.includes(tB) || tB.includes(tA)) return true;
-      }
-    }
-  }
-  for (const tB of tokensB) {
-    if (tB.length >= 4) {
-      for (const tA of roleTokensA) {
-        if (tB === tA || tB.includes(tA) || tA.includes(tB)) return true;
-      }
-    }
-  }
-
-  // RPG Synonym groups
-  const synonymGroups = [
-    ['гонц', 'курьер', 'вестник', 'посланник'],
-    ['разбойник', 'бандит', 'грабител', 'головорез', 'налетчик'],
-    ['купец', 'торговец', 'караванщик', 'коробейник'],
-    ['страж', 'стражник', 'охранник', 'караульн'],
-    ['культист', 'адепт', 'сектант', 'фанатик'],
-    ['ящер', 'варан'],
-    ['волк', 'хищник', 'звер'],
-  ];
-
-  const allTokensA = [...tokensA, ...roleTokensA];
-  const allTokensB = [...tokensB, ...roleTokensB];
-
-  for (const group of synonymGroups) {
-    const hasA = allTokensA.some(w => group.some(g => w.includes(g) || g.includes(w)));
-    const hasB = allTokensB.some(w => group.some(g => w.includes(g) || g.includes(w)));
-    if (hasA && hasB) {
-      return true;
-    }
-  }
-
-  return false;
+  const nameA = (a.name || '').trim().toLowerCase();
+  const nameB = (b.name || '').trim().toLowerCase();
+  return !!(nameA && nameB && (nameA === nameB || nameA.includes(nameB) || nameB.includes(nameA)));
 };
 
 export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({

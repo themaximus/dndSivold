@@ -4,7 +4,7 @@ import { SceneEntityManager, stemRussianWord, extractSearchTokens } from '../ser
 import { ActionIntentEngine } from '../services/session/ActionIntentEngine';
 import { InventoryLedgerService } from '../services/session/InventoryLedgerService';
 import { RoomTransactionMutex } from '../services/session/RoomTransactionMutex';
-import { RoomEntity, CharacterEntity } from '../db';
+import { RoomEntity, CharacterEntity, GameLogEntity } from '../db';
 import { gameSessionService, isSameEntity } from '../services/game/GameSessionService';
 import { ServiceLocator, systemLocator } from '../services/session/ServiceLocator';
 import { questArbiter } from '../services/game/QuestArbiter';
@@ -777,7 +777,127 @@ async function runTests() {
   assert.strictEqual(archiveProj.worldArchive.length, 2, 'Archive must contain both defeated and departed entities');
   console.log(`✅ Archival verified: ${archiveProj.worldArchive.length} entities successfully captured in «Архив».\n`);
 
-  console.log('🎉 ALL 18 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 19: Episodic Memory Compression
+  // ----------------------------------------------------
+  console.log('Test 19: Episodic Memory Compression & Long-Term Continuity');
+  const episodicService = systemLocator.get('episodicMemoryCompressor');
+  const dummyLogs: GameLogEntity[] = [
+    {
+      id: 'log_1',
+      roomId: 'room_epi',
+      roundNumber: 1,
+      narrativeText: 'Отряд вышел на заброшенную дорогу. Впереди показались следы повозки.',
+      actionsSummary: 'Разведка дороги',
+      currentSituation: 'Дорога чиста',
+      playerUpdates: [],
+      ruleViolations: [],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'log_2',
+      roomId: 'room_epi',
+      roundNumber: 2,
+      narrativeText: 'Из кустов выскочил ящер-страж с копьем. Воин заблокировал его удар щитом.',
+      actionsSummary: 'Встреча с ящером',
+      currentSituation: 'Бой начался',
+      playerUpdates: [],
+      ruleViolations: [],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'log_3',
+      roomId: 'room_epi',
+      roundNumber: 3,
+      narrativeText: 'Плут ловко обошел ящера с тыла и оглушил рукоятью кинжала.',
+      actionsSummary: 'Оглушение врага',
+      currentSituation: 'Ящер повержен',
+      playerUpdates: [],
+      ruleViolations: [],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'log_4',
+      roomId: 'room_epi',
+      roundNumber: 4,
+      narrativeText: 'Отряд связал ящера и допросил его о логове разбойников.',
+      actionsSummary: 'Допрос ящера',
+      currentSituation: 'Получена карта',
+      playerUpdates: [],
+      ruleViolations: [],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'log_5',
+      roomId: 'room_epi',
+      roundNumber: 5,
+      narrativeText: 'Герои подошли к пещере с водопадом. Внутри мерцает свет костра.',
+      actionsSummary: 'Прибытие к пещере',
+      currentSituation: 'У входа в пещеру',
+      playerUpdates: [],
+      ruleViolations: [],
+      createdAt: new Date().toISOString(),
+    },
+  ];
+
+  const epiRoom: RoomEntity = {
+    id: 'room_epi',
+    code: 'EPI001',
+    title: 'Episodic Room',
+    setting: 'fantasy',
+    currentSituation: 'Пещера',
+    hostUserId: 'user_1',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    roundNumber: 5,
+    loreJournal: [
+      {
+        id: 'milestone_1',
+        round: 3,
+        milestone: 'Ящер-страж взят в плен',
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+
+  const compressionResult = episodicService.compressLogs(dummyLogs, epiRoom);
+  assert.strictEqual(compressionResult.recentLogs.length, 3, 'Recent logs must keep exactly 3 rounds');
+  assert.ok(compressionResult.episodicSummaries.length > 0, 'Older rounds (1-2) must be compressed into episodic summaries');
+  assert.ok(compressionResult.consolidatedMemoryText.includes('Раунд'), 'Consolidated memory must mention rounds');
+  assert.ok(compressionResult.consolidatedMemoryText.includes('Ящер-страж взят в плен'), 'Consolidated memory must include milestones');
+
+  const augmentedPlot = episodicService.augmentContextWithMemory('Основная цель: спасти принцессу.', compressionResult.consolidatedMemoryText);
+  assert.ok(augmentedPlot.includes('🧠 ЭПИЗОДИЧЕСКАЯ ДОЛГОВРЕМЕННАЯ ПАМЯТЬ'), 'Context plot must be augmented with episodic memory');
+  console.log('✅ Episodic Memory Compression verified: older rounds compressed without context window explosion.\n');
+
+  // ----------------------------------------------------
+  // Test 20: Streaming AI Service & Token Emission
+  // ----------------------------------------------------
+  console.log('Test 20: Streaming AI Service & Narrative Token Emitter');
+  const streamingService = systemLocator.get('streamingAIService');
+  assert.ok(streamingService, 'streamingAIService must be registered in SystemLocator');
+
+  // Verify token emitter callback
+  const emittedChunks: string[] = [];
+  const fakeIo: any = {
+    to: () => ({
+      emit: (event: string, payload: any) => {
+        if (event === 'narrative_chunk') {
+          emittedChunks.push(payload.chunk);
+        }
+      },
+    }),
+  };
+
+  const tokenEmitter = streamingService.createTokenEmitter(fakeIo, 'room_stream_test', 'log_stream_1');
+  tokenEmitter('Дверь');
+  tokenEmitter(' со скрипом');
+  tokenEmitter(' распахнулась.');
+
+  assert.strictEqual(emittedChunks.join(''), 'Дверь со скрипом распахнулась.', 'Token emitter must faithfully stream chunks');
+  console.log('✅ Streaming AI Service verified: real-time narrative emission operates correctly.\n');
+
+  console.log('🎉 ALL 20 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

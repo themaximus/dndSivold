@@ -40,6 +40,7 @@ import { actionIntentEngine } from './ActionIntentEngine';
 import { inventoryLedgerService } from './InventoryLedgerService';
 import { narrativeSynthesizer } from './NarrativeSynthesizer';
 import { roomSessionManager } from './RoomSessionManager';
+import { episodicMemoryCompressor } from '../ai/EpisodicMemoryCompressor';
 
 export interface RoundResolutionResult {
   log?: GameLogEntity;
@@ -167,7 +168,7 @@ export class TurnExecutionPipeline {
       .map((p) => (p.characterId ? this.characters.findById(p.characterId) : undefined))
       .filter((c): c is CharacterEntity => !!c);
 
-    const previousLogs = this.gameLogs.findByRoomId(room.id).map((l) => l.narrativeText);
+    const fullLogs = this.gameLogs.findByRoomId(room.id);
     const roomSearched = this.searchedObjects.findByRoomId(room.id);
 
     // 2. Structured Action Intent & Mechanical Resolution
@@ -218,7 +219,13 @@ export class TurnExecutionPipeline {
 
     const allRoomQuests = this.quests.findByRoomId(room.id);
 
-    // 4. Build AI Context
+    // 4. Build AI Context with Episodic Long-Term Memory Compression
+    const memory = episodicMemoryCompressor.compressLogs(fullLogs, room);
+    const campaignPlotWithMemory = episodicMemoryCompressor.augmentContextWithMemory(
+      room.campaignPlot,
+      memory.consolidatedMemoryText
+    );
+
     const aiContext: AIDMContext = {
       apiKey: room.deepseekApiKey,
       model: room.deepseekModel,
@@ -230,14 +237,14 @@ export class TurnExecutionPipeline {
       currentDC: room.targetDC,
       currentDCReason: room.dcReason,
       requiredCheckStat: room.requiredCheckStat,
-      campaignPlot: room.campaignPlot,
+      campaignPlot: campaignPlotWithMemory,
       loreJournal: room.loreJournal,
       availableLoot: room.availableLoot,
       characters: activeCharacters,
       activeEnemies: room.activeEnemies,
       sceneNPCs: room.sceneNPCs,
       actions: actionsToResolve,
-      previousHistory: previousLogs.slice(-4),
+      previousHistory: memory.recentLogs.map((l) => l.narrativeText),
       turnMode: room.turnMode || 'turn_by_turn',
       turnPlayerName: isTurnByTurn
         ? actionsToResolve[0]?.characterName || 'Игрок'

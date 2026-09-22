@@ -1,16 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { AuthModal } from './components/AuthModal';
 import { CharacterList } from './components/CharacterList';
-import { CharacterCreator } from './components/CharacterCreator';
-import { CreateRoomModal } from './components/CreateRoomModal';
-import { MyCampaignsList } from './components/MyCampaignsList';
-import { RoomLobby } from './components/RoomLobby';
-import { GameTable } from './components/GameTable';
 import { api } from './services/api';
 import { Character } from './types';
 import { AppView, parseRoute, buildUrl } from './utils/navigation';
+
+// Lazy-loaded route views
+const CharacterCreator = React.lazy(() =>
+  import('./components/CharacterCreator').then((m) => ({ default: m.CharacterCreator }))
+);
+const CreateRoomModal = React.lazy(() =>
+  import('./components/CreateRoomModal').then((m) => ({ default: m.CreateRoomModal }))
+);
+const MyCampaignsList = React.lazy(() =>
+  import('./components/MyCampaignsList').then((m) => ({ default: m.MyCampaignsList }))
+);
+const RoomLobby = React.lazy(() =>
+  import('./components/RoomLobby').then((m) => ({ default: m.RoomLobby }))
+);
+const GameTable = React.lazy(() =>
+  import('./components/GameTable').then((m) => ({ default: m.GameTable }))
+);
 
 export function App() {
   const { user, loading } = useAuth();
@@ -136,74 +148,76 @@ export function App() {
       <Navbar currentView={currentView} setCurrentView={navigateTo} />
 
       <main className="flex-1">
-        {currentView === 'characters' && (
-          <CharacterList
-            characters={characters}
-            onCreateNew={() => navigateTo('create-character')}
-            onRefresh={loadCharacters}
-          />
-        )}
+        <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh] text-slate-400">Загрузка...</div>}>
+          {currentView === 'characters' && (
+            <CharacterList
+              characters={characters}
+              onCreateNew={() => navigateTo('create-character')}
+              onRefresh={loadCharacters}
+            />
+          )}
 
-        {currentView === 'create-character' && (
-          <CharacterCreator
-            onCreated={(newChar) => {
-              setCharacters((prev) => [...prev, newChar]);
-              if (activeRoomCode) {
+          {currentView === 'create-character' && (
+            <CharacterCreator
+              onCreated={(newChar) => {
+                setCharacters((prev) => [...prev, newChar]);
+                if (activeRoomCode) {
+                  navigateTo('lobby', activeRoomCode);
+                } else {
+                  navigateTo('characters');
+                }
+              }}
+              onCancel={() => {
+                if (activeRoomCode) {
+                  navigateTo('lobby', activeRoomCode);
+                } else {
+                  navigateTo('characters');
+                }
+              }}
+            />
+          )}
+
+          {currentView === 'create-room' && (
+            <CreateRoomModal
+              onRoomCreated={(code) => {
+                navigateTo('lobby', code);
+              }}
+              onCancel={() => navigateTo('campaigns')}
+            />
+          )}
+
+          {currentView === 'campaigns' && (
+            <MyCampaignsList
+              onEnterRoom={(code) => {
+                navigateTo('lobby', code);
+              }}
+              onCreateRoom={() => navigateTo('create-room')}
+            />
+          )}
+
+          {currentView === 'lobby' && activeRoomCode && (
+            <RoomLobby
+              roomCode={activeRoomCode}
+              onGameStarted={() => navigateTo('game', activeRoomCode)}
+              onCreateCharacter={() => navigateTo('create-character', activeRoomCode)}
+              onLeave={() => {
+                navigateTo('campaigns', '');
+              }}
+            />
+          )}
+
+          {currentView === 'game' && activeRoomCode && (
+            <GameTable
+              roomCode={activeRoomCode}
+              onLeave={() => {
                 navigateTo('lobby', activeRoomCode);
-              } else {
-                navigateTo('characters');
-              }
-            }}
-            onCancel={() => {
-              if (activeRoomCode) {
-                navigateTo('lobby', activeRoomCode);
-              } else {
-                navigateTo('characters');
-              }
-            }}
-          />
-        )}
-
-        {currentView === 'create-room' && (
-          <CreateRoomModal
-            onRoomCreated={(code) => {
-              navigateTo('lobby', code);
-            }}
-            onCancel={() => navigateTo('campaigns')}
-          />
-        )}
-
-        {currentView === 'campaigns' && (
-          <MyCampaignsList
-            onEnterRoom={(code) => {
-              navigateTo('lobby', code);
-            }}
-            onCreateRoom={() => navigateTo('create-room')}
-          />
-        )}
-
-        {currentView === 'lobby' && activeRoomCode && (
-          <RoomLobby
-            roomCode={activeRoomCode}
-            onGameStarted={() => navigateTo('game', activeRoomCode)}
-            onCreateCharacter={() => navigateTo('create-character', activeRoomCode)}
-            onLeave={() => {
-              navigateTo('campaigns', '');
-            }}
-          />
-        )}
-
-        {currentView === 'game' && activeRoomCode && (
-          <GameTable
-            roomCode={activeRoomCode}
-            onLeave={() => {
-              navigateTo('lobby', activeRoomCode);
-            }}
-            onExitToCampaigns={() => {
-              navigateTo('campaigns', '');
-            }}
-          />
-        )}
+              }}
+              onExitToCampaigns={() => {
+                navigateTo('campaigns', '');
+              }}
+            />
+          )}
+        </Suspense>
       </main>
     </div>
   );

@@ -392,24 +392,106 @@ class Database {
     }
   }
 
-  public save() {
+  private isWriting: boolean = false;
+  private writeQueued: boolean = false;
+  private debounceTimer: NodeJS.Timeout | null = null;
+  private flushResolvers: Array<() => void> = [];
+
+  /**
+   * Schedules a debounced non-blocking async write to disk.
+   * Multiple calls in quick succession (e.g. during a turn step resolution)
+   * are coalesced into a single atomic write.
+   */
+  public requestSave(immediate: boolean = false): void {
+    if (immediate) {
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+      }
+      this.triggerAsyncWrite();
+      return;
+    }
+
+    if (this.debounceTimer) return;
+
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      this.triggerAsyncWrite();
+    }, 40); // 40ms coalesce window
+  }
+
+  private async triggerAsyncWrite(): Promise<void> {
+    if (this.isWriting) {
+      this.writeQueued = true;
+      return;
+    }
+
+    this.isWriting = true;
     try {
-      const tempPath = `${this.filePath}.tmp`;
       const jsonStr = JSON.stringify(this.data, null, 2);
-      fs.writeFileSync(tempPath, jsonStr, 'utf-8');
-      fs.renameSync(tempPath, this.filePath);
+      const tempPath = `${this.filePath}.tmp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      await fs.promises.writeFile(tempPath, jsonStr, 'utf-8');
+      await fs.promises.rename(tempPath, this.filePath);
 
       // Also mirror to repository default file if different, so git deployments preserve latest state
       const repoDefaultPath = path.resolve(__dirname, '../../data/database.default.json');
       if (repoDefaultPath !== this.filePath && fs.existsSync(path.dirname(repoDefaultPath))) {
         try {
-          fs.writeFileSync(repoDefaultPath, jsonStr, 'utf-8');
+          await fs.promises.writeFile(repoDefaultPath, jsonStr, 'utf-8');
         } catch (e) {
           // ignore in environments with restricted permissions
         }
       }
     } catch (err) {
-      console.error('Database write error:', err);
+      console.error('Database async write error:', err);
+    } finally {
+      this.isWriting = false;
+      if (this.writeQueued) {
+        this.writeQueued = false;
+        this.triggerAsyncWrite();
+      } else {
+        const resolvers = [...this.flushResolvers];
+        this.flushResolvers = [];
+        resolvers.forEach((resolve) => resolve());
+      }
+    }
+  }
+
+  /**
+   * Flushes all pending writes and guarantees the disk file is up to date.
+   */
+  public async flush(): Promise<void> {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    if (!this.isWriting && !this.writeQueued) {
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.flushResolvers.push(resolve);
+      this.triggerAsyncWrite();
+    });
+  }
+
+  /**
+   * Primary save method called by repositories: non-blocking async debounced.
+   */
+  public save(): void {
+    this.requestSave(false);
+  }
+
+  /**
+   * Synchronous write fallback for process termination or test teardown.
+   */
+  public saveSync(): void {
+    try {
+      const tempPath = `${this.filePath}.tmp`;
+      const jsonStr = JSON.stringify(this.data, null, 2);
+      fs.writeFileSync(tempPath, jsonStr, 'utf-8');
+      fs.renameSync(tempPath, this.filePath);
+    } catch (err) {
+      console.error('Database sync write error:', err);
     }
   }
 
