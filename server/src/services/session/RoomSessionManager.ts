@@ -250,6 +250,8 @@ export class RoomSessionManager {
       narrativeText: prologueResult.narrative,
       audioUrl: synthResult.audioUrl,
       currentSituation: prologueResult.currentSituation,
+      choiceDilemma: prologueResult.choiceDilemma,
+      mood: prologueResult.mood || 'mystery',
       targetDC: startDC,
       dcReason: startDCReason,
       requiredCheckStat: startCheckStat,

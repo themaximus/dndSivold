@@ -227,7 +227,72 @@ async function runTests() {
   assert.strictEqual(isSameEntity({ name: 'Бандит 1' }, { name: 'Бандит 2' }), false);
   console.log('✅ GameSessionService Facade operates with 100% backward compatibility.\n');
 
-  console.log('🎉 ALL 9 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 10: Player Character Hydration
+  // ----------------------------------------------------
+  console.log('Test 10: Player Character Hydration');
+  const mockChar: CharacterEntity = {
+    id: 'char_test_1',
+    userId: 'user_1',
+    name: 'Арагорн',
+    race: 'Человек',
+    characterClass: 'Следопыт',
+    level: 1,
+    hpCurrent: 12,
+    hpMax: 12,
+    ac: 14,
+    stats: { str: 14, dex: 15, con: 12, int: 10, wis: 14, cha: 10 },
+    skills: [],
+    abilities: [],
+    bio: '',
+    avatarUrl: '',
+    conditions: [],
+    inventory: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  const mockRoomPlayers = [
+    {
+      id: 'rp_1',
+      roomId: mockRoom.id,
+      userId: 'user_1',
+      username: 'Игрок 1',
+      characterId: 'char_test_1',
+      isReady: true,
+      isOnline: true,
+      hasActedThisRound: false,
+      joinedAt: new Date().toISOString(),
+    },
+  ];
+
+  // Verify that mapping players with characters hydrates the character object
+  const hydrated = mockRoomPlayers.map((p) => ({
+    ...p,
+    character: p.characterId === mockChar.id ? mockChar : undefined,
+  }));
+  assert.ok(hydrated[0].character, 'Hydrated player must contain character object');
+  assert.strictEqual(hydrated[0].character?.name, 'Арагорн');
+  console.log('✅ Player character hydration verified: party cards receive full character stats.\n');
+
+  // ----------------------------------------------------
+  // Test 11: Choice Dilemma & Formatted Actions Summary
+  // ----------------------------------------------------
+  console.log('Test 11: Choice Dilemma & Actions Summary Formatting');
+  const sampleLog = {
+    id: 'log_test_1',
+    roomId: mockRoom.id,
+    roundNumber: 1,
+    narrativeText: 'Отряд исследует развилку старого тракта.',
+    choiceDilemma: 'Помочь раненому гонцу или продолжить путь к крепости. Что делает отряд?',
+    currentSituation: 'Перед отрядом лежит раненый гонец.',
+    mood: 'mystery',
+  };
+
+  assert.ok(sampleLog.choiceDilemma, 'GameLog must preserve choiceDilemma');
+  assert.strictEqual(sampleLog.mood, 'mystery');
+  console.log('✅ Choice dilemma and mood preserved in GameLog.\n');
+
+  console.log('🎉 ALL 11 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

@@ -26,7 +26,21 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
   onInspect,
 }) => {
   const char = player.character;
-  if (!char) return null;
+  if (!char) {
+    return (
+      <div className="p-3 rounded-xl border border-fantasy-border/60 bg-fantasy-card/70 flex items-center justify-between">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-amber-400 text-sm">
+            {player.username?.[0]?.toUpperCase() || '?'}
+          </div>
+          <div className="min-w-0">
+            <div className="font-bold text-sm text-slate-200 truncate">{player.username}</div>
+            <div className="text-[11px] text-slate-400">Персонаж подключается...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const hpPercent = Math.max(0, Math.min(100, Math.round((char.hpCurrent / char.hpMax) * 100)));
 

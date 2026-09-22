@@ -69,14 +69,29 @@ export function useGameSession(roomCode: string) {
     }
     socket.on('connect', handleConnect);
 
+    const mergePlayersWithCharacters = (newPlayers: RoomPlayer[], prevPlayers: RoomPlayer[]): RoomPlayer[] => {
+      return newPlayers.map(np => {
+        if (!np.character) {
+          const existing = prevPlayers.find(op => (op.id && op.id === np.id) || op.userId === np.userId);
+          if (existing?.character) {
+            return { ...np, character: existing.character };
+          }
+        }
+        return np;
+      });
+    };
+
     socket.on('room_players_updated', (updatedPlayers: RoomPlayer[]) => {
-      setPlayers(updatedPlayers);
-      const me = updatedPlayers.find(p => p.userId === user?.id);
-      if (me) {
-        setMyPlayer(me);
-        setHasSubmittedThisRound(me.hasActedThisRound);
-        if (me.character) setMyCharacter(me.character);
-      }
+      setPlayers(prev => {
+        const merged = mergePlayersWithCharacters(updatedPlayers, prev);
+        const me = merged.find(p => p.userId === user?.id);
+        if (me) {
+          setMyPlayer(me);
+          setHasSubmittedThisRound(me.hasActedThisRound);
+          if (me.character) setMyCharacter(me.character);
+        }
+        return merged;
+      });
     });
 
     socket.on('room_updated', (updatedRoom: Room) => {
@@ -104,14 +119,16 @@ export function useGameSession(roomCode: string) {
 
       setLogs(prev => [...prev, data.log]);
       setRoom(data.room);
-      setPlayers(data.players);
-
-      const me = data.players.find(p => p.userId === user?.id);
-      if (me) {
-        setMyPlayer(me);
-        setHasSubmittedThisRound(me.hasActedThisRound);
-        if (me.character) setMyCharacter(me.character);
-      }
+      setPlayers(prev => {
+        const merged = mergePlayersWithCharacters(data.players, prev);
+        const me = merged.find(p => p.userId === user?.id);
+        if (me) {
+          setMyPlayer(me);
+          setHasSubmittedThisRound(me.hasActedThisRound);
+          if (me.character) setMyCharacter(me.character);
+        }
+        return merged;
+      });
 
       soundFx.playTurnStart();
     });
@@ -122,13 +139,15 @@ export function useGameSession(roomCode: string) {
 
       setLogs(prev => [...prev, data.log]);
       setRoom(data.room);
-      setPlayers(data.players);
-
-      const me = data.players.find(p => p.userId === user?.id);
-      if (me) {
-        setMyPlayer(me);
-        if (me.character) setMyCharacter(me.character);
-      }
+      setPlayers(prev => {
+        const merged = mergePlayersWithCharacters(data.players, prev);
+        const me = merged.find(p => p.userId === user?.id);
+        if (me) {
+          setMyPlayer(me);
+          if (me.character) setMyCharacter(me.character);
+        }
+        return merged;
+      });
 
       soundFx.playTurnStart();
 

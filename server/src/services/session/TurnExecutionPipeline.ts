@@ -39,11 +39,12 @@ import { sceneEntityManager } from './SceneEntityManager';
 import { actionIntentEngine } from './ActionIntentEngine';
 import { inventoryLedgerService } from './InventoryLedgerService';
 import { narrativeSynthesizer } from './NarrativeSynthesizer';
+import { roomSessionManager } from './RoomSessionManager';
 
 export interface RoundResolutionResult {
   log?: GameLogEntity;
   room: RoomEntity;
-  players: RoomPlayerEntity[];
+  players: any[];
   nextRoundNumber: number;
   inventoryNotifications?: InventoryNotification[];
   rejectedAction?: {
@@ -55,7 +56,7 @@ export interface RoundResolutionResult {
 export interface TurnStepResolutionResult {
   log?: GameLogEntity;
   room: RoomEntity;
-  players: RoomPlayerEntity[];
+  players: any[];
   isRoundComplete: boolean;
   nextActiveUserId?: string;
   nextRoundNumber?: number;
@@ -255,9 +256,10 @@ export class TurnExecutionPipeline {
 
     // 6. Check for rejected action (absurd request)
     if (dmResult.rejectedAction && dmResult.rejectedAction.characterName) {
+      const updated = roomSessionManager.getRoomAndPlayers(room.code);
       return {
-        room: sanitizeRoom(room),
-        players: this.rooms.findPlayersByRoomId(room.id),
+        room: updated?.room || sanitizeRoom(room),
+        players: updated?.players || this.rooms.findPlayersByRoomId(room.id),
         isRoundComplete: false,
         nextRoundNumber: room.roundNumber,
         rejectedAction: dmResult.rejectedAction,
@@ -397,18 +399,41 @@ export class TurnExecutionPipeline {
     }
 
     // 13. Create Game Log
-    const actionsSummary = actionsToResolve
-      .map((a) => `${a.characterName}: ${a.actionText}`)
-      .join('\n');
+    const actionsSummary = this.formatActionsSummary(
+      actionsToResolve,
+      room.targetDC || 12,
+      itemActivities,
+      completedReactionsList
+    );
+
+    const createdLoot =
+      dmResult.droppedLoot && dmResult.droppedLoot.length > 0
+        ? dmResult.droppedLoot.map((l) => ({
+            id: crypto.randomUUID(),
+            name: l.name,
+            type: l.type,
+            description: l.description,
+            damage: l.damage,
+            ac_bonus: l.ac_bonus,
+            healAmount: l.healAmount,
+            quantity: 1,
+            roundDropped: room.roundNumber,
+          }))
+        : undefined;
 
     const createdLog = this.gameLogs.create({
       id: crypto.randomUUID(),
       roomId: room.id,
       roundNumber: room.roundNumber,
+      turnPlayerName: isTurnByTurn
+        ? actionsToResolve[0]?.characterName || 'Игрок'
+        : undefined,
       actionsSummary,
       narrativeText: dmResult.narrative,
       audioUrl: synthResult.audioUrl,
       currentSituation: dmResult.currentSituation,
+      choiceDilemma: dmResult.choiceDilemma,
+      mood: dmResult.mood,
       targetDC: dmResult.nextRoundDC || room.targetDC,
       dcReason: dmResult.nextRoundDCReason || room.dcReason,
       requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
@@ -420,6 +445,7 @@ export class TurnExecutionPipeline {
         note: u.note || '',
       })),
       ruleViolations: dmResult.ruleViolations || [],
+      droppedLoot: createdLoot,
       createdAt: new Date().toISOString(),
     });
 
@@ -491,12 +517,14 @@ export class TurnExecutionPipeline {
       },
     });
 
-    const finalPlayers = this.rooms.findPlayersByRoomId(room.id);
+    const updated = roomSessionManager.getRoomAndPlayers(room.code);
+    const finalRoom = updated?.room || sanitizeRoom(updatedRoom || room);
+    const finalPlayers = updated?.players || this.rooms.findPlayersByRoomId(room.id);
 
     if (isTurnByTurn) {
       return {
         log: createdLog,
-        room: sanitizeRoom(updatedRoom || room),
+        room: finalRoom,
         players: finalPlayers,
         isRoundComplete,
         nextActiveUserId,
@@ -506,12 +534,85 @@ export class TurnExecutionPipeline {
     } else {
       return {
         log: createdLog,
-        room: sanitizeRoom(updatedRoom || room),
+        room: finalRoom,
         players: finalPlayers,
         nextRoundNumber,
         inventoryNotifications,
       } as RoundResolutionResult;
     }
+  }
+
+  /**
+   * Formats player actions, d20 checks, check verdicts (★ УСПЕХ / ✗ ПРОВАЛ),
+   * inventory activities, and companion reactions into a rich summary.
+   */
+  private formatActionsSummary(
+    actions: TurnActionEntity[],
+    targetDC: number,
+    itemActivities: Record<string, string[]>,
+    completedReactions?: CharacterReactionRequest[]
+  ): string {
+    const actionBlocks = actions.map((a) => {
+      const roll = a.diceRolls && a.diceRolls.length > 0 ? a.diceRolls[0] : null;
+      let verdict = '';
+      if (roll) {
+        const sign = (roll.modifier ?? 0) >= 0 ? '+' : '';
+        const statLabel = roll.statName ? ` (${roll.statName.toUpperCase()})` : '';
+        const rollExpr = `d20 [${roll.baseRoll ?? roll.total}]${sign}${roll.modifier ?? 0} = ${roll.total}${statLabel}`;
+        const dc = targetDC || 12;
+
+        if (roll.isCriticalSuccess || roll.total >= 20) {
+          verdict = `★ КРИТ. УСПЕХ (${rollExpr})`;
+        } else if (roll.isCriticalFail || roll.total <= 1) {
+          verdict = `☠ КРИТ. ПРОВАЛ (${rollExpr})`;
+        } else if (roll.total >= dc) {
+          verdict = `★ УСПЕХ (${rollExpr} vs СЛ ${dc})`;
+        } else {
+          verdict = `✗ ПРОВАЛ (${rollExpr} vs СЛ ${dc})`;
+        }
+      }
+
+      const charItems = itemActivities[a.characterId];
+      const itemsLine =
+        charItems && charItems.length > 0
+          ? `\n   ↳ 🎒 [Инвентарь]: ${charItems.join('; ')}`
+          : '';
+
+      return `【${a.characterName}】: «${a.actionText}»${verdict ? `\n   ↳ ${verdict}` : ''}${itemsLine}`;
+    });
+
+    let reactionsText = '';
+    if (completedReactions && completedReactions.length > 0) {
+      reactionsText =
+        '\n\n' +
+        completedReactions
+          .map((r) => {
+            const rRoll = r.reactionRoll;
+            let rVerdict = '';
+            if (rRoll) {
+              const sign = (rRoll.modifier ?? 0) >= 0 ? '+' : '';
+              const rollExpr = `d20 [${rRoll.baseRoll ?? rRoll.total}]${sign}${rRoll.modifier ?? 0} = ${rRoll.total}`;
+              const dc = targetDC || 12;
+              rVerdict = rRoll.isCriticalSuccess
+                ? `★ КРИТ. УСПЕХ (${rollExpr})`
+                : rRoll.isCriticalFail
+                ? `☠ КРИТ. ПРОВАЛ (${rollExpr})`
+                : rRoll.total >= dc
+                ? `★ УСПЕХ (${rollExpr} vs СЛ ${dc})`
+                : `✗ ПРОВАЛ (${rollExpr} vs СЛ ${dc})`;
+            }
+            const typeBadge =
+              r.responseType === 'negative'
+                ? '⚔️ [Противодействие]'
+                : r.responseType === 'counter'
+                ? '🛡️ [Защита/Парирование]'
+                : '🤝 [Содействие]';
+            return `【${r.targetCharacterName}】: ${typeBadge} «${r.reactionText || ''}»${rVerdict ? `\n   ↳ ${rVerdict}` : ''}`;
+          })
+          .join('\n\n');
+    }
+
+    return actionBlocks.join('\n\n') + reactionsText;
   }
 }
 

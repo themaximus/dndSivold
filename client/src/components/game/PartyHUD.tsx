@@ -46,15 +46,14 @@ export const PartyHUD: React.FC<PartyHUDProps> = ({
         {/* Member Cards */}
         <div className="space-y-3 overflow-y-auto flex-1 pr-1 custom-scrollbar">
           {players.map(p => {
-            if (!p.character) return null;
             const isActiveTurn = turnMode === 'turn_by_turn' && activePlayerUserId === p.userId;
             return (
               <PartyMemberCard
-                key={p.id}
+                key={p.id || p.userId}
                 player={p}
                 isCurrentUser={p.userId === currentUserId}
                 isActiveTurn={isActiveTurn}
-                onInspect={() => setInspectedCharacter(p.character || null)}
+                onInspect={() => p.character && setInspectedCharacter(p.character)}
               />
             );
           })}
