@@ -4,10 +4,16 @@ import { SceneEntityManager, stemRussianWord, extractSearchTokens } from '../ser
 import { ActionIntentEngine } from '../services/session/ActionIntentEngine';
 import { InventoryLedgerService } from '../services/session/InventoryLedgerService';
 import { RoomTransactionMutex } from '../services/session/RoomTransactionMutex';
-import { RoomEntity, CharacterEntity, GameLogEntity, EnvironmentObjectEntity } from '../db';
+import { RoomEntity, CharacterEntity, GameLogEntity, EnvironmentObjectEntity, db } from '../db';
 import { gameSessionService, isSameEntity } from '../services/game/GameSessionService';
 import { ServiceLocator, systemLocator } from '../services/session/ServiceLocator';
 import { questArbiter } from '../services/game/QuestArbiter';
+import { cryptoService } from '../services/security/CryptoService';
+import { aiProviderFactory } from '../services/ai/AIProviderFactory';
+import { GeminiAIProvider } from '../services/ai/GeminiAIProvider';
+import { DeepSeekAIProvider } from '../services/ai/DeepSeekAIProvider';
+import { narrativeSynthesizer } from '../services/session/NarrativeSynthesizer';
+import { roomSessionManager } from '../services/session/RoomSessionManager';
 
 async function runTests() {
   console.log('🚀 Starting Architecture Verification Test Suite...\n');
@@ -1231,13 +1237,6 @@ async function runTests() {
   // Test 27: Encrypted Gemini Key Resolution, Simulation Fallback & Turn Action Rollback
   // ----------------------------------------------------
   console.log('Test 27: Encrypted Gemini Key Resolution, Simulation Fallback & Turn Action Rollback');
-  const { cryptoService } = await import('../services/security/CryptoService');
-  const { aiProviderFactory } = await import('../services/ai/AIProviderFactory');
-  const { GeminiAIProvider } = await import('../services/ai/GeminiAIProvider');
-  const { DeepSeekAIProvider } = await import('../services/ai/DeepSeekAIProvider');
-  const { narrativeSynthesizer } = await import('../services/session/NarrativeSynthesizer');
-  const { roomSessionManager } = await import('../services/session/RoomSessionManager');
-  const { db } = await import('../db');
 
   // 1. Verify encrypted Gemini key is correctly decrypted and routes to GeminiAIProvider
   const rawGeminiKey = 'AIzaSyTestGeminiKey1234567890';
