@@ -315,7 +315,10 @@ export class TurnExecutionPipeline {
       room,
       room.roundNumber,
       dmResult.searchedObjectUpdates,
-      actionsToResolve[0]?.characterName
+      actionsToResolve[0]?.characterName,
+      actionsToResolve[0]?.characterId,
+      inventoryNotifications,
+      itemActivities
     );
 
     // Procedural item recovery for acting characters
@@ -475,23 +478,26 @@ export class TurnExecutionPipeline {
       roundNumber: room.roundNumber,
       timestamp: new Date().toISOString(),
       turnMode: room.turnMode || 'simultaneous',
-      charactersSnapshot: activeCharacters.map((c) => ({
-        id: c.id,
-        name: c.name,
-        race: c.race,
-        characterClass: c.characterClass,
-        level: c.level,
-        hpCurrent: c.hpCurrent,
-        hpMax: c.hpMax,
-        ac: c.ac,
-        stats: c.stats,
-        conditions: c.conditions || [],
-        inventorySummary: (c.inventory || []).map((i) => ({
-          name: i.name,
-          quantity: i.quantity,
-          type: i.type,
-        })),
-      })),
+      charactersSnapshot: activeCharacters.map((c) => {
+        const fresh = this.characters.findById(c.id) || c;
+        return {
+          id: fresh.id,
+          name: fresh.name,
+          race: fresh.race,
+          characterClass: fresh.characterClass,
+          level: fresh.level,
+          hpCurrent: fresh.hpCurrent,
+          hpMax: fresh.hpMax,
+          ac: fresh.ac,
+          stats: fresh.stats,
+          conditions: fresh.conditions || [],
+          inventorySummary: (fresh.inventory || []).map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            type: i.type,
+          })),
+        };
+      }),
       enemiesBefore: room.activeEnemies || [],
       sceneNPCsBefore: room.sceneNPCs || [],
       actions: actionsToResolve.map((a) => ({

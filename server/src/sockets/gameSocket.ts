@@ -16,6 +16,15 @@ interface AuthenticatedSocket extends Socket {
   username?: string;
 }
 
+function broadcastCharacterUpdates(io: Server, roomId: string, players?: any[]) {
+  if (!Array.isArray(players)) return;
+  for (const p of players) {
+    if (p.character) {
+      io.to(roomId).emit('character_updated', p.character);
+    }
+  }
+}
+
 export function setupGameSockets(io: Server) {
   // Authentication middleware
   io.use((socket: AuthenticatedSocket, next) => {
@@ -271,6 +280,7 @@ export function setupGameSockets(io: Server) {
                   nextActiveUserId: turnResolved.nextActiveUserId,
                 });
                 io.to(room.id).emit('room_players_updated', turnResolved.players);
+                broadcastCharacterUpdates(io, room.id, turnResolved.players);
                 io.to(room.id).emit('narrator_playing', {
                   logId: turnResolved.log.id,
                   narrativeText: turnResolved.log.narrativeText,
@@ -284,6 +294,7 @@ export function setupGameSockets(io: Server) {
                   nextRoundNumber: turnResolved.nextRoundNumber,
                 });
                 io.to(room.id).emit('room_players_updated', turnResolved.players);
+                broadcastCharacterUpdates(io, room.id, turnResolved.players);
                 io.to(room.id).emit('narrator_playing', {
                   logId: turnResolved.log.id,
                   narrativeText: turnResolved.log.narrativeText,
@@ -418,6 +429,7 @@ export function setupGameSockets(io: Server) {
                     nextActiveUserId: turnResolved.nextActiveUserId,
                   });
                   io.to(room.id).emit('room_players_updated', turnResolved.players);
+                  broadcastCharacterUpdates(io, room.id, turnResolved.players);
                   io.to(room.id).emit('narrator_playing', {
                     logId: turnResolved.log.id,
                     narrativeText: turnResolved.log.narrativeText,
@@ -431,6 +443,7 @@ export function setupGameSockets(io: Server) {
                     nextRoundNumber: turnResolved.nextRoundNumber,
                   });
                   io.to(room.id).emit('room_players_updated', turnResolved.players);
+                  broadcastCharacterUpdates(io, room.id, turnResolved.players);
                   io.to(room.id).emit('narrator_playing', {
                     logId: turnResolved.log.id,
                     narrativeText: turnResolved.log.narrativeText,
@@ -533,6 +546,7 @@ export function setupGameSockets(io: Server) {
                   nextActiveUserId: turnResolved.nextActiveUserId,
                 });
                 io.to(room.id).emit('room_players_updated', turnResolved.players);
+                broadcastCharacterUpdates(io, room.id, turnResolved.players);
                 io.to(room.id).emit('narrator_playing', {
                   logId: turnResolved.log.id,
                   narrativeText: turnResolved.log.narrativeText,
@@ -546,6 +560,7 @@ export function setupGameSockets(io: Server) {
                   nextRoundNumber: turnResolved.nextRoundNumber,
                 });
                 io.to(room.id).emit('room_players_updated', turnResolved.players);
+                broadcastCharacterUpdates(io, room.id, turnResolved.players);
                 io.to(room.id).emit('narrator_playing', {
                   logId: turnResolved.log.id,
                   narrativeText: turnResolved.log.narrativeText,
@@ -969,6 +984,7 @@ export function setupGameSockets(io: Server) {
               });
             }
             io.to(room.id).emit('room_players_updated', turnResolved.players);
+            broadcastCharacterUpdates(io, room.id, turnResolved.players);
             io.to(room.id).emit('narrator_playing', {
               logId: turnResolved.log.id,
               narrativeText: turnResolved.log.narrativeText,

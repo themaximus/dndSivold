@@ -23,6 +23,7 @@ import {
   SearchedObjectUpdate,
 } from '../../domain/types';
 import { sanitizeRoom } from '../security/CryptoService';
+import { stemRussianWord } from './SceneEntityManager';
 
 export class InventoryLedgerService {
   private rooms: IRoomRepository;
@@ -95,6 +96,9 @@ export class InventoryLedgerService {
   /**
    * Applies inventory updates from AI or DM resolution, recording ledger entries.
    */
+  /**
+   * Applies inventory updates from AI or DM resolution, recording ledger entries.
+   */
   public applyInventoryUpdates(
     room: RoomEntity,
     updates: InventoryUpdate[] | undefined,
@@ -104,41 +108,146 @@ export class InventoryLedgerService {
   ): void {
     if (!updates || !Array.isArray(updates)) return;
 
+    // Collect all characters currently in the room
+    const roomPlayers = this.rooms.findPlayersByRoomId(room.id);
+    const roomCharacters: CharacterEntity[] = [];
+    for (const p of roomPlayers) {
+      if (p.characterId) {
+        const c = this.characters.findById(p.characterId);
+        if (c) roomCharacters.push(c);
+      }
+    }
+
     for (const update of updates) {
       if (!update.item || !update.item.name) continue;
 
       let targetChar: CharacterEntity | undefined;
+
+      // 1. Direct ID match within room characters
       if (update.characterId) {
+        targetChar = roomCharacters.find((c) => c.id === update.characterId);
+      }
+
+      // 2. Match by exact or stemmed character name among room characters
+      if (!targetChar && update.characterName) {
+        const queryName = update.characterName.trim().toLowerCase();
+        const stemmedQuery = stemRussianWord(queryName);
+
+        targetChar = roomCharacters.find((c) => {
+          const cName = c.name.trim().toLowerCase();
+          return (
+            cName === queryName ||
+            stemRussianWord(cName) === stemmedQuery ||
+            cName.includes(queryName) ||
+            queryName.includes(cName)
+          );
+        });
+      }
+
+      // 3. Match if update.characterId was actually an alias/name (e.g. "char_kirilchik" or "Кирильчик")
+      if (!targetChar && update.characterId) {
+        const queryId = update.characterId.trim().toLowerCase();
+        const stemmedId = stemRussianWord(queryId);
+
+        targetChar = roomCharacters.find((c) => {
+          const cName = c.name.trim().toLowerCase();
+          return (
+            cName === queryId ||
+            stemRussianWord(cName) === stemmedId ||
+            queryId.includes(cName) ||
+            cName.includes(queryId)
+          );
+        });
+      }
+
+      // 4. Single-player fallback: if only 1 character is in the room, route updates to them
+      if (!targetChar && roomCharacters.length === 1) {
+        targetChar = roomCharacters[0];
+      }
+
+      // 5. Global database lookup fallback
+      if (!targetChar && update.characterId) {
         targetChar = this.characters.findById(update.characterId);
       }
-      if (!targetChar && update.characterName) {
-        const roomPlayers = this.rooms.findPlayersByRoomId(room.id);
-        for (const p of roomPlayers) {
-          if (p.characterId) {
-            const c = this.characters.findById(p.characterId);
-            if (c && c.name.toLowerCase().trim() === update.characterName.toLowerCase().trim()) {
-              targetChar = c;
-              break;
-            }
-          }
-        }
-      }
+
       if (!targetChar) continue;
 
       const itemName = update.item.name.trim();
       const qty = update.item.quantity || 1;
+
+      // Auto-detect item type and weapon/armor/potion properties if omitted or generic
+      let itemType: string = (update.item.type as any) || 'misc';
+      let damage = update.item.damage;
+      let ac_bonus = update.item.ac_bonus;
+      let healAmount = update.item.healAmount;
+
+      const lowerName = itemName.toLowerCase();
+      if (!itemType || itemType === 'misc') {
+        if (
+          lowerName.includes('арбалет') ||
+          lowerName.includes('лук') ||
+          lowerName.includes('меч') ||
+          lowerName.includes('топор') ||
+          lowerName.includes('секира') ||
+          lowerName.includes('кинжал') ||
+          lowerName.includes('молот') ||
+          lowerName.includes('копь') ||
+          lowerName.includes('клинок') ||
+          lowerName.includes('булава') ||
+          lowerName.includes('посох')
+        ) {
+          itemType = 'weapon';
+        } else if (
+          lowerName.includes('щит') ||
+          lowerName.includes('доспех') ||
+          lowerName.includes('кольчуга') ||
+          lowerName.includes('латы') ||
+          lowerName.includes('шлем')
+        ) {
+          itemType = 'armor';
+        } else if (
+          lowerName.includes('зелье') ||
+          lowerName.includes('эликсир') ||
+          lowerName.includes('снадобье')
+        ) {
+          itemType = 'potion';
+        }
+      }
+
+      // Sensible defaults for weapons/armor/potions if damage/bonus missing
+      if (itemType === 'weapon' && !damage) {
+        if (lowerName.includes('арбалет') || lowerName.includes('тяжел') || lowerName.includes('двуруч')) {
+          damage = '1d8';
+        } else if (lowerName.includes('секира') || lowerName.includes('великий')) {
+          damage = '1d12';
+        } else if (lowerName.includes('кинжал')) {
+          damage = '1d4';
+        } else {
+          damage = '1d6';
+        }
+      }
+
+      if (itemType === 'armor' && !ac_bonus) {
+        if (lowerName.includes('щит')) ac_bonus = 2;
+        else if (lowerName.includes('лат')) ac_bonus = 3;
+        else ac_bonus = 1;
+      }
+
+      if (itemType === 'potion' && !healAmount) {
+        healAmount = 8;
+      }
 
       if (update.action === 'add') {
         const historyNote = update.reason || `Получено в раунде ${roundNumber}`;
         const itemPayload = {
           id: crypto.randomUUID(),
           name: itemName,
-          type: (update.item.type as any) || 'misc',
+          type: itemType as any,
           description: update.item.description || 'Полученный предмет.',
           quantity: qty,
-          damage: update.item.damage,
-          ac_bonus: update.item.ac_bonus,
-          healAmount: update.item.healAmount,
+          damage,
+          ac_bonus,
+          healAmount,
           history: [historyNote],
         };
 
@@ -207,18 +316,49 @@ export class InventoryLedgerService {
   /**
    * Manages registry of searched objects, carts, containers, rooms.
    * Ensures that once an object is searched, it is marked 'searched' in DB to prevent infinite loot.
+   * Also guarantees that any items listed in extractedItems are added to the acting character's inventory
+   * if not already added by inventoryUpdates.
    */
   public handleSearchedObjects(
     room: RoomEntity,
     roundNumber: number,
     searchedUpdates: SearchedObjectUpdate[] | undefined,
-    actingCharacterName?: string
+    actingCharacterName?: string,
+    actingCharacterId?: string,
+    inventoryNotifications?: InventoryNotification[],
+    itemActivitiesByCharacter?: Record<string, string[]>
   ): void {
     if (!room.searchedObjectsRegistry) {
       room.searchedObjectsRegistry = [];
     }
 
     if (!searchedUpdates || !Array.isArray(searchedUpdates)) return;
+
+    // Resolve room characters
+    const roomPlayers = this.rooms.findPlayersByRoomId(room.id);
+    const roomCharacters: CharacterEntity[] = [];
+    for (const p of roomPlayers) {
+      if (p.characterId) {
+        const c = this.characters.findById(p.characterId);
+        if (c) roomCharacters.push(c);
+      }
+    }
+
+    let recipientChar: CharacterEntity | undefined;
+    if (actingCharacterId) {
+      recipientChar = roomCharacters.find((c) => c.id === actingCharacterId) || this.characters.findById(actingCharacterId);
+    }
+    if (!recipientChar && actingCharacterName) {
+      const q = actingCharacterName.trim().toLowerCase();
+      const sq = stemRussianWord(q);
+      recipientChar = roomCharacters.find((c) => {
+        const cName = c.name.trim().toLowerCase();
+        return cName === q || stemRussianWord(cName) === sq || cName.includes(q) || q.includes(cName);
+      });
+    }
+    if (!recipientChar && roomCharacters.length === 1) {
+      recipientChar = roomCharacters[0];
+    }
 
     for (const update of searchedUpdates) {
       const targetName = update.targetName || 'Объект';
@@ -268,6 +408,94 @@ export class InventoryLedgerService {
         entry.extractedItems,
         entry.narrativeNote
       );
+
+      // GUARANTEE: If items were extracted, ensure they exist in recipient character's inventory!
+      if (recipientChar && update.extractedItems && update.extractedItems.length > 0) {
+        const freshChar = this.characters.findById(recipientChar.id) || recipientChar;
+        for (const rawItemName of update.extractedItems) {
+          if (!rawItemName || typeof rawItemName !== 'string') continue;
+          const cleanItemName = rawItemName.trim();
+          if (!cleanItemName) continue;
+
+          // Check if already notified or added this round
+          const alreadyNotified = inventoryNotifications?.some(
+            (n) => n.characterId === freshChar.id && n.itemName.toLowerCase().trim() === cleanItemName.toLowerCase()
+          );
+          const alreadyInInventory = freshChar.inventory?.some(
+            (i) => i.name.toLowerCase().trim() === cleanItemName.toLowerCase()
+          );
+
+          if (!alreadyNotified && !alreadyInInventory) {
+            const lowerName = cleanItemName.toLowerCase();
+            let type: any = 'misc';
+            let damage: string | undefined;
+            let quantity = 1;
+
+            if (
+              lowerName.includes('арбалет') ||
+              lowerName.includes('лук') ||
+              lowerName.includes('меч') ||
+              lowerName.includes('топор') ||
+              lowerName.includes('секира') ||
+              lowerName.includes('кинжал') ||
+              lowerName.includes('молот') ||
+              lowerName.includes('копь')
+            ) {
+              type = 'weapon';
+              damage = lowerName.includes('арбалет') ? '1d8' : lowerName.includes('секира') ? '1d12' : '1d6';
+            } else if (lowerName.includes('болт') || lowerName.includes('стрел')) {
+              type = 'misc';
+              quantity = 20;
+            } else if (lowerName.includes('зелье') || lowerName.includes('эликсир') || lowerName.includes('снадобье')) {
+              type = 'potion';
+            }
+
+            const historyNote = `Извлечено из: ${update.targetName || 'тайника'} в раунде ${roundNumber}`;
+            const itemPayload = {
+              id: crypto.randomUUID(),
+              name: cleanItemName,
+              type,
+              description: `Предмет, найденный при обыске (${update.targetName || 'тайник'}).`,
+              quantity,
+              damage,
+              history: [historyNote],
+            };
+
+            this.characters.addItemToInventory(freshChar.id, itemPayload, historyNote);
+
+            this.itemLedgers.recordItemEvent(
+              freshChar.id,
+              freshChar.name,
+              itemPayload.id,
+              itemPayload.name,
+              itemPayload.type,
+              'in_inventory',
+              quantity,
+              roundNumber,
+              historyNote,
+              room.id
+            );
+
+            if (inventoryNotifications) {
+              inventoryNotifications.push({
+                id: crypto.randomUUID(),
+                characterId: freshChar.id,
+                characterName: freshChar.name,
+                action: 'add',
+                itemName: cleanItemName,
+                quantity,
+                reason: historyNote,
+                timestamp: new Date().toISOString(),
+              });
+            }
+
+            if (itemActivitiesByCharacter) {
+              if (!itemActivitiesByCharacter[freshChar.id]) itemActivitiesByCharacter[freshChar.id] = [];
+              itemActivitiesByCharacter[freshChar.id].push(`Извлечен предмет: ${cleanItemName} (${quantity} шт.)`);
+            }
+          }
+        }
+      }
     }
   }
 

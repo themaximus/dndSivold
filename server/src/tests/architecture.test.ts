@@ -292,7 +292,126 @@ async function runTests() {
   assert.strictEqual(sampleLog.mood, 'mystery');
   console.log('✅ Choice dilemma and mood preserved in GameLog.\n');
 
-  console.log('🎉 ALL 11 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 12: Inventory Resolution, Weapon Auto-Typing & Container Extraction
+  // ----------------------------------------------------
+  console.log('Test 12: Inventory Resolution & Container Extracted Items Guarantee');
+  const testChar: CharacterEntity = {
+    id: 'char_kirilchik_uuid_123',
+    userId: 'user_kakashka',
+    name: 'Кирильчик',
+    race: 'Дворф',
+    characterClass: 'Варвар',
+    level: 1,
+    hpCurrent: 16,
+    hpMax: 17,
+    ac: 15,
+    stats: { str: 20, dex: 20, con: 20, int: 20, wis: 20, cha: 12 },
+    skills: [],
+    abilities: [],
+    bio: '',
+    avatarUrl: '',
+    inventory: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  const testRoom: RoomEntity = {
+    id: 'room_inv_test',
+    code: 'INV123',
+    title: 'Test Room',
+    setting: 'fantasy',
+    currentSituation: 'Test Situation',
+    hostUserId: 'user_kakashka',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    roundNumber: 3,
+    sceneEntities: [],
+    activeEnemies: [],
+    sceneNPCs: [],
+    searchedObjectsRegistry: [],
+  };
+
+  const mockRoomsRepo: any = {
+    findPlayersByRoomId: () => [
+      { id: 'rp_1', roomId: testRoom.id, userId: 'user_kakashka', characterId: testChar.id }
+    ],
+  };
+
+  const mockCharsRepo: any = {
+    findById: (id: string) => (id === testChar.id ? testChar : undefined),
+    addItemToInventory: (id: string, item: any, reason?: string) => {
+      if (id === testChar.id) {
+        testChar.inventory.push(item);
+        return testChar;
+      }
+      return null;
+    },
+    removeItemFromInventory: () => null,
+  };
+
+  const mockLedgersRepo: any = {
+    recordItemEvent: () => {},
+  };
+
+  const mockSearchedRepo: any = {
+    recordSearch: () => {},
+  };
+
+  const ils = new InventoryLedgerService(mockRoomsRepo, mockCharsRepo, mockLedgersRepo, mockSearchedRepo);
+
+  const notifications: any[] = [];
+  const activities: any = {};
+
+  // Scenario A: AI returns Russian dative case "Кирильчику" and omits damage/weapon type for "Арбалет из красного дерева"
+  ils.applyInventoryUpdates(
+    testRoom,
+    [
+      {
+        characterName: 'Кирильчику', // dative case!
+        action: 'add',
+        reason: 'Купец Бальтазар благодарит и дарит арбалет.',
+        item: {
+          name: 'Арбалет из красного дерева',
+          // type omitted / misc
+        },
+      },
+    ],
+    3,
+    notifications,
+    activities
+  );
+
+  assert.strictEqual(testChar.inventory.length, 1, 'Character must have received the crossbow');
+  assert.strictEqual(testChar.inventory[0].name, 'Арбалет из красного дерева');
+  assert.strictEqual(testChar.inventory[0].type, 'weapon', 'Weapon type must be auto-inferred');
+  assert.strictEqual(testChar.inventory[0].damage, '1d8', 'Crossbow damage must default to 1d8');
+
+  // Scenario B: Searched object container has extracted items ("Колчан болтов") not in inventoryUpdates
+  ils.handleSearchedObjects(
+    testRoom,
+    3,
+    [
+      {
+        targetName: 'Повозка купца Бальтазара',
+        targetType: 'container',
+        extractedItems: ['Арбалет из красного дерева', 'Колчан болтов'],
+        narrativeNote: 'Обыскано',
+      },
+    ],
+    'Кирильчик',
+    testChar.id,
+    notifications,
+    activities
+  );
+
+  // Crossbow is not duplicated, but bolts are added!
+  assert.strictEqual(testChar.inventory.length, 2, 'Bolts must be added without duplicating crossbow');
+  const bolts = testChar.inventory.find(i => i.name === 'Колчан болтов');
+  assert.ok(bolts, 'Колчан болтов must be in inventory');
+  assert.strictEqual(bolts?.quantity, 20, 'Bolts default quantity should be 20');
+  console.log('✅ Inventory resolution, Russian case inflections, weapon auto-typing, and container extracted items verified.\n');
+
+  console.log('🎉 ALL 12 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

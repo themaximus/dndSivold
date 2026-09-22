@@ -193,7 +193,7 @@ export interface RoomNPC {
 }
 
 export interface InventoryUpdate {
-  characterId: string;
+  characterId?: string;
   characterName?: string;
   action: 'add' | 'remove';
   reason?: string;
