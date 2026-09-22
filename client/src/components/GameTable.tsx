@@ -286,6 +286,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
         {/* Opponents, Threats & Scene NPCs Column (Far Right) */}
         <div className="w-full lg:w-72 xl:w-80 2xl:w-[340px] shrink-0 flex flex-col min-h-0">
           <OpponentsHUD
+            projection={room.sceneProjection}
             enemies={room.activeEnemies || []}
             sceneNPCs={room.sceneNPCs || []}
             quests={room.worldQuests || []}

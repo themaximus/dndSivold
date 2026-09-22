@@ -1,6 +1,118 @@
 import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem, CharacterReactionRequest, QuestEntity, WorldNPCEntry, SearchedObjectEntry, SearchedObjectType } from '../db';
 export { CharacterReactionRequest, QuestEntity, WorldNPCEntry, SearchedObjectEntry, SearchedObjectType };
 
+export type EntityFaction = 'party' | 'allied' | 'neutral' | 'hostile';
+export type EntityCombatRole = 'hostile_threat' | 'ally_combatant' | 'neutral_observer' | 'bystander' | 'hiding' | 'fled';
+export type EntityLifecycle = 'active' | 'hiding' | 'departed' | 'defeated' | 'unconscious' | 'archived';
+
+/**
+ * Universal authoritative Scene Entity.
+ * Single source of truth for all creatures, NPCs, enemies and interactive actors in the scene.
+ * Identified by an immutable UUID (entityId).
+ */
+export interface SceneEntity {
+  entityId: string;                     // Immutable UUID (e.g. ent_1234abcd-...)
+  canonicalName: string;                // Primary display name
+  aliases: string[];                    // Known names, grammatical variations, and speech references
+  entityType: 'creature' | 'npc' | 'interactive_object' | 'boss';
+  faction: EntityFaction;               // Determines base loyalty
+  combatRole: EntityCombatRole;         // Stance in combat
+  lifecycle: EntityLifecycle;           // Active, hiding, departed, etc.
+  stats: {
+    hpCurrent: number;
+    hpMax: number;
+    ac: number;
+    conditions: string[];
+    willpower?: number;
+    willpowerMax?: number;
+  };
+  role?: string;                        // Flavor title (e.g. "Караванщик", "Посланник графской стражи")
+  status: string;                       // Dynamic narrative summary of what the entity is currently doing
+  disposition?: NPCDisposition;
+  location?: {
+    roomId: string;
+    zoneId?: string;                    // Dungeon room, campsite, crossroads, etc.
+  };
+  narrativeNotes?: string[];
+  metadata?: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Thin Client Projected Entity View.
+ * Clean, computed projection sent to frontend. No regex heuristics needed on client.
+ */
+export interface ProjectedEntityView {
+  entityId: string;
+  name: string;
+  role?: string;
+  type?: string;
+  faction: EntityFaction;
+  combatRole: EntityCombatRole;
+  lifecycle: EntityLifecycle;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  status: string;
+  conditions: string[];
+  isDead: boolean;
+  willpower?: number;
+  willpowerMax?: number;
+  disposition?: NPCDisposition;
+  affinity?: number;
+}
+
+/**
+ * Server-projected ViewModel for the thin client.
+ */
+export interface SceneProjectionViewModel {
+  threats: ProjectedEntityView[];        // Hostile combatants in active battle
+  allies: ProjectedEntityView[];         // Allies fighting alongside the party
+  sceneNPCs: ProjectedEntityView[];      // Neutral, peaceful, or bystander NPCs
+  searchedObjects: SearchedObjectEntry[];// Containers / vehicles / rooms with "searched" status
+  worldArchive: WorldNPCEntry[];         // Departed / historical NPCs
+  activeCombat: boolean;
+  currentSituation: string;
+  choiceDilemma?: string;
+  mood?: MoodType;
+  roomDC?: number;
+  roomDCReason?: string;
+}
+
+/**
+ * Structured intent classification produced by ActionIntentEngine.
+ * Eliminates fragile regex matching on raw player text.
+ */
+export type ActionIntentClass =
+  | 'combat_attack'
+  | 'heal_assist'
+  | 'social_influence'
+  | 'investigate_search'
+  | 'defensive_guard'
+  | 'flee_retreat'
+  | 'environment_interaction'
+  | 'rest_recovery'
+  | 'general_action';
+
+export interface ActionIntentDTO {
+  actorUserId: string;
+  actorCharacterId: string;
+  actorCharacterName: string;
+  intentClass: ActionIntentClass;
+  actionText: string;
+  spokenDialogue: string[];
+  physicalAction: string;
+  isPureSpeech: boolean;
+  targetEntityId?: string;              // Resolved exact UUID from SceneEntityManager!
+  targetEntityName?: string;
+  targetObjectKey?: string;             // Resolved searched object key
+  usedItemId?: string;                  // Resolved item ID from character inventory
+  usedItemName?: string;
+  confidence: number;
+}
+
+
 export interface CampaignMapNode {
   id: string;
   title: string;

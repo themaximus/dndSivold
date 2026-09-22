@@ -208,6 +208,44 @@ export interface CharacterReactionRequest {
   createdAt: string;
 }
 
+export type EntityFaction = 'party' | 'allied' | 'neutral' | 'hostile';
+export type EntityCombatRole = 'hostile_threat' | 'ally_combatant' | 'neutral_observer' | 'bystander' | 'hiding' | 'fled';
+export type EntityLifecycle = 'active' | 'hiding' | 'departed' | 'defeated' | 'unconscious' | 'archived';
+
+export interface ProjectedEntityView {
+  entityId: string;
+  name: string;
+  role?: string;
+  type?: string;
+  faction: EntityFaction;
+  combatRole: EntityCombatRole;
+  lifecycle: EntityLifecycle;
+  hpCurrent: number;
+  hpMax: number;
+  ac?: number;
+  status: string;
+  conditions: string[];
+  isDead: boolean;
+  willpower?: number;
+  willpowerMax?: number;
+  disposition?: NPCDisposition;
+  affinity?: number;
+}
+
+export interface SceneProjectionViewModel {
+  threats: ProjectedEntityView[];
+  allies: ProjectedEntityView[];
+  sceneNPCs: ProjectedEntityView[];
+  searchedObjects: SearchedObjectEntry[];
+  worldArchive: WorldNPCEntry[];
+  activeCombat: boolean;
+  currentSituation: string;
+  choiceDilemma?: string;
+  mood?: string;
+  roomDC?: number;
+  roomDCReason?: string;
+}
+
 export interface Room {
   id: string;
   code: string;
@@ -237,6 +275,8 @@ export interface Room {
   worldNPCRegistry?: WorldNPCEntry[];
   worldQuests?: QuestEntity[];
   searchedObjectsRegistry?: SearchedObjectEntry[];
+  sceneProjection?: SceneProjectionViewModel;
+  sceneEntities?: any[];
   createdAt: string;
 }
 

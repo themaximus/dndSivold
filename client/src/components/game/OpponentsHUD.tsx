@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { RoomEnemy, RoomNPC, NPCDisposition, NPCCombatRole, QuestEntity, WorldNPCEntry, SearchedObjectEntry } from '../../types';
+import {
+  RoomEnemy,
+  RoomNPC,
+  NPCDisposition,
+  NPCCombatRole,
+  QuestEntity,
+  WorldNPCEntry,
+  SearchedObjectEntry,
+  SceneProjectionViewModel,
+  ProjectedEntityView,
+} from '../../types';
 import {
   Skull,
   Shield,
@@ -21,6 +31,7 @@ import {
 } from 'lucide-react';
 
 interface OpponentsHUDProps {
+  projection?: SceneProjectionViewModel;
   enemies?: RoomEnemy[];
   enemiesStatus?: string;
   sceneNPCs?: RoomNPC[];
@@ -225,36 +236,99 @@ const isSameEntity = (
 };
 
 export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
+  projection,
   enemies = [],
   enemiesStatus,
   sceneNPCs = [],
   quests = [],
-  worldNPCRegistry = [],
-  searchedObjects = [],
+  worldNPCRegistry: rawWorldNPCRegistry = [],
+  searchedObjects: rawSearchedObjects = [],
 }) => {
-  const activeEnemies = enemies.filter(e => !isEntityDepartedOrDefeated(e));
-  const defeatedEnemies = enemies.filter(e => isEntityDepartedOrDefeated(e));
+  const worldNPCRegistry = projection?.worldArchive && projection.worldArchive.length > 0 ? projection.worldArchive : rawWorldNPCRegistry;
+  const searchedObjects = projection?.searchedObjects && projection.searchedObjects.length > 0 ? projection.searchedObjects : rawSearchedObjects;
 
-  // Exclude NPCs who are already present as active enemies in combat, or archived in world history
-  const isArchivedInWorld = (name?: string) => {
-    if (!name) return false;
-    const clean = name.toLowerCase().trim();
-    return worldNPCRegistry.some(w => {
-      const wClean = (w.name || '').toLowerCase().trim();
-      return wClean && (clean.includes(wClean) || wClean.includes(clean));
-    });
-  };
+  let activeEnemies: RoomEnemy[];
+  let defeatedEnemies: RoomEnemy[];
+  let livingNPCs: RoomNPC[];
+  let fallenNPCs: RoomNPC[];
+  let allyCombatants: RoomNPC[];
 
-  const livingNPCs = sceneNPCs.filter(n =>
-    !isEntityDepartedOrDefeated(n) &&
-    !isArchivedInWorld(n.name) &&
-    !activeEnemies.some(e => isSameEntity(e, n))
-  );
-  const fallenNPCs = sceneNPCs.filter(n =>
-    isEntityDepartedOrDefeated(n) &&
-    !defeatedEnemies.some(e => isSameEntity(e, n))
-  );
-  const allyCombatants = livingNPCs.filter(n => n.combatRole === 'ally_combatant');
+  if (projection && (projection.threats?.length > 0 || projection.sceneNPCs?.length > 0 || projection.allies?.length > 0)) {
+    // Authoritative Server Projection (Thin Client)
+    activeEnemies = (projection.threats || []).map((t: ProjectedEntityView) => ({
+      id: t.entityId,
+      name: t.name,
+      type: t.type || t.role,
+      hpCurrent: t.hpCurrent,
+      hpMax: t.hpMax,
+      ac: t.ac,
+      status: t.status,
+      conditions: t.conditions,
+      isDead: t.isDead,
+      willpower: t.willpower,
+      willpowerMax: t.willpowerMax,
+    }));
+    defeatedEnemies = [];
+
+    const mappedAllies: RoomNPC[] = (projection.allies || []).map((a: ProjectedEntityView) => ({
+      id: a.entityId,
+      name: a.name,
+      role: a.role || 'Союзник',
+      hpCurrent: a.hpCurrent,
+      hpMax: a.hpMax,
+      ac: a.ac,
+      disposition: a.disposition || 'friendly',
+      combatRole: 'ally_combatant' as const,
+      status: a.status,
+      conditions: a.conditions,
+      isDead: a.isDead,
+      willpower: a.willpower,
+      willpowerMax: a.willpowerMax,
+    }));
+
+    const mappedNPCs: RoomNPC[] = (projection.sceneNPCs || []).map((n: ProjectedEntityView) => ({
+      id: n.entityId,
+      name: n.name,
+      role: n.role || 'Персонаж',
+      hpCurrent: n.hpCurrent,
+      hpMax: n.hpMax,
+      ac: n.ac,
+      disposition: n.disposition || 'neutral',
+      combatRole: n.combatRole as any,
+      status: n.status,
+      conditions: n.conditions,
+      isDead: n.isDead,
+      willpower: n.willpower,
+      willpowerMax: n.willpowerMax,
+    }));
+
+    livingNPCs = [...mappedAllies, ...mappedNPCs];
+    allyCombatants = mappedAllies;
+    fallenNPCs = [];
+  } else {
+    activeEnemies = enemies.filter((e) => !isEntityDepartedOrDefeated(e));
+    defeatedEnemies = enemies.filter((e) => isEntityDepartedOrDefeated(e));
+
+    const isArchivedInWorld = (name?: string) => {
+      if (!name) return false;
+      const clean = name.toLowerCase().trim();
+      return worldNPCRegistry.some((w: WorldNPCEntry) => {
+        const wClean = (w.name || '').toLowerCase().trim();
+        return wClean && (clean.includes(wClean) || wClean.includes(clean));
+      });
+    };
+
+    livingNPCs = sceneNPCs.filter(
+      (n) =>
+        !isEntityDepartedOrDefeated(n) &&
+        !isArchivedInWorld(n.name) &&
+        !activeEnemies.some((e) => isSameEntity(e, n))
+    );
+    fallenNPCs = sceneNPCs.filter(
+      (n) => isEntityDepartedOrDefeated(n) && !defeatedEnemies.some((e) => isSameEntity(e, n))
+    );
+    allyCombatants = livingNPCs.filter((n) => n.combatRole === 'ally_combatant');
+  }
 
   const activeQuests = quests.filter(q => q.status === 'active');
   const completedQuests = quests.filter(q => q.status === 'completed');
@@ -956,7 +1030,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                             <p className="text-[10px] text-slate-500">Все встреченные персонажи находятся в текущей сцене.</p>
                           </div>
                         ) : (
-                          worldNPCRegistry.map((wn) => (
+                          worldNPCRegistry.map((wn: WorldNPCEntry) => (
                             <div
                               key={wn.id}
                               className="bg-slate-900/80 border border-purple-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"
@@ -1008,7 +1082,7 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
                             <p className="text-[10px] text-slate-500">Повозки, сундуки и помещения ещё не подвергались обыску.</p>
                           </div>
                         ) : (
-                          searchedObjects.map((obj) => (
+                          searchedObjects.map((obj: SearchedObjectEntry) => (
                             <div
                               key={obj.id}
                               className="bg-slate-900/80 border border-cyan-900/40 rounded-xl p-2.5 space-y-1 shadow-sm"

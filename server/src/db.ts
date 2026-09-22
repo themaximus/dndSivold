@@ -248,6 +248,8 @@ export interface RoomEntity {
   worldNPCRegistry?: WorldNPCEntry[];
   worldQuests?: QuestEntity[];
   searchedObjectsRegistry?: SearchedObjectEntry[];
+  sceneEntities?: any[];
+  sceneProjection?: any;
   genre?: string;
   campaignDuration?: 'short' | 'medium' | 'long';
   campaignMap?: any;
@@ -307,6 +309,8 @@ export interface GameLogEntity {
     hpCurrent: number;
     note: string;
   }[];
+  audioUrl?: string;
+  ruleViolations?: string[];
   currentSituation?: string;
   choiceDilemma?: string;
   mood?: string;
