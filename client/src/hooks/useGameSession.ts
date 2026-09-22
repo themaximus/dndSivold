@@ -426,6 +426,11 @@ export function useGameSession(roomCode: string) {
     socket.emit('force_resolve_round', { roomCode });
   }, [roomCode]);
 
+  const resetPlayerTurn = useCallback((targetUserId?: string) => {
+    const socket = getSocket();
+    socket.emit('reset_player_turn', { roomCode, targetUserId });
+  }, [roomCode]);
+
   const shortRest = useCallback(async (diceCount: number = 1): Promise<{ healedHp: number; diceSpent: number; rolls: number[] }> => {
     if (!myCharacter) throw new Error('Персонаж не выбран');
     const socket = getSocket();
@@ -509,6 +514,7 @@ export function useGameSession(roomCode: string) {
     finishAdventure,
     submitAction,
     forceResolveRound,
+    resetPlayerTurn,
     setTurnMode,
     pickupLoot,
     useItem,

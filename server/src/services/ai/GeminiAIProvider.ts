@@ -9,6 +9,10 @@ export class GeminiAIProvider implements IAIProvider {
   private apiKey: string;
   private primaryModel: string;
   private candidateModels = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-2.5-pro',
     'gemini-3.1-flash-lite',
     'gemini-3.5-flash-lite',
     'gemini-3.6-flash',
@@ -16,9 +20,9 @@ export class GeminiAIProvider implements IAIProvider {
     'gemini-flash-latest',
   ];
 
-  constructor(apiKey: string, model: string = 'gemini-3.1-flash-lite') {
+  constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
     this.apiKey = apiKey;
-    this.primaryModel = model || 'gemini-3.1-flash-lite';
+    this.primaryModel = model || 'gemini-2.5-flash';
   }
 
   public async generatePrologue(context: AIDMPrologueContext): Promise<AIDMResponse> {

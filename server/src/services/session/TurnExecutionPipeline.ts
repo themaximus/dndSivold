@@ -29,7 +29,7 @@ import {
   AIDMResponse,
   InventoryNotification,
 } from '../../domain/types';
-import { sanitizeRoom } from '../security/CryptoService';
+import { cryptoService, sanitizeRoom } from '../security/CryptoService';
 import { mechanicalArbiter, MechanicalResolution } from '../game/MechanicalArbiter';
 import { socialArbiter, ContestedReactionResult } from '../game/SocialArbiter';
 import { questArbiter } from '../game/QuestArbiter';
@@ -243,7 +243,7 @@ export class TurnExecutionPipeline {
     );
 
     const aiContext: AIDMContext = {
-      apiKey: room.deepseekApiKey,
+      apiKey: cryptoService.decrypt(room.deepseekApiKey || ''),
       model: room.deepseekModel,
       setting: room.setting,
       genre: room.genre || 'fantasy',

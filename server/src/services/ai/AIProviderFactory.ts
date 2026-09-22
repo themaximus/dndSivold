@@ -3,10 +3,12 @@ import { GeminiAIProvider } from './GeminiAIProvider';
 import { DeepSeekAIProvider } from './DeepSeekAIProvider';
 import { SimulationAIProvider } from './SimulationAIProvider';
 import { config } from '../../config';
+import { cryptoService } from '../security/CryptoService';
 
 export class AIProviderFactory {
   public getProvider(apiKey?: string, model?: string): IAIProvider {
-    const activeKey = apiKey?.trim() || config.geminiApiKey?.trim() || config.deepseekApiKey?.trim();
+    const rawKey = apiKey?.trim() || config.geminiApiKey?.trim() || config.deepseekApiKey?.trim();
+    const activeKey = rawKey ? cryptoService.decrypt(rawKey).trim() : '';
 
     if (!activeKey) {
       return new SimulationAIProvider();
@@ -18,7 +20,7 @@ export class AIProviderFactory {
       model?.toLowerCase().startsWith('gemini');
 
     if (isGemini) {
-      const geminiModel = model?.startsWith('gemini') ? model : (config.geminiModel || 'gemini-3.1-flash-lite');
+      const geminiModel = model?.startsWith('gemini') ? model : (config.geminiModel || 'gemini-2.5-flash');
       return new GeminiAIProvider(activeKey, geminiModel);
     }
 

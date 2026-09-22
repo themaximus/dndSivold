@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Character, DiceRollResult, RoomEnemy, ActionRejectedEvent } from '../../types';
-import { Dices, Send, Clock, Skull, AlertTriangle, Shield, Swords, Sparkles, CheckCircle2, ShieldAlert, Lock } from 'lucide-react';
+import { Dices, Send, Clock, Skull, AlertTriangle, Shield, Swords, Sparkles, CheckCircle2, ShieldAlert, Lock, RotateCcw, FastForward } from 'lucide-react';
 
 export interface ActionMeta {
   actionType?: 'attack' | 'check' | 'save' | 'improvise';
@@ -28,6 +28,9 @@ interface ActionConsoleProps {
   activeEnemies?: RoomEnemy[];
   rejectedAction?: ActionRejectedEvent | null;
   pendingReactionNames?: string[];
+  isHost?: boolean;
+  onResetTurn?: () => void;
+  onForceResolve?: () => void;
   onRemoveRoll: (index: number) => void;
   onOpenDiceModal: (opts?: { defaultPurpose?: string; defaultAdvantage?: boolean; defaultDisadvantage?: boolean; defaultStatKey?: string }) => void;
   onSubmit: (actionText: string, meta?: ActionMeta) => void;
@@ -60,6 +63,9 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   activeEnemies = [],
   rejectedAction,
   pendingReactionNames = [],
+  isHost,
+  onResetTurn,
+  onForceResolve,
   onOpenDiceModal,
   onSubmit,
   onRollDeathSave,
@@ -192,7 +198,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
     return (
       <div className="p-3 bg-fantasy-card/95 border-t border-fantasy-border flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 text-amber-300">
-          <Clock className="w-4 h-4 text-amber-400 animate-spin" />
+          <Clock className={`w-4 h-4 text-amber-400 ${isDMThinking ? 'animate-spin' : ''}`} />
           <span>
             {isWaitingForReactions
               ? `⏳ Ожидание реакции соратника (${pendingReactionNames.join(', ')}) на совместное действие...`
@@ -201,6 +207,34 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
               : (turnMode === 'turn_by_turn' ? 'Ваш ход совершен! Ожидание других героев...' : 'Действие принято! Ожидание остальных искателей приключений...')}
           </span>
         </div>
+
+        {/* Emergency / Manual Recovery Actions if not thinking */}
+        {!isDMThinking && !isWaitingForReactions && (
+          <div className="flex items-center gap-2">
+            {onResetTurn && (
+              <button
+                type="button"
+                onClick={onResetTurn}
+                className="px-2.5 py-1 rounded bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] border border-slate-600/50 transition-colors flex items-center gap-1"
+                title="Сбросить статус хода и ввести действие заново"
+              >
+                <RotateCcw className="w-3 h-3 text-amber-400" />
+                <span>Сбросить ход</span>
+              </button>
+            )}
+            {isHost && onForceResolve && (
+              <button
+                type="button"
+                onClick={onForceResolve}
+                className="px-2.5 py-1 rounded bg-amber-900/60 hover:bg-amber-800/80 text-amber-200 text-[11px] border border-amber-600/50 transition-colors flex items-center gap-1 font-medium"
+                title="Принудительно подвести итог хода/раунда силами Мастера"
+              >
+                <FastForward className="w-3 h-3 text-amber-300" />
+                <span>Ход Мастера</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -208,13 +242,27 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   // 4. Turn-by-turn wait
   if (turnMode === 'turn_by_turn' && !isMyTurn) {
     return (
-      <div className="p-3 bg-fantasy-card/95 border-t border-fantasy-border flex items-center gap-2 text-xs text-amber-300">
-        <Clock className="w-4 h-4 text-amber-400 animate-spin" />
-        <span>
-          {isDMThinking
-            ? `Мастер Подземелий описывает исход хода игрока (${activePlayerName || 'Соратник'})...`
-            : <>Ходит: <strong className="text-amber-400">{activePlayerName || 'Соратник'}</strong>... Ожидайте своей очереди.</>}
-        </span>
+      <div className="p-3 bg-fantasy-card/95 border-t border-fantasy-border flex items-center justify-between gap-3 text-xs text-amber-300">
+        <div className="flex items-center gap-2">
+          <Clock className={`w-4 h-4 text-amber-400 ${isDMThinking ? 'animate-spin' : ''}`} />
+          <span>
+            {isDMThinking
+              ? `Мастер Подземелий описывает исход хода игрока (${activePlayerName || 'Соратник'})...`
+              : <>Ходит: <strong className="text-amber-400">{activePlayerName || 'Соратник'}</strong>... Ожидайте своей очереди.</>}
+          </span>
+        </div>
+
+        {!isDMThinking && isHost && onForceResolve && (
+          <button
+            type="button"
+            onClick={onForceResolve}
+            className="px-2.5 py-1 rounded bg-amber-900/60 hover:bg-amber-800/80 text-amber-200 text-[11px] border border-amber-600/50 transition-colors flex items-center gap-1 font-medium shrink-0"
+            title="Передать ход следующему игроку или подвести итог раунда силами Мастера"
+          >
+            <FastForward className="w-3 h-3 text-amber-300" />
+            <span>Ход Мастера</span>
+          </button>
+        )}
       </div>
     );
   }

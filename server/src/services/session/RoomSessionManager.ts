@@ -622,6 +622,26 @@ export class RoomSessionManager {
       log: finalLog,
     };
   }
+
+  /**
+   * Reverts a player's turn action in case of failure or manual reset.
+   * Clears hasActedThisRound and removes the pending TurnAction from the current round.
+   */
+  public revertPlayerTurnAction(roomId: string, userId: string): RoomPlayerEntity[] | null {
+    const room = this.rooms.findById(roomId);
+    if (!room) return null;
+
+    const player = this.rooms.findPlayer(room.id, userId);
+    if (player) {
+      this.rooms.updatePlayer(player.id, {
+        hasActedThisRound: false,
+        hasRolledThisRound: false,
+      });
+    }
+
+    this.turnActions.deleteByPlayerAndRound(room.id, room.roundNumber, userId);
+    return this.rooms.findPlayersByRoomId(room.id);
+  }
 }
 
 export const roomSessionManager = new RoomSessionManager();

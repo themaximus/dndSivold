@@ -44,6 +44,7 @@ export function setupGameSockets(io: Server) {
     socket.on('submit_reaction', (data) => turnSocketController.handleSubmitReaction(io, socket, data));
     socket.on('skip_reaction', (data) => turnSocketController.handleSkipReaction(io, socket, data));
     socket.on('force_resolve_round', (data) => turnSocketController.handleForceResolveRound(io, socket, data));
+    socket.on('reset_player_turn', (data) => turnSocketController.handleResetPlayerTurn(io, socket, data));
 
     // --- Inventory, Rest & Progression Events ---
     socket.on('set_turn_mode', (data) => inventorySocketController.handleSetTurnMode(io, socket, data));

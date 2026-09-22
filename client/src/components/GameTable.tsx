@@ -84,6 +84,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     finishAdventure,
     submitAction,
     forceResolveRound,
+    resetPlayerTurn,
     setTurnMode,
     pickupLoot,
     useItem,
@@ -98,6 +99,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     roomError,
   } = useGameSession(roomCode);
 
+  const isHost = !!(room && user && room.hostUserId === user.id);
   const { loadingLogId, isSpeakingText, toggleVoice } = useNarrativeVoice(roomCode);
   const lastAutoPlayedLogIdRef = useRef<string | null>(null);
 
@@ -294,6 +296,9 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
             activeEnemies={room.activeEnemies || []}
             rejectedAction={rejectedAction}
             pendingReactionNames={pendingWaitingNames}
+            isHost={isHost}
+            onResetTurn={resetPlayerTurn}
+            onForceResolve={forceResolveRound}
             onRemoveRoll={handleRemoveRoll}
             onOpenDiceModal={handleOpenDiceModal}
             onSubmit={handleSubmitAction}

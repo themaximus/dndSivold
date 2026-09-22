@@ -204,8 +204,12 @@ export class TurnSocketController {
           }
         } catch (error: any) {
           console.error('Error resolving turn step:', error);
+          const updatedPlayers = this.roomManager.revertPlayerTurnAction(room.id, userId);
+          if (updatedPlayers) {
+            io.to(room.id).emit('room_players_updated', updatedPlayers);
+          }
           io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки хода' });
-          io.to(room.id).emit('error_message', 'Ошибка при обработке хода мастером. Попробуйте еще раз.');
+          io.to(room.id).emit('error_message', 'Ошибка при обработке хода мастером. Ход сброшен, попробуйте еще раз.');
         }
         return;
       }
@@ -232,8 +236,12 @@ export class TurnSocketController {
           }
         } catch (error: any) {
           console.error('Error resolving round:', error);
+          const updatedPlayers = this.roomManager.revertPlayerTurnAction(room.id, userId);
+          if (updatedPlayers) {
+            io.to(room.id).emit('room_players_updated', updatedPlayers);
+          }
           io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
-          io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером. Попробуйте еще раз или нажмите «Ход Мастера».');
+          io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером. Ход сброшен, попробуйте еще раз.');
         }
       }
     } finally {
@@ -386,6 +394,23 @@ export class TurnSocketController {
       console.error('Error in force_resolve_round:', error);
       io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
       io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером. Попробуйте повторить ход.');
+    }
+  }
+
+  public async handleResetPlayerTurn(
+    io: Server,
+    socket: AuthenticatedSocket,
+    data: { roomCode: string; targetUserId?: string }
+  ): Promise<void> {
+    const userId = socket.userId!;
+    const room = roomRepository.findByCode(data.roomCode);
+    if (!room) return;
+
+    const targetUserId = (room.hostUserId === userId && data.targetUserId) ? data.targetUserId : userId;
+    const updatedPlayers = this.roomManager.revertPlayerTurnAction(room.id, targetUserId);
+    if (updatedPlayers) {
+      io.to(room.id).emit('room_players_updated', updatedPlayers);
+      io.to(room.id).emit('dm_thinking_failed', { error: 'Ход сброшен' });
     }
   }
 }

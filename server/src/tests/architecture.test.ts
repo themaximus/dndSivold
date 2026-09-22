@@ -1227,7 +1227,152 @@ async function runTests() {
   assert.ok(simRapid.promptDirective.includes('ещё дышит') || simRapid.promptDirective.includes('При смерти'), 'Prompt directive must indicate rescue opportunity');
   console.log('✅ Rapid return verified: 1 round delta leaves entity alive at 1 HP for immediate medical triage.\n');
 
-  console.log('🎉 ALL 26 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 27: Encrypted Gemini Key Resolution, Simulation Fallback & Turn Action Rollback
+  // ----------------------------------------------------
+  console.log('Test 27: Encrypted Gemini Key Resolution, Simulation Fallback & Turn Action Rollback');
+  const { cryptoService } = await import('../services/security/CryptoService');
+  const { aiProviderFactory } = await import('../services/ai/AIProviderFactory');
+  const { GeminiAIProvider } = await import('../services/ai/GeminiAIProvider');
+  const { DeepSeekAIProvider } = await import('../services/ai/DeepSeekAIProvider');
+  const { narrativeSynthesizer } = await import('../services/session/NarrativeSynthesizer');
+  const { roomSessionManager } = await import('../services/session/RoomSessionManager');
+  const { db } = await import('../db');
+
+  // 1. Verify encrypted Gemini key is correctly decrypted and routes to GeminiAIProvider
+  const rawGeminiKey = 'AIzaSyTestGeminiKey1234567890';
+  const encryptedGeminiKey = cryptoService.encrypt(rawGeminiKey);
+  assert.ok(encryptedGeminiKey.startsWith('enc:aes256gcm:'), 'Key must be encrypted with prefix');
+
+  const detectedProvider = aiProviderFactory.getProvider(encryptedGeminiKey);
+  assert.ok(detectedProvider instanceof GeminiAIProvider, 'Encrypted AIza... key must resolve to GeminiAIProvider');
+  assert.strictEqual(detectedProvider.name, 'Google Gemini', 'Provider name must be Google Gemini');
+
+  // Verify encrypted DeepSeek key resolves to DeepSeekAIProvider
+  const rawDeepSeekKey = 'sk-testDeepSeekKey1234567890';
+  const encryptedDeepSeekKey = cryptoService.encrypt(rawDeepSeekKey);
+  const detectedDeepSeek = aiProviderFactory.getProvider(encryptedDeepSeekKey);
+  assert.ok(detectedDeepSeek instanceof DeepSeekAIProvider, 'Encrypted sk-... key must resolve to DeepSeekAIProvider');
+
+  // 2. Verify seamless fallback to SimulationAIProvider when provider throws error
+  const resilienceRoom: RoomEntity = {
+    id: `room_resilience_${crypto.randomUUID()}`,
+    code: 'RESL01',
+    hostUserId: 'user_host_1',
+    title: 'Resilience Test Room',
+    setting: 'Темный лес',
+    status: 'active',
+    roundNumber: 1,
+    currentSituation: 'Отряд пробирается сквозь чащу',
+    sceneEntities: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  // Passing an invalid key will make remote call fail, triggering seamless fallback
+  const synthRes = await narrativeSynthesizer.synthesizeTurnResponse(resilienceRoom, {
+    apiKey: 'AIzaInvalidKeyThatFailsImmediately',
+    model: 'gemini-2.5-flash',
+    setting: resilienceRoom.setting,
+    genre: 'fantasy',
+    campaignDuration: 'medium',
+    roundNumber: 1,
+    currentSituation: resilienceRoom.currentSituation,
+    currentDC: 12,
+    campaignPlot: 'Поход через чащу',
+    loreJournal: [],
+    availableLoot: [],
+    characters: [
+      {
+        id: 'char_res_1',
+        userId: 'user_res_1',
+        name: 'Роланд',
+        race: 'Человек',
+        characterClass: 'Воин',
+        level: 1,
+        hpCurrent: 12,
+        hpMax: 12,
+        ac: 16,
+        stats: { str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 8 },
+        inventory: [],
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    activeEnemies: [],
+    sceneNPCs: [],
+    actions: [
+      {
+        id: 'act_res_1',
+        characterId: 'char_res_1',
+        characterName: 'Роланд',
+        actionText: 'Осматриваю деревья в поисках ориентиров',
+        diceRolls: [{ diceType: 'd20', rolls: [14], modifier: 0, total: 14, isCriticalSuccess: false, isCriticalFail: false, purpose: 'Внимание' }],
+        submittedAt: new Date().toISOString(),
+      },
+    ],
+    previousHistory: [],
+    turnMode: 'turn_by_turn',
+    turnPlayerName: 'Роланд',
+    activeQuests: [],
+    completedQuests: [],
+    searchedObjects: [],
+    worldNPCRegistry: [],
+    environmentObjects: [],
+  });
+
+  assert.ok(synthRes.response, 'Response must be returned even with invalid neural credentials');
+  assert.ok(synthRes.response.narrative && synthRes.response.narrative.length > 20, 'Narrative must be synthesized by simulation fallback');
+  assert.ok(synthRes.response.currentSituation, 'currentSituation must be updated');
+
+  // 3. Verify turn state rollback on failure or reset
+  const rollbackRoomId = `room_rollback_${crypto.randomUUID()}`;
+  db.rooms.create({
+    id: rollbackRoomId,
+    code: 'ROLL01',
+    hostUserId: 'user_rb_1',
+    title: 'Rollback Room',
+    setting: 'Фэнтези',
+    status: 'active',
+    roundNumber: 1,
+    currentSituation: 'Опасность',
+    createdAt: new Date().toISOString(),
+  });
+
+  const player = db.roomPlayers.create({
+    id: `player_rb_1`,
+    roomId: rollbackRoomId,
+    userId: 'user_rb_1',
+    username: 'Hero',
+    hasActedThisRound: true,
+    hasRolledThisRound: true,
+    joinedAt: new Date().toISOString(),
+  });
+
+  db.turnActions.create({
+    id: 'ta_rb_1',
+    roomId: rollbackRoomId,
+    roundNumber: 1,
+    playerId: 'user_rb_1',
+    characterId: 'char_rb_1',
+    characterName: 'Hero',
+    actionText: 'Атакую врага',
+    diceRolls: [],
+    submittedAt: new Date().toISOString(),
+  });
+
+  // Verify before rollback
+  assert.strictEqual(db.roomPlayers.findPlayer(rollbackRoomId, 'user_rb_1')?.hasActedThisRound, true);
+  assert.strictEqual(db.turnActions.findByRoomAndRound(rollbackRoomId, 1).length, 1);
+
+  // Execute rollback
+  const updatedPlayers = roomSessionManager.revertPlayerTurnAction(rollbackRoomId, 'user_rb_1');
+  assert.ok(updatedPlayers, 'Must return updated players array');
+  const revertedPlayer = db.roomPlayers.findPlayer(rollbackRoomId, 'user_rb_1');
+  assert.strictEqual(revertedPlayer?.hasActedThisRound, false, 'hasActedThisRound must be rolled back to false');
+  assert.strictEqual(revertedPlayer?.hasRolledThisRound, false, 'hasRolledThisRound must be rolled back to false');
+  assert.strictEqual(db.turnActions.findByRoomAndRound(rollbackRoomId, 1).length, 0, 'Pending turn action must be deleted from DB');
+  console.log('✅ AI key decryption, simulation fallback, and turn action rollback verified!\n');
+
+  console.log('🎉 ALL 27 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {
