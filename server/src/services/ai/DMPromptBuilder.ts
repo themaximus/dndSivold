@@ -263,6 +263,16 @@ export class DMPromptBuilder {
       -> В "narrative" опиши, что герой внимательно перерывает пустые ящики/щели, но находит лишь дорожную пыль и убеждается, что всё ценное уже было извлечено ранее.
       -> В "inventoryUpdates" и "droppedLoot" КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО добавлять новые предметы из этого источника!
 
+17. ФИЗИЧЕСКАЯ НЕПРЕЛОЖНОСТЬ МИРА И ЭТАПНЫЙ ПРОГРЕСС (AFFORDANCES & STAGED SUCCESS):
+    - Высокий бросок кубика d20 НЕ творит чудеса, ломающие законы физики:
+      * Если у повозки отсутствуют колёса — бросок d20=20 НЕ позволяет уехать на ней прямо сейчас!
+      * Если массивные железные ворота заперты на засов — бросок НЕ позволяет пройти сквозь металл!
+      * Если подвесной мост оборван — бросок НЕ переносит героев по воздуху!
+    - ПРИНЦИП ПРОГРЕССИВНОГО ЭТАПНОГО УСПЕХА (Staged Progress):
+      * Успешный бросок (>= СЛ или Крит 20) НИКОГДА НЕ ПРОПАДАЕТ ЗРЯ!
+      * Он продвигает отряд к желаемому: герой обнаруживает запасные колёса и рычаг в зарослях, находит потайную замочную скважину или сбивает заржавевшую петлю!
+      * Мастер описывает ключевую находку/продвижение и в "choiceDilemma" формулирует следующий необходимый шаг (например: монтаж колёс на ось повозки)!
+
 ОБЯЗАТЕЛЬНЫЙ ФОРМАТ ОТВЕТА (ТОЛЬКО ЧИСТЫЙ JSON без markdown блоков \`\`\`):
 {
   "narrative": "Художественное повествование раунда с описанием действий героев, диалогов, реакций встреченных NPC или изменения обстановки...",
@@ -412,6 +422,16 @@ export class DMPromptBuilder {
       ? context.worldNPCRegistry.map(n => `* 🏛️ «${n.name}» (${n.role || 'персонаж'}) — Выбыл в раунде ${n.departureRound || '?'}. Причина: ${n.departureReason || 'покинул сцену'}. Заметка: ${n.narrativeNote || 'Вне текущей сцены'}`).join('\n')
       : 'Архив покинувших сцену персонажей пуст.';
 
+    const environmentObjectsSummary = (context.environmentObjects && context.environmentObjects.length > 0)
+      ? context.environmentObjects.map(obj => {
+          const statusIcon = obj.isOperational ? '🟢' : '🔴';
+          const stageInfo = obj.progressStage ? `[Этап ${obj.progressStage.current}/${obj.progressStage.max}: ${obj.progressStage.currentStageText}]` : '';
+          const blockerInfo = obj.physicalBlocker ? ` | БЛОКЕР: ${obj.physicalBlocker}` : '';
+          const prereqInfo = obj.requiredPrerequisites?.length ? ` | ТРЕБУЕТСЯ: ${obj.requiredPrerequisites.join(', ')}` : '';
+          return `* ${statusIcon} «${obj.name}» (ID: "${obj.key}", Состояние: ${obj.state}, На ходу/готов: ${obj.isOperational ? 'ДА' : 'НЕТ'}) ${stageInfo}${blockerInfo}${prereqInfo}`;
+        }).join('\n')
+      : 'В сцене нет специфических интерактивных объектов окружения.';
+
     const historySnippet = (context.previousHistory && context.previousHistory.length > 0)
       ? context.previousHistory.slice(-3).map((h, i) => `[Предыдущее событие ${i + 1}]:\n${h}`).join('\n\n')
       : 'События только разворачиваются.';
@@ -483,6 +503,9 @@ ${searchedObjectsSummary}
 
 АРХИВ ВЫБЫВШИХ ПЕРСОНАЖЕЙ И ИСТОРИЯ МИРА (ОНИ ВНЕ ТЕКУЩЕЙ СЦЕНЫ!):
 ${worldNPCsSummary}
+
+ИНТЕРАКТИВНЫЕ ОБЪЕКТЫ ОКРУЖЕНИЯ И ТРАНСПОРТ (ФИЗИЧЕСКАЯ ДОСТОВЕРНОСТЬ И ЭТАПЫ):
+${environmentObjectsSummary}
 
 СОСТАВ ОТРЯДА, ЛИЧНОЕ СНАРЯЖЕНИЕ, ХРОНИКА ПРЕДМЕТОВ И КВЕНТЫ (СВЕРЯЙСЯ С НИМИ):
 ${partyInfo}

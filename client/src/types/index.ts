@@ -232,12 +232,41 @@ export interface ProjectedEntityView {
   affinity?: number;
 }
 
+export type EnvironmentObjectState =
+  | 'operational'
+  | 'broken'
+  | 'locked'
+  | 'in_progress'
+  | 'depleted'
+  | 'hazardous';
+
+export interface EnvironmentObjectEntity {
+  id: string;
+  roomId: string;
+  key: string;
+  name: string;
+  state: EnvironmentObjectState;
+  isOperational: boolean;
+  physicalBlocker?: string;
+  requiredPrerequisites: string[];
+  progressStage: {
+    current: number;
+    max: number;
+    currentStageText: string;
+  };
+  interactableActions: string[];
+  narrativeNotes?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SceneProjectionViewModel {
   threats: ProjectedEntityView[];
   allies: ProjectedEntityView[];
   sceneNPCs: ProjectedEntityView[];
   searchedObjects: SearchedObjectEntry[];
   worldArchive: WorldNPCEntry[];
+  environmentObjects?: EnvironmentObjectEntity[];
   activeCombat: boolean;
   currentSituation: string;
   choiceDilemma?: string;
@@ -275,6 +304,7 @@ export interface Room {
   worldNPCRegistry?: WorldNPCEntry[];
   worldQuests?: QuestEntity[];
   searchedObjectsRegistry?: SearchedObjectEntry[];
+  environmentObjects?: EnvironmentObjectEntity[];
   sceneProjection?: SceneProjectionViewModel;
   sceneEntities?: any[];
   createdAt: string;

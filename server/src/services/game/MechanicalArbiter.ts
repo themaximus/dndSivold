@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition, SearchedObjectEntry } from '../../db';
+import { CharacterEntity, TurnActionEntity, RoomEnemy, RoomNPC, NPCDisposition, SearchedObjectEntry, EnvironmentObjectEntity } from '../../db';
 import { calculateModifier } from '../dndRules';
 import { itemLedgerRepository } from '../../repositories/ItemLedgerRepository';
 import { systemLocator } from '../session/ServiceLocator';
@@ -101,7 +101,8 @@ export class MechanicalArbiter {
     currentEnemies: RoomEnemy[],
     currentNPCs: RoomNPC[],
     roomDC: number = 12,
-    searchedObjects: SearchedObjectEntry[] = []
+    searchedObjects: SearchedObjectEntry[] = [],
+    environmentObjects: EnvironmentObjectEntity[] = []
   ): MechanicalResolution {
     const actionText = action.actionText || '';
 
@@ -109,6 +110,20 @@ export class MechanicalArbiter {
     const matchingSearched = this.findMatchingSearchedObject(actionText, searchedObjects);
     if (matchingSearched) {
       return this.resolveExhaustedSearchAction(action, matchingSearched);
+    }
+
+    // Physical Affordance & World Consistency: Check if the action targets an environment object
+    const affordanceService = systemLocator.get('sceneAffordanceService');
+    const dummyRoom: any = { id: (action as any).roomId || '', environmentObjects };
+    const matchingEnvObj = affordanceService.findMatchingObject(actionText, dummyRoom);
+
+    if (matchingEnvObj && !matchingEnvObj.isOperational) {
+      const demandsOperation = affordanceService.isActionDemandingOperationalFunction(actionText, matchingEnvObj);
+      const isAdvancingPrereq = affordanceService.isActionAdvancingPrerequisite(actionText, matchingEnvObj);
+
+      if (demandsOperation || isAdvancingPrereq) {
+        return this.resolveStagedAffordanceAction(action, character, matchingEnvObj, roomDC);
+      }
     }
 
     const intent = this.classifyIntent(actionText, action.actionType);
@@ -1440,6 +1455,40 @@ ${!isDisengage && oppAttackHit ? `- ⚠️ Однако без действия 
       consumedItems: [],
       promptDirective,
       auditNotes: `Повторный обыск пустого объекта: «${searchedObj.targetName}» (обыщен в раунде ${searchedObj.searchedInRound}). Лут заблокирован.`,
+    };
+  }
+
+  /**
+   * Resolves actions targeting interactive environment objects with physical blockers,
+   * implementing progressive staged success (d20 roll does not break physics, but advances prerequisites).
+   */
+  private resolveStagedAffordanceAction(
+    action: TurnActionEntity,
+    character: CharacterEntity | undefined,
+    targetObj: EnvironmentObjectEntity,
+    roomDC: number
+  ): MechanicalResolution {
+    const d20 = action.diceRolls && action.diceRolls.length > 0 ? action.diceRolls[0] : null;
+    const rollTotal = d20 ? d20.total : 10;
+    const isCritSuccess = d20 ? d20.isCriticalSuccess : false;
+
+    const affordanceService = systemLocator.get('sceneAffordanceService');
+    const result = affordanceService.evaluatePhysicalFeasibility(
+      action,
+      targetObj,
+      rollTotal,
+      roomDC,
+      isCritSuccess
+    );
+
+    return {
+      actionId: action.id,
+      characterId: action.characterId,
+      characterName: character?.name || action.characterName,
+      actionType: 'staged_affordance',
+      consumedItems: [],
+      promptDirective: result.promptDirective,
+      auditNotes: result.auditNote,
     };
   }
 }

@@ -282,6 +282,7 @@ export class RoomSessionManager {
       sceneNPCs: room.sceneNPCs,
       worldQuests: room.worldQuests,
       worldNPCRegistry: room.worldNPCRegistry,
+      environmentObjects: room.environmentObjects,
     });
 
     // Create initial log

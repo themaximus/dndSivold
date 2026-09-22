@@ -1009,6 +1009,7 @@ export class SceneEntityManager {
       sceneNPCs,
       searchedObjects: room.searchedObjectsRegistry ? [...room.searchedObjectsRegistry] : [],
       worldArchive: room.worldNPCRegistry ? [...room.worldNPCRegistry] : [],
+      environmentObjects: room.environmentObjects ? [...room.environmentObjects] : [],
       activeCombat,
       currentSituation: room.currentSituation || '',
       roomDC: room.targetDC,

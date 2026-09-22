@@ -658,7 +658,128 @@
         "Подготовка засады или донос властям/бандитам"
       ],
       "returnedInRound": 5
+    },
+    {
+      "id": "ent_npc_c4f38a6e-0cc3-4d9e-9832-381c2abcd887",
+      "roomId": "room_test_1",
+      "name": "Раненый гонец",
+      "role": "Посланник графской стражи",
+      "hpCurrent": 10,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: location_transition",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: location_transition (статус: Присутствует в сцене)"
+      ],
+      "departureRound": 1,
+      "departureReason": "location_transition",
+      "narrativeNote": "Присутствует в сцене",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_npc_25952439-eff6-45be-abaa-a6244a086176",
+      "roomId": "room_test_1",
+      "name": "Трактирщик Боб",
+      "role": "Владелец таверны",
+      "hpCurrent": 20,
+      "hpMax": 20,
+      "ac": 10,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: location_transition",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: location_transition (статус: Встречен в сцене)"
+      ],
+      "departureRound": 1,
+      "departureReason": "location_transition",
+      "narrativeNote": "Встречен в сцене",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_npc_d7d0d33f-a1e6-492e-989f-941bb07d8820",
+      "roomId": "room_test_1",
+      "name": "Купец Бальтазар",
+      "role": "Караванщик",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: left_behind",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)"
+      ],
+      "departureRound": 1,
+      "departureReason": "left_behind",
+      "narrativeNote": "Остался позади на развилке, вне себя от ярости",
+      "potentialHooks": [
+        "Возвращение с восстановленным караваном и наградой за спасение"
+      ]
+    },
+    {
+      "id": "ent_npc_e8cd60a5-e53e-4f61-9520-0cb30ad179b0",
+      "roomId": "room_archive_test_55be1f1a-b1d9-4618-8ac9-cfdbdcaea36d",
+      "name": "Путник Торвальд",
+      "role": "Странник",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: departed",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: departed (статус: Ушел в сторону города)"
+      ],
+      "departureRound": 1,
+      "departureReason": "departed",
+      "narrativeNote": "Ушел в сторону города",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_enemy_1e209452-6a47-4b22-a4ab-30073baff83c",
+      "roomId": "room_archive_test_55be1f1a-b1d9-4618-8ac9-cfdbdcaea36d",
+      "name": "Разбойник Ганс",
+      "role": "Разбойник",
+      "hpCurrent": 0,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: defeated",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: defeated (статус: Повержен в бою)",
+        "Раунд 1: defeated (статус: Ранен в бою (ОЗ: 0/10))"
+      ],
+      "departureRound": 1,
+      "departureReason": "defeated",
+      "narrativeNote": "Повержен в бою в раунде 1. Ранен в бою (ОЗ: 0/10)",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам",
+        "Подготовка засады или донос властям/бандитам"
+      ]
     }
   ],
-  "worldQuests": []
+  "worldQuests": [
+    {
+      "id": "quest_ffcbebbd",
+      "roomId": "room_quest_test_60dd0d26-0ff4-4ad2-b30e-fa1e0dfbdaee",
+      "title": "Очистить старую мельницу",
+      "description": "Уничтожить гигантских пауков в мельнице у реки",
+      "category": "task",
+      "status": "completed",
+      "roundCreated": 1,
+      "createdAt": "2026-09-22T13:42:25.145Z",
+      "updatedAt": "2026-09-22T13:42:25.146Z",
+      "roundCompleted": 1,
+      "resolutionNote": "Пауки уничтожены"
+    }
+  ],
+  "searchedObjects": []
 }

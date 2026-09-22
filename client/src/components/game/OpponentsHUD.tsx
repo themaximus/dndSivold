@@ -9,6 +9,7 @@ import {
   SearchedObjectEntry,
   SceneProjectionViewModel,
   ProjectedEntityView,
+  EnvironmentObjectEntity,
 } from '../../types';
 import {
   Skull,
@@ -38,6 +39,7 @@ interface OpponentsHUDProps {
   quests?: QuestEntity[];
   worldNPCRegistry?: WorldNPCEntry[];
   searchedObjects?: SearchedObjectEntry[];
+  environmentObjects?: EnvironmentObjectEntity[];
 }
 
 const CONDITION_BADGES: Record<string, { label: string; color: string; desc: string }> = {
@@ -132,9 +134,11 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
   quests = [],
   worldNPCRegistry: rawWorldNPCRegistry = [],
   searchedObjects: rawSearchedObjects = [],
+  environmentObjects: rawEnvironmentObjects = [],
 }) => {
   const worldNPCRegistry = projection?.worldArchive && projection.worldArchive.length > 0 ? projection.worldArchive : rawWorldNPCRegistry;
   const searchedObjects = projection?.searchedObjects && projection.searchedObjects.length > 0 ? projection.searchedObjects : rawSearchedObjects;
+  const environmentObjects = projection?.environmentObjects && projection.environmentObjects.length > 0 ? projection.environmentObjects : rawEnvironmentObjects;
 
   let activeEnemies: RoomEnemy[];
   let defeatedEnemies: RoomEnemy[];
@@ -600,8 +604,112 @@ export const OpponentsHUD: React.FC<OpponentsHUDProps> = ({
               </div>
             )}
 
-            {/* Empty NPCs placeholder if tab is selected */}
-            {activeTab === 'npcs' && livingNPCs.length === 0 && (
+            {/* Interactive Environment Objects (Vehicles, Barriers, Mechanisms) */}
+            {showNPCs && environmentObjects.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <Package className="w-3 h-3 text-amber-400" /> Объекты окружения ({environmentObjects.length})
+                  </span>
+                </div>
+
+                {environmentObjects.map((obj) => {
+                  const isOperational = obj.isOperational;
+                  const currentStage = obj.progressStage?.current ?? 0;
+                  const maxStage = obj.progressStage?.max ?? 2;
+                  const stagePercent = maxStage > 0 ? Math.round((currentStage / maxStage) * 100) : 0;
+
+                  return (
+                    <div
+                      key={obj.id || obj.key}
+                      className="bg-fantasy-card border border-fantasy-border hover:border-amber-500/50 rounded-xl p-3 transition-all relative overflow-hidden group shadow-sm"
+                    >
+                      {/* Top Bar: Name & Operational Status Badge */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0">
+                          <span className="font-bold text-xs text-slate-200 truncate group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
+                            {obj.key.includes('wagon') ? '🚜' : obj.key.includes('gate') || obj.key.includes('door') ? '🚪' : '⚙️'} {obj.name}
+                          </span>
+                        </div>
+
+                        <span
+                          className={`shrink-0 px-2 py-0.5 rounded text-[9px] font-mono font-bold border flex items-center gap-1 ${
+                            isOperational
+                              ? 'bg-emerald-950/70 text-emerald-300 border-emerald-600/50'
+                              : obj.state === 'in_progress'
+                              ? 'bg-amber-950/70 text-amber-300 border-amber-600/50 animate-pulse'
+                              : 'bg-red-950/70 text-red-300 border-red-600/50'
+                          }`}
+                        >
+                          {isOperational ? (
+                            <>
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                              <span>На ходу / Исправен</span>
+                            </>
+                          ) : obj.state === 'in_progress' ? (
+                            <>
+                              <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                              <span>В процессе починки</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="w-2.5 h-2.5 text-red-400" />
+                              <span>Сломан / Неисправен</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Progress Stage Bar */}
+                      <div className="mb-2">
+                        <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                          <span className="text-slate-400">
+                            Этап готовности:
+                          </span>
+                          <span className={`font-bold ${isOperational ? 'text-emerald-400' : 'text-amber-300'}`}>
+                            {currentStage} / {maxStage}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-800/80 rounded-full overflow-hidden border border-slate-700/50">
+                          <div
+                            className={`h-full transition-all duration-500 rounded-full ${
+                              isOperational
+                                ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
+                                : 'bg-gradient-to-r from-amber-600 to-amber-400'
+                            }`}
+                            style={{ width: `${stagePercent}%` }}
+                          />
+                        </div>
+                        {obj.progressStage?.currentStageText && (
+                          <p className="text-[10px] text-slate-400 mt-1 italic">
+                            {obj.progressStage.currentStageText}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Physical Blocker Alert (if not operational) */}
+                      {!isOperational && obj.physicalBlocker && (
+                        <div className="flex items-start gap-1.5 text-[10px] p-1.5 rounded-lg bg-red-950/30 border border-red-900/40 text-red-300 mb-1.5">
+                          <AlertTriangle className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />
+                          <span><strong>Физический блокер:</strong> {obj.physicalBlocker}</span>
+                        </div>
+                      )}
+
+                      {/* Required Prerequisites */}
+                      {obj.requiredPrerequisites && obj.requiredPrerequisites.length > 0 && !isOperational && (
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
+                          <span className="text-amber-400">Требуется:</span>
+                          <span className="text-slate-300">{obj.requiredPrerequisites.join(' ➔ ')}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Empty NPCs placeholder if tab is selected and both livingNPCs and environmentObjects are empty */}
+            {activeTab === 'npcs' && livingNPCs.length === 0 && environmentObjects.length === 0 && (
               <div className="p-4 text-center text-slate-400 bg-fantasy-card/40 rounded-xl border border-fantasy-border">
                 <Users className="w-6 h-6 mx-auto mb-2 text-slate-500" />
                 <p className="text-xs font-bold text-slate-300 mb-1">

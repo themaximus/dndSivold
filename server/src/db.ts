@@ -223,6 +223,34 @@ export interface SearchedObjectEntry {
   timestamp: string;
 }
 
+export type EnvironmentObjectState =
+  | 'operational'   // Fully functioning
+  | 'broken'        // Missing parts or damaged (e.g. wagon without wheels)
+  | 'locked'        // Locked, requires key/lockpick
+  | 'in_progress'   // Partially repaired (stage progress)
+  | 'depleted'      // Resources exhausted
+  | 'hazardous';    // Dangerous or on fire
+
+export interface EnvironmentObjectEntity {
+  id: string;
+  roomId: string;
+  key: string;              // e.g. 'wagon_cart', 'iron_gate', 'rope_bridge'
+  name: string;             // e.g. 'Торговая повозка'
+  state: EnvironmentObjectState;
+  isOperational: boolean;   // Can it be used for its primary function right now?
+  physicalBlocker?: string; // e.g. 'Отсутствуют колёса, ось лежит в дорожной грязи'
+  requiredPrerequisites: string[]; // e.g. ['найти колёса', 'установить колёса на ось']
+  progressStage: {
+    current: number;        // e.g. 0
+    max: number;            // e.g. 2
+    currentStageText: string; // e.g. 'Колёса отсутствуют'
+  };
+  interactableActions: string[]; // ['repair', 'drive', 'search', 'barricade']
+  narrativeNotes?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RoomEntity {
   id: string;
   code: string;
@@ -248,6 +276,7 @@ export interface RoomEntity {
   worldNPCRegistry?: WorldNPCEntry[];
   worldQuests?: QuestEntity[];
   searchedObjectsRegistry?: SearchedObjectEntry[];
+  environmentObjects?: EnvironmentObjectEntity[];
   sceneEntities?: any[];
   sceneProjection?: any;
   genre?: string;

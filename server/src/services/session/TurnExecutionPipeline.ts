@@ -188,8 +188,20 @@ export class TurnExecutionPipeline {
         room.activeEnemies || [],
         room.sceneNPCs || [],
         room.targetDC || 12,
-        roomSearched
+        roomSearched,
+        room.environmentObjects || []
       );
+
+      // Advance environment object stage on successful staged progress
+      if (res.actionType === 'staged_affordance') {
+        const affordanceService = (this as any).affordanceService || require('./SceneAffordanceService').sceneAffordanceService;
+        const matchingObj = affordanceService.findMatchingObject(action.actionText, room);
+        const d20 = action.diceRolls && action.diceRolls.length > 0 ? action.diceRolls[0] : null;
+        const isSuccess = (d20 ? d20.total : 10) >= (room.targetDC || 12) || (d20?.isCriticalSuccess ?? false);
+        if (matchingObj && isSuccess) {
+          affordanceService.advanceObjectStage(room, matchingObj.key, 1);
+        }
+      }
 
       mechanicalResolutions.push(res);
       mechanicalDirectives[action.id] = res.promptDirective;
@@ -255,6 +267,7 @@ export class TurnExecutionPipeline {
       completedQuests: allRoomQuests.filter((q) => q.status === 'completed'),
       searchedObjects: roomSearched,
       worldNPCRegistry: this.worldNPCs.findByRoomId(room.id),
+      environmentObjects: room.environmentObjects,
     };
 
     // 5. Invoke AI Narrative Synthesizer
@@ -476,6 +489,7 @@ export class TurnExecutionPipeline {
       searchedObjectsRegistry: room.searchedObjectsRegistry,
       worldNPCRegistry: room.worldNPCRegistry,
       worldQuests: room.worldQuests,
+      environmentObjects: room.environmentObjects,
     });
 
     if (isRoundComplete) {

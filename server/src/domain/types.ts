@@ -1,5 +1,25 @@
-import { CharacterEntity, TurnActionEntity, LoreMilestone, RoomLootItem, CharacterReactionRequest, QuestEntity, WorldNPCEntry, SearchedObjectEntry, SearchedObjectType } from '../db';
-export { CharacterReactionRequest, QuestEntity, WorldNPCEntry, SearchedObjectEntry, SearchedObjectType };
+import {
+  CharacterEntity,
+  TurnActionEntity,
+  LoreMilestone,
+  RoomLootItem,
+  CharacterReactionRequest,
+  QuestEntity,
+  WorldNPCEntry,
+  SearchedObjectEntry,
+  SearchedObjectType,
+  EnvironmentObjectEntity,
+  EnvironmentObjectState,
+} from '../db';
+export {
+  CharacterReactionRequest,
+  QuestEntity,
+  WorldNPCEntry,
+  SearchedObjectEntry,
+  SearchedObjectType,
+  EnvironmentObjectEntity,
+  EnvironmentObjectState,
+};
 
 export type EntityFaction = 'party' | 'allied' | 'neutral' | 'hostile';
 export type EntityCombatRole = 'hostile_threat' | 'ally_combatant' | 'neutral_observer' | 'bystander' | 'hiding' | 'fled';
@@ -72,6 +92,7 @@ export interface SceneProjectionViewModel {
   sceneNPCs: ProjectedEntityView[];      // Neutral, peaceful, or bystander NPCs
   searchedObjects: SearchedObjectEntry[];// Containers / vehicles / rooms with "searched" status
   worldArchive: WorldNPCEntry[];         // Departed / historical NPCs
+  environmentObjects?: EnvironmentObjectEntity[]; // Interactive environment objects (vehicles, gates, etc.)
   activeCombat: boolean;
   currentSituation: string;
   choiceDilemma?: string;
@@ -256,6 +277,7 @@ export interface AIDMContext {
   completedQuests?: QuestEntity[];
   searchedObjects?: SearchedObjectEntry[];
   worldNPCRegistry?: WorldNPCEntry[];
+  environmentObjects?: EnvironmentObjectEntity[];
 }
 
 export interface DepartedNPCEntry {
@@ -268,6 +290,15 @@ export interface SearchedObjectUpdate {
   targetName: string;
   targetType: SearchedObjectType;
   extractedItems?: string[];
+  narrativeNote?: string;
+}
+
+export interface EnvironmentObjectUpdate {
+  key: string;
+  stageDelta?: number;
+  newStage?: number;
+  isOperational?: boolean;
+  state?: EnvironmentObjectState;
   narrativeNote?: string;
 }
 
@@ -289,6 +320,7 @@ export interface AIDMResponse {
   sceneNPCs?: RoomNPC[];
   departedNPCs?: DepartedNPCEntry[];
   searchedObjectUpdates?: SearchedObjectUpdate[];
+  environmentObjectUpdates?: EnvironmentObjectUpdate[];
   inventoryUpdates?: InventoryUpdate[];
   conditionUpdates?: ConditionUpdate[];
   questUpdates?: QuestUpdate[];

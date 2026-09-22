@@ -4,7 +4,7 @@ import { SceneEntityManager, stemRussianWord, extractSearchTokens } from '../ser
 import { ActionIntentEngine } from '../services/session/ActionIntentEngine';
 import { InventoryLedgerService } from '../services/session/InventoryLedgerService';
 import { RoomTransactionMutex } from '../services/session/RoomTransactionMutex';
-import { RoomEntity, CharacterEntity, GameLogEntity } from '../db';
+import { RoomEntity, CharacterEntity, GameLogEntity, EnvironmentObjectEntity } from '../db';
 import { gameSessionService, isSameEntity } from '../services/game/GameSessionService';
 import { ServiceLocator, systemLocator } from '../services/session/ServiceLocator';
 import { questArbiter } from '../services/game/QuestArbiter';
@@ -897,7 +897,163 @@ async function runTests() {
   assert.strictEqual(emittedChunks.join(''), 'Дверь со скрипом распахнулась.', 'Token emitter must faithfully stream chunks');
   console.log('✅ Streaming AI Service verified: real-time narrative emission operates correctly.\n');
 
-  console.log('🎉 ALL 20 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 21: Physical Consistency - Nat 20 Cannot Drive Wheel-less Wagon
+  // ----------------------------------------------------
+  console.log('Test 21: Physical World Consistency (Natural 20 on Wheel-less Wagon)');
+  const affordanceService = systemLocator.get('sceneAffordanceService');
+  assert.ok(affordanceService, 'sceneAffordanceService must be registered in SystemLocator');
+
+  const affordanceRoom: RoomEntity = {
+    id: 'room_affordance_1',
+    code: 'AFF1',
+    hostUserId: 'user_affordance',
+    title: 'Погоня у развилки',
+    setting: 'Фэнтези',
+    status: 'active',
+    roundNumber: 2,
+    currentSituation: 'Отряд у разбитой повозки',
+    environmentObjects: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  const wagon = affordanceService.registerObject(affordanceRoom, {
+    key: 'wagon_cart',
+    name: 'Торговая повозка',
+    state: 'broken',
+    isOperational: false,
+    physicalBlocker: 'Отсутствуют колёса, ось лежит в грязи',
+    requiredPrerequisites: ['найти запасные колёса', 'установить колёса'],
+    progressStage: {
+      current: 0,
+      max: 2,
+      currentStageText: 'Колёса отсутствуют, повозка недвижима',
+    },
+  });
+
+  const driveAction: any = {
+    id: 'act_drive_1',
+    characterId: 'char_test_1',
+    characterName: 'Воин Торвальд',
+    actionText: 'Запрыгиваю на повозку и во весь опор уезжаю от преследователей!',
+    actionType: 'check',
+    diceRolls: [
+      {
+        diceType: 'd20',
+        rolls: [20],
+        modifier: 0,
+        total: 20,
+        isCriticalSuccess: true,
+        isCriticalFail: false,
+        purpose: 'Побег на повозке',
+      },
+    ],
+  };
+
+  const mechArbiter = systemLocator.get('mechanicalArbiter');
+  const driveResolution = mechArbiter.evaluateAction(
+    driveAction,
+    undefined,
+    [],
+    [],
+    12,
+    [],
+    affordanceRoom.environmentObjects
+  );
+
+  assert.strictEqual(driveResolution.actionType, 'staged_affordance', 'Resolution must be classified as staged_affordance');
+  assert.ok(driveResolution.promptDirective.includes('ФИЗИЧЕСКИЙ ЗАКОН СЦЕНЫ'), 'Prompt directive must enforce physical law');
+  assert.ok(
+    driveResolution.promptDirective.includes('СТРОГИЙ ЗАПРЕТ') || driveResolution.promptDirective.includes('ФИЗИЧЕСКИ НЕВОЗМОЖЕН'),
+    'Prompt directive must forbid impossible departure'
+  );
+  assert.ok(
+    driveResolution.auditNotes.includes('Blocked final operation on wagon_cart'),
+    'Audit notes must record blocked operation'
+  );
+  console.log('✅ Physical world consistency verified: Natural 20 cannot drive a wheel-less cart.\n');
+
+  // ----------------------------------------------------
+  // Test 22: Progressive Staged Success - High Roll Finds Wheels & Advances Stage
+  // ----------------------------------------------------
+  console.log('Test 22: Progressive Staged Success (High roll advances stage from 0/2 to 1/2)');
+  const feasibilityEval = affordanceService.evaluatePhysicalFeasibility(
+    driveAction,
+    wagon,
+    20,
+    12,
+    true
+  );
+
+  assert.strictEqual(feasibilityEval.isFeasible, false, 'Final action is not directly feasible');
+  assert.strictEqual(feasibilityEval.isStagedProgress, true, 'Must produce staged progress on high roll');
+  assert.strictEqual(feasibilityEval.currentStage, 1, 'Stage must advance from 0 to 1');
+  assert.strictEqual(feasibilityEval.isNowOperational, false, 'Wagon is not yet fully operational at stage 1');
+  assert.ok(feasibilityEval.promptDirective.includes('ЭТАПНЫЙ УСПЕХ'), 'Prompt directive must reward staged progress');
+  assert.ok(feasibilityEval.promptDirective.includes('1/2'), 'Prompt directive must specify stage 1/2');
+
+  // Authoritatively advance stage in room
+  affordanceService.advanceObjectStage(affordanceRoom, 'wagon_cart', 1);
+  const updatedWagon = affordanceRoom.environmentObjects?.find((o) => o.key === 'wagon_cart');
+  assert.strictEqual(updatedWagon?.progressStage.current, 1, 'Room environment object stage must be 1');
+  assert.strictEqual(updatedWagon?.state, 'in_progress', 'Room environment object state must be in_progress');
+  console.log('✅ Staged progress verified: successful roll granted wheels and advanced stage to 1/2.\n');
+
+  // ----------------------------------------------------
+  // Test 23: Complete Prerequisite to Full Operational Status
+  // ----------------------------------------------------
+  console.log('Test 23: Repair Completion to Fully Operational Status');
+  const repairAction: any = {
+    id: 'act_repair_1',
+    characterId: 'char_test_1',
+    characterName: 'Воин Торвальд',
+    actionText: 'Ставлю найденные колеса на ось повозки, используя бревно как домкрат!',
+    actionType: 'check',
+    diceRolls: [
+      {
+        diceType: 'd20',
+        rolls: [16],
+        modifier: 2,
+        total: 18,
+        isCriticalSuccess: false,
+        isCriticalFail: false,
+        purpose: 'Установка колес',
+      },
+    ],
+  };
+
+  assert.ok(updatedWagon, 'Wagon must exist');
+  const repairEval = affordanceService.evaluatePhysicalFeasibility(
+    repairAction,
+    updatedWagon!,
+    18,
+    12,
+    false
+  );
+
+  assert.strictEqual(repairEval.isFeasible, true, 'Repair action is feasible');
+  assert.strictEqual(repairEval.currentStage, 2, 'Stage must reach 2/2');
+  assert.strictEqual(repairEval.isNowOperational, true, 'Wagon is now fully operational!');
+  assert.ok(repairEval.promptDirective.includes('РЕМОНТ ЗАВЕРШЁН'), 'Prompt directive must confirm repair complete');
+
+  // Advance authoritative stage to 2
+  affordanceService.advanceObjectStage(affordanceRoom, 'wagon_cart', 1);
+  assert.strictEqual(updatedWagon?.isOperational, true, 'Wagon must now be operational');
+  assert.strictEqual(updatedWagon?.state, 'operational', 'Wagon state must now be operational');
+
+  // Now subsequent drive action succeeds!
+  const finalDriveEval = affordanceService.evaluatePhysicalFeasibility(
+    driveAction,
+    updatedWagon!,
+    15,
+    12,
+    false
+  );
+  assert.strictEqual(finalDriveEval.isFeasible, true, 'Now that wagon is repaired, driving is fully feasible!');
+  assert.strictEqual(finalDriveEval.isNowOperational, true);
+  console.log('✅ Prerequisite completion verified: wagon is now 100% operational and usable for escape!\n');
+
+  console.log('🎉 ALL 23 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {
