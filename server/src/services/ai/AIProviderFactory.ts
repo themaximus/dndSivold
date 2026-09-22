@@ -20,7 +20,7 @@ export class AIProviderFactory {
       model?.toLowerCase().startsWith('gemini');
 
     if (isGemini) {
-      const geminiModel = model?.startsWith('gemini') ? model : (config.geminiModel || 'gemini-2.5-flash');
+      const geminiModel = model?.startsWith('gemini') ? model : (config.geminiModel || 'gemini-3.6-flash');
       return new GeminiAIProvider(activeKey, geminiModel);
     }
 

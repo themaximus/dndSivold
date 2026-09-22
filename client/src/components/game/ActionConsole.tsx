@@ -31,6 +31,8 @@ interface ActionConsoleProps {
   isHost?: boolean;
   onResetTurn?: () => void;
   onForceResolve?: () => void;
+  dmThinkingError?: string | null;
+  onDismissError?: () => void;
   onRemoveRoll: (index: number) => void;
   onOpenDiceModal: (opts?: { defaultPurpose?: string; defaultAdvantage?: boolean; defaultDisadvantage?: boolean; defaultStatKey?: string }) => void;
   onSubmit: (actionText: string, meta?: ActionMeta) => void;
@@ -66,6 +68,8 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   isHost,
   onResetTurn,
   onForceResolve,
+  dmThinkingError,
+  onDismissError,
   onOpenDiceModal,
   onSubmit,
   onRollDeathSave,
@@ -270,6 +274,29 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
   // 5. Active Action Console (Compact, High-Efficiency Dock)
   return (
     <div className="p-2.5 sm:p-3 bg-slate-950/95 border-t border-fantasy-border space-y-2">
+      {/* Neural AI Error Alert Banner */}
+      {dmThinkingError && (
+        <div className="px-3 py-2 rounded-xl bg-red-950/85 border border-red-500/70 flex items-center justify-between gap-2 text-xs text-red-200 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            <div className="leading-tight">
+              <span className="font-bold text-red-300">Ошибка ИИ: </span>
+              <span>{dmThinkingError}</span>
+            </div>
+          </div>
+          {onDismissError && (
+            <button
+              type="button"
+              onClick={onDismissError}
+              className="px-2 py-0.5 rounded text-[11px] bg-red-900/70 hover:bg-red-800 text-red-200 border border-red-700/60 transition-colors shrink-0"
+              title="Закрыть уведомление"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Rejection Alert Banner if DM rejected turn */}
       {rejectedAction && (
         <div className="px-3 py-1.5 rounded-xl bg-red-950/70 border border-red-500/50 flex items-center gap-2 text-xs text-red-200 animate-in fade-in">

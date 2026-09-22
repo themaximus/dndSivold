@@ -208,8 +208,9 @@ export class TurnSocketController {
           if (updatedPlayers) {
             io.to(room.id).emit('room_players_updated', updatedPlayers);
           }
-          io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки хода' });
-          io.to(room.id).emit('error_message', 'Ошибка при обработке хода мастером. Ход сброшен, попробуйте еще раз.');
+          const errMessage = error?.message || 'Ошибка обработки хода нейросетью';
+          io.to(room.id).emit('dm_thinking_failed', { error: errMessage });
+          io.to(room.id).emit('error_message', `Ошибка нейросети: ${errMessage}. Ход сброшен, попробуйте еще раз.`);
         }
         return;
       }
@@ -240,8 +241,9 @@ export class TurnSocketController {
           if (updatedPlayers) {
             io.to(room.id).emit('room_players_updated', updatedPlayers);
           }
-          io.to(room.id).emit('dm_thinking_failed', { error: error?.message || 'Ошибка обработки раунда' });
-          io.to(room.id).emit('error_message', 'Ошибка при обработке раунда мастером. Ход сброшен, попробуйте еще раз.');
+          const errMessage = error?.message || 'Ошибка обработки раунда нейросетью';
+          io.to(room.id).emit('dm_thinking_failed', { error: errMessage });
+          io.to(room.id).emit('error_message', `Ошибка нейросети: ${errMessage}. Ход сброшен, попробуйте еще раз.`);
         }
       }
     } finally {

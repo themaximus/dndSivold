@@ -226,15 +226,7 @@ export class RoomSessionManager {
       characters: activeCharacters,
     };
 
-    let synthResult: { response: AIDMResponse; audioUrl?: string };
-    try {
-      synthResult = await narrativeSynthesizer.synthesizePrologue(room, prologueContext);
-    } catch (err: any) {
-      console.warn('Neural prologue generation failed, falling back to simulation:', err?.message || err);
-      const fallback = new SimulationAIProvider();
-      const fallbackResponse = await fallback.generatePrologue(prologueContext);
-      synthResult = { response: fallbackResponse };
-    }
+    const synthResult = await narrativeSynthesizer.synthesizePrologue(room, prologueContext);
 
     const prologueResult = synthResult.response;
     const startDC = prologueResult.nextRoundDC || 12;

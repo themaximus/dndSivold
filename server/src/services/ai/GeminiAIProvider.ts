@@ -9,20 +9,13 @@ export class GeminiAIProvider implements IAIProvider {
   private apiKey: string;
   private primaryModel: string;
   private candidateModels = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-2.5-pro',
-    'gemini-3.1-flash-lite',
-    'gemini-3.5-flash-lite',
     'gemini-3.6-flash',
-    'gemini-flash-lite-latest',
-    'gemini-flash-latest',
+    'gemini-3.5-flash-lite',
   ];
 
-  constructor(apiKey: string, model: string = 'gemini-2.5-flash') {
+  constructor(apiKey: string, model: string = 'gemini-3.6-flash') {
     this.apiKey = apiKey;
-    this.primaryModel = model || 'gemini-2.5-flash';
+    this.primaryModel = model || 'gemini-3.6-flash';
   }
 
   public async generatePrologue(context: AIDMPrologueContext): Promise<AIDMResponse> {
@@ -115,8 +108,15 @@ export class GeminiAIProvider implements IAIProvider {
 
         if (!response.ok) {
           const errText = await response.text();
-          console.warn(`Gemini model ${model} status ${response.status}: ${errText.slice(0, 120)}`);
-          lastError = new Error(`Gemini ${model} error: ${response.statusText}`);
+          let parsedMsg = errText.slice(0, 160);
+          try {
+            const errObj = JSON.parse(errText);
+            if (errObj.error?.message) {
+              parsedMsg = errObj.error.message;
+            }
+          } catch {}
+          console.warn(`Gemini model ${model} status ${response.status}: ${parsedMsg}`);
+          lastError = new Error(`Google Gemini (${model}): ${parsedMsg}`);
           continue; // failover to next model
         }
 
@@ -131,6 +131,6 @@ export class GeminiAIProvider implements IAIProvider {
       }
     }
 
-    throw lastError || new Error('All Gemini candidate models failed to respond');
+    throw lastError || new Error('Google Gemini: не удалось получить ответ от моделей ИИ');
   }
 }

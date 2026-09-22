@@ -97,6 +97,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     submitReaction,
     skipReaction,
     roomError,
+    dmThinkingError,
+    clearDmError,
   } = useGameSession(roomCode);
 
   const isHost = !!(room && user && room.hostUserId === user.id);
@@ -299,6 +301,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
             isHost={isHost}
             onResetTurn={resetPlayerTurn}
             onForceResolve={forceResolveRound}
+            dmThinkingError={dmThinkingError}
+            onDismissError={clearDmError}
             onRemoveRoll={handleRemoveRoll}
             onOpenDiceModal={handleOpenDiceModal}
             onSubmit={handleSubmitAction}

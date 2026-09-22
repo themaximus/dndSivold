@@ -1253,81 +1253,87 @@ async function runTests() {
   const detectedDeepSeek = aiProviderFactory.getProvider(encryptedDeepSeekKey);
   assert.ok(detectedDeepSeek instanceof DeepSeekAIProvider, 'Encrypted sk-... key must resolve to DeepSeekAIProvider');
 
-  // 2. Verify seamless fallback to SimulationAIProvider when provider throws error
+  // 2. Verify that invalid neural credentials throw an explicit error (no fake simulation responses)
   const resilienceRoom: RoomEntity = {
-    id: `room_resilience_${crypto.randomUUID()}`,
-    code: 'RESL01',
-    hostUserId: 'user_host_1',
-    title: 'Resilience Test Room',
-    setting: 'Темный лес',
+    id: 'room_resilience_test',
+    code: 'RESIL1',
+    hostUserId: 'user_1',
+    title: 'Тест устойчивости',
+    setting: 'Фэнтези',
     status: 'active',
     roundNumber: 1,
-    currentSituation: 'Отряд пробирается сквозь чащу',
+    currentSituation: 'Опасный лес',
     sceneEntities: [],
     createdAt: new Date().toISOString(),
   };
 
-  // Passing an invalid key will make remote call fail, triggering seamless fallback
-  const synthRes = await narrativeSynthesizer.synthesizeTurnResponse(resilienceRoom, {
-    apiKey: 'AIzaInvalidKeyThatFailsImmediately',
-    model: 'gemini-2.5-flash',
-    setting: resilienceRoom.setting,
-    genre: 'fantasy',
-    campaignDuration: 'medium',
-    roundNumber: 1,
-    currentSituation: resilienceRoom.currentSituation,
-    currentDC: 12,
-    campaignPlot: 'Поход через чащу',
-    loreJournal: [],
-    availableLoot: [],
-    characters: [
-      {
-        id: 'char_res_1',
-        userId: 'user_res_1',
-        name: 'Роланд',
-        race: 'Человек',
-        characterClass: 'Воин',
-        level: 1,
-        hpCurrent: 12,
-        hpMax: 12,
-        ac: 16,
-        stats: { str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 8 },
-        inventory: [],
-        createdAt: new Date().toISOString(),
-      },
-    ],
-    activeEnemies: [],
-    sceneNPCs: [],
-    actions: [
-      {
-        id: 'act_res_1',
-        characterId: 'char_res_1',
-        characterName: 'Роланд',
-        actionText: 'Осматриваю деревья в поисках ориентиров',
-        diceRolls: [{ diceType: 'd20', rolls: [14], modifier: 0, total: 14, isCriticalSuccess: false, isCriticalFail: false, purpose: 'Внимание' }],
-        submittedAt: new Date().toISOString(),
-      },
-    ],
-    previousHistory: [],
-    turnMode: 'turn_by_turn',
-    turnPlayerName: 'Роланд',
-    activeQuests: [],
-    completedQuests: [],
-    searchedObjects: [],
-    worldNPCRegistry: [],
-    environmentObjects: [],
-  });
-
-  assert.ok(synthRes.response, 'Response must be returned even with invalid neural credentials');
-  assert.ok(synthRes.response.narrative && synthRes.response.narrative.length > 20, 'Narrative must be synthesized by simulation fallback');
-  assert.ok(synthRes.response.currentSituation, 'currentSituation must be updated');
+  let errorCaught = false;
+  try {
+    await narrativeSynthesizer.synthesizeTurnResponse(resilienceRoom, {
+      apiKey: 'AIzaInvalidKeyThatFailsImmediately',
+      model: 'gemini-3.6-flash',
+      setting: resilienceRoom.setting,
+      genre: 'fantasy',
+      campaignDuration: 'medium',
+      roundNumber: 1,
+      currentSituation: resilienceRoom.currentSituation,
+      currentDC: 12,
+      campaignPlot: 'Поход через чащу',
+      loreJournal: [],
+      availableLoot: [],
+      characters: [
+        {
+          id: 'char_res_1',
+          userId: 'user_res_1',
+          name: 'Роланд',
+          race: 'Человек',
+          characterClass: 'Воин',
+          level: 1,
+          hpCurrent: 12,
+          hpMax: 12,
+          ac: 16,
+          stats: { str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 8 },
+          inventory: [],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      activeEnemies: [],
+      sceneNPCs: [],
+      actions: [
+        {
+          id: 'act_res_1',
+          characterId: 'char_res_1',
+          characterName: 'Роланд',
+          actionText: 'Осматриваю деревья в поисках ориентиров',
+          diceRolls: [{ diceType: 'd20', rolls: [14], modifier: 0, total: 14, isCriticalSuccess: false, isCriticalFail: false, purpose: 'Внимание' }],
+          submittedAt: new Date().toISOString(),
+        },
+      ],
+      previousHistory: [],
+      turnMode: 'turn_by_turn',
+      turnPlayerName: 'Роланд',
+      activeQuests: [],
+      completedQuests: [],
+      searchedObjects: [],
+      worldNPCRegistry: [],
+      environmentObjects: [],
+    });
+  } catch (err: any) {
+    errorCaught = true;
+    assert.ok(err.message.includes('Google Gemini') || err.message.includes('API key not valid') || err.message.includes('error'), 'Must throw real neural error');
+  }
+  assert.strictEqual(errorCaught, true, 'Neural failure must throw explicit error instead of silent fake simulation');
 
   // 3. Verify turn state rollback on failure or reset
   const rollbackRoomId = `room_rollback_${crypto.randomUUID()}`;
+  const rollbackUserId = `user_rb_${crypto.randomUUID()}`;
+  const rollbackPlayerId = `player_rb_${crypto.randomUUID()}`;
+  const rollbackTaId = `ta_rb_${crypto.randomUUID()}`;
+
   db.rooms.create({
     id: rollbackRoomId,
     code: 'ROLL01',
-    hostUserId: 'user_rb_1',
+    hostUserId: rollbackUserId,
     title: 'Rollback Room',
     setting: 'Фэнтези',
     status: 'active',
@@ -1337,9 +1343,9 @@ async function runTests() {
   });
 
   const player = db.roomPlayers.create({
-    id: `player_rb_1`,
+    id: rollbackPlayerId,
     roomId: rollbackRoomId,
-    userId: 'user_rb_1',
+    userId: rollbackUserId,
     username: 'Hero',
     hasActedThisRound: true,
     hasRolledThisRound: true,
@@ -1347,10 +1353,10 @@ async function runTests() {
   });
 
   db.turnActions.create({
-    id: 'ta_rb_1',
+    id: rollbackTaId,
     roomId: rollbackRoomId,
     roundNumber: 1,
-    playerId: 'user_rb_1',
+    playerId: rollbackUserId,
     characterId: 'char_rb_1',
     characterName: 'Hero',
     actionText: 'Атакую врага',
@@ -1359,13 +1365,13 @@ async function runTests() {
   });
 
   // Verify before rollback
-  assert.strictEqual(db.roomPlayers.findPlayer(rollbackRoomId, 'user_rb_1')?.hasActedThisRound, true);
+  assert.strictEqual(db.roomPlayers.findPlayer(rollbackRoomId, rollbackUserId)?.hasActedThisRound, true);
   assert.strictEqual(db.turnActions.findByRoomAndRound(rollbackRoomId, 1).length, 1);
 
   // Execute rollback
-  const updatedPlayers = roomSessionManager.revertPlayerTurnAction(rollbackRoomId, 'user_rb_1');
+  const updatedPlayers = roomSessionManager.revertPlayerTurnAction(rollbackRoomId, rollbackUserId);
   assert.ok(updatedPlayers, 'Must return updated players array');
-  const revertedPlayer = db.roomPlayers.findPlayer(rollbackRoomId, 'user_rb_1');
+  const revertedPlayer = db.roomPlayers.findPlayer(rollbackRoomId, rollbackUserId);
   assert.strictEqual(revertedPlayer?.hasActedThisRound, false, 'hasActedThisRound must be rolled back to false');
   assert.strictEqual(revertedPlayer?.hasRolledThisRound, false, 'hasRolledThisRound must be rolled back to false');
   assert.strictEqual(db.turnActions.findByRoomAndRound(rollbackRoomId, 1).length, 0, 'Pending turn action must be deleted from DB');

@@ -27,6 +27,7 @@ export function useGameSession(roomCode: string) {
     epilogue: string;
   } | null>(null);
   const [roomError, setRoomError] = useState<string | null>(null);
+  const [dmThinkingError, setDmThinkingError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,6 +117,7 @@ export function useGameSession(roomCode: string) {
 
     socket.on('turn_step_resolved', (data: { log: GameLogEntry; room: Room; players: RoomPlayer[]; nextActiveUserId?: string }) => {
       setIsDMThinking(false);
+      setDmThinkingError(null);
 
       setLogs(prev => [...prev, data.log]);
       setRoom(data.room);
@@ -136,6 +138,7 @@ export function useGameSession(roomCode: string) {
     socket.on('round_resolved', (data: { log: GameLogEntry; room: Room; players: RoomPlayer[]; nextRoundNumber: number }) => {
       setIsDMThinking(false);
       setHasSubmittedThisRound(false);
+      setDmThinkingError(null);
 
       setLogs(prev => [...prev, data.log]);
       setRoom(data.room);
@@ -243,7 +246,14 @@ export function useGameSession(roomCode: string) {
       setIsDMThinking(false);
       setHasSubmittedThisRound(false);
       if (data?.error) {
+        setDmThinkingError(data.error);
         console.warn('DM Thinking failed:', data.error);
+      }
+    });
+
+    socket.on('error_message', (msg: string) => {
+      if (msg) {
+        setDmThinkingError(msg);
       }
     });
 
@@ -273,6 +283,7 @@ export function useGameSession(roomCode: string) {
       socket.off('feed_activity');
       socket.off('inventory_notification');
       socket.off('adventure_finished');
+      socket.off('error_message');
     };
   }, [roomCode, user?.id, myPlayer?.characterId]);
 
@@ -527,5 +538,7 @@ export function useGameSession(roomCode: string) {
     submitReaction,
     skipReaction,
     roomError,
+    dmThinkingError,
+    clearDmError: () => setDmThinkingError(null),
   };
 }

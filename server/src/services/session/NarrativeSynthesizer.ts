@@ -1,5 +1,4 @@
 import { AIProviderFactory, aiProviderFactory } from '../ai/AIProviderFactory';
-import { SimulationAIProvider } from '../ai/SimulationAIProvider';
 import { ITTSService, ttsService } from '../tts/TTSService';
 import { DMPromptBuilder, dmPromptBuilder } from '../ai/DMPromptBuilder';
 import { DMResponseValidator, dmResponseValidator } from '../ai/DMResponseValidator';
@@ -58,14 +57,7 @@ export class NarrativeSynthesizer {
     context: AIDMPrologueContext
   ): Promise<{ response: AIDMResponse; audioUrl?: string }> {
     const provider = this.aiFactory.getProvider(context.apiKey, context.model);
-    let validated: AIDMResponse;
-    try {
-      validated = await provider.generatePrologue(context);
-    } catch (err: any) {
-      console.warn('[NarrativeSynthesizer] Neural prologue failed, falling back to simulation:', err?.message || err);
-      const fallback = new SimulationAIProvider();
-      validated = await fallback.generatePrologue(context);
-    }
+    const validated = await provider.generatePrologue(context);
 
     validated.narrative = sanitizeNarrativeText(validated.narrative);
 
@@ -111,14 +103,7 @@ export class NarrativeSynthesizer {
     context: AIDMContext
   ): Promise<{ response: AIDMResponse; audioUrl?: string }> {
     const provider = this.aiFactory.getProvider(context.apiKey, context.model);
-    let validated: AIDMResponse;
-    try {
-      validated = await provider.generateRound(context);
-    } catch (err: any) {
-      console.warn('[NarrativeSynthesizer] Neural turn response failed, seamlessly falling back to SimulationAIProvider:', err?.message || err);
-      const fallback = new SimulationAIProvider();
-      validated = await fallback.generateRound(context);
-    }
+    const validated = await provider.generateRound(context);
 
     validated.narrative = sanitizeNarrativeText(validated.narrative);
 
