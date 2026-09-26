@@ -16,6 +16,7 @@ import { narrativeSynthesizer } from '../services/session/NarrativeSynthesizer';
 import { roomSessionManager } from '../services/session/RoomSessionManager';
 import { characterRepository, roomRepository } from '../repositories';
 import { socialArbiter } from '../services/game/SocialArbiter';
+import { mechanicalArbiter } from '../services/game/MechanicalArbiter';
 
 async function runTests() {
   console.log('🚀 Starting Architecture Verification Test Suite...\n');
@@ -1866,7 +1867,340 @@ async function runTests() {
     console.log('✅ Procedural NPC deduplication, proper name promotion, and distinct NPC preservation verified!\n');
   }
 
-  console.log('🎉 ALL 31 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 32: Inventory & Capability Grounding (Weapons, Healing, Poison, Magic, Unarmed Strike)
+  // ----------------------------------------------------
+  {
+    console.log('Test 32: Inventory & Capability Grounding (Weapons, Healing, Poison, Magic, Unarmed Strike)');
+
+    const mockCharUnarmed: CharacterEntity = {
+      id: 'char_unarmed_1',
+      userId: 'user_u1',
+      name: 'Кулачник',
+      race: 'Человек',
+      characterClass: 'Воин',
+      level: 1,
+      hpCurrent: 12,
+      hpMax: 12,
+      ac: 10,
+      stats: { str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 10 }, // STR mod = +3
+      skills: [],
+      abilities: [],
+      inventory: [], // NO weapons!
+      createdAt: new Date().toISOString(),
+    };
+
+    // 1. Unarmed Strike without weapons must deal 1 + STR modifier (1 + 3 = 4 HP), NOT 1d8!
+    const unarmedAction: TurnActionEntity = {
+      id: 'act_unarmed_1',
+      roomId: 'room_test',
+      playerId: 'user_u1',
+      characterId: 'char_unarmed_1',
+      characterName: 'Кулачник',
+      actionText: 'Бью разбойника кулаком',
+      actionType: 'attack',
+      diceRolls: [{ rolls: [15], modifier: 3, total: 18, isCriticalSuccess: false, isCriticalFail: false, purpose: 'Атака' }],
+    };
+
+    const mockEnemy: RoomEnemy = {
+      id: 'enemy_bandit_1',
+      name: 'Разбойник',
+      type: 'minion',
+      hpCurrent: 20,
+      hpMax: 20,
+      ac: 12,
+      status: 'В бою',
+      isDead: false,
+    };
+
+    const unarmedRes = mechanicalArbiter.evaluateAction(
+      unarmedAction,
+      mockCharUnarmed,
+      [mockEnemy],
+      [],
+      12
+    );
+    assert.strictEqual(unarmedRes.actionType, 'attack');
+    assert.strictEqual(unarmedRes.damageRolled, 4, 'Unarmed strike with STR 16 must deal exactly 4 damage (1 + 3)');
+    assert.ok(unarmedRes.damageFormula?.includes('безоружный удар'), 'Damage formula must state unarmed strike');
+
+    // 2. Phantom Ranged Weapon Rejection:
+    // Character has a sword, but tries to shoot a bow that is NOT in inventory
+    const mockCharSwordsman: CharacterEntity = {
+      id: 'char_swordsman_1',
+      userId: 'user_u2',
+      name: 'Мечник',
+      race: 'Человек',
+      characterClass: 'Воин',
+      level: 1,
+      hpCurrent: 12,
+      hpMax: 12,
+      ac: 12,
+      stats: { str: 14, dex: 12, con: 12, int: 10, wis: 10, cha: 10 },
+      skills: [],
+      abilities: [],
+      inventory: [
+        { id: 'item_sword_1', name: 'Длинный меч', type: 'weapon', quantity: 1, damage: '1d8' },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+
+    const phantomBowAction: TurnActionEntity = {
+      id: 'act_bow_1',
+      roomId: 'room_test',
+      playerId: 'user_u2',
+      characterId: 'char_swordsman_1',
+      characterName: 'Мечник',
+      actionText: 'Стреляю из лука в разбойника',
+      actionType: 'attack',
+      diceRolls: [{ rolls: [18], modifier: 2, total: 20, isCriticalSuccess: false, isCriticalFail: false, purpose: 'Выстрел' }],
+    };
+
+    const phantomBowRes = mechanicalArbiter.evaluateAction(
+      phantomBowAction,
+      mockCharSwordsman,
+      [mockEnemy],
+      [],
+      12
+    );
+    assert.strictEqual(phantomBowRes.isHit, false, 'Phantom bow attack must not hit');
+    assert.strictEqual(phantomBowRes.damageRolled, 0, 'Phantom bow attack must deal 0 damage');
+    assert.ok(phantomBowRes.promptDirective.includes('НЕТ оружия дальнего боя'), 'Directive must forbid phantom ranged weapon');
+
+    // 3. Phantom Healing Rejection:
+    // Character has NO potions, bandages, or spells, but tries to heal
+    const mockCharEmpty: CharacterEntity = {
+      id: 'char_empty_1',
+      userId: 'user_u3',
+      name: 'Бродяга',
+      race: 'Человек',
+      characterClass: 'Воин',
+      level: 1,
+      hpCurrent: 10,
+      hpMax: 10,
+      ac: 10,
+      stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+      skills: [],
+      abilities: [],
+      inventory: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    const phantomHealAction: TurnActionEntity = {
+      id: 'act_heal_phantom_1',
+      roomId: 'room_test',
+      playerId: 'user_u3',
+      characterId: 'char_empty_1',
+      characterName: 'Бродяга',
+      actionText: 'Пою гонца целительным зельем',
+      actionType: 'heal',
+    };
+
+    const mockMessengerNPC: RoomNPC = {
+      id: 'npc_messenger_1',
+      name: 'Брендан',
+      role: 'Раненый гонец',
+      hpCurrent: 3,
+      hpMax: 15,
+      ac: 11,
+      status: 'Истекает кровью',
+      isDead: false,
+    };
+
+    const phantomHealRes = mechanicalArbiter.evaluateAction(
+      phantomHealAction,
+      mockCharEmpty,
+      [],
+      [mockMessengerNPC],
+      12
+    );
+    assert.strictEqual(phantomHealRes.healRolled, 0, 'Healing without items must roll 0 HP');
+    assert.ok(phantomHealRes.promptDirective.includes('НЕТ зелья исцеления'), 'Directive must warn about missing healing item');
+
+    // 3b. AI DM Phantom Heal Rejection in SceneEntityManager:
+    // AI DM tries to hallucinate Brendan getting +12 HP (15 HP) when heal was rejected
+    const healRejectRoom: RoomEntity = {
+      id: 'room_heal_reject_' + crypto.randomUUID(),
+      code: 'HEALREJ',
+      hostUserId: 'user_h',
+      title: 'Heal Reject Room',
+      setting: 'Фэнтези',
+      status: 'active',
+      roundNumber: 1,
+      currentSituation: 'Гонец лежит на полу',
+      sceneEntities: [
+        {
+          entityId: 'npc_messenger_1',
+          canonicalName: 'Брендан',
+          aliases: ['Брендан', 'гонец'],
+          entityType: 'npc',
+          faction: 'neutral',
+          combatRole: 'neutral_observer',
+          lifecycle: 'active',
+          stats: { hpCurrent: 3, hpMax: 15, ac: 11, conditions: [], willpower: 100, willpowerMax: 100 },
+          role: 'Раненый гонец',
+          status: 'Истекает кровью',
+          location: { roomId: 'room_heal_reject' },
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+
+    const aiHallucinatedHeal: AIDMResponse = {
+      narrative: 'Бродяга чудесным образом исцеляет гонца до полного здоровья.',
+      currentSituation: 'Гонец здоров',
+      activeEnemies: [],
+      sceneNPCs: [
+        {
+          id: 'npc_messenger_1',
+          name: 'Брендан',
+          role: 'Раненый гонец',
+          hpCurrent: 15, // AI hallucinated 15 HP!
+          hpMax: 15,
+          ac: 11,
+          status: 'Полностью здоров',
+        },
+      ],
+      partyChoices: [],
+    };
+
+    // Process with the unauthorized phantomHealRes (healRolled = 0)
+    sem.processRoundEntities(healRejectRoom, aiHallucinatedHeal, [phantomHealAction], [phantomHealRes]);
+    const messengerAfter = healRejectRoom.sceneEntities?.find((e) => e.entityId === 'npc_messenger_1');
+    assert.strictEqual(messengerAfter?.stats.hpCurrent, 3, 'Hallucinated AI heal must be blocked; HP must remain 3');
+
+    // 4. Valid Bandage Healing:
+    // Character with bandages in inventory heals Brendan
+    const mockCharHealer: CharacterEntity = {
+      id: 'char_healer_1',
+      userId: 'user_u4',
+      name: 'Лекарь',
+      race: 'Человек',
+      characterClass: 'Жрец',
+      level: 1,
+      hpCurrent: 10,
+      hpMax: 10,
+      ac: 12,
+      stats: { str: 10, dex: 10, con: 12, int: 12, wis: 16, cha: 10 }, // WIS mod = +3
+      skills: ['Медицина'],
+      abilities: [],
+      inventory: [
+        { id: 'item_bandages_1', name: 'Бинты', type: 'misc', quantity: 2 },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+
+    const bandageAction: TurnActionEntity = {
+      id: 'act_bandage_1',
+      roomId: 'room_test',
+      playerId: 'user_u4',
+      characterId: 'char_healer_1',
+      characterName: 'Лекарь',
+      actionText: 'Перевязываю раны гонца бинтами',
+      actionType: 'heal',
+    };
+
+    const bandageRes = mechanicalArbiter.evaluateAction(
+      bandageAction,
+      mockCharHealer,
+      [],
+      [mockMessengerNPC],
+      12
+    );
+    assert.ok(bandageRes.healRolled! >= 4, `Bandage heal (1d4 + 3) must be at least 4, got ${bandageRes.healRolled}`);
+    assert.strictEqual(bandageRes.consumedItems?.length, 1, '1 bandage item must be consumed');
+    assert.strictEqual(bandageRes.consumedItems?.[0].itemId, 'item_bandages_1', 'Consumed item must be bandages');
+
+    // 5. Phantom Poison Rejection:
+    // Character has NO poison, tries to poison an enemy
+    const phantomPoisonAction: TurnActionEntity = {
+      id: 'act_poison_phantom_1',
+      roomId: 'room_test',
+      playerId: 'user_u3',
+      characterId: 'char_empty_1',
+      characterName: 'Бродяга',
+      actionText: 'Травлю разбойника ядом',
+      actionType: 'poison',
+    };
+
+    const phantomPoisonRes = mechanicalArbiter.evaluateAction(
+      phantomPoisonAction,
+      mockCharEmpty,
+      [mockEnemy],
+      [],
+      12
+    );
+    assert.strictEqual(phantomPoisonRes.damageRolled, 0, 'Poisoning without poison in inventory must deal 0 damage');
+    assert.ok(phantomPoisonRes.promptDirective.includes('НЕТ яда'), 'Directive must forbid poisoning without poison item');
+
+    // 6. Valid Poisoning & Consumption:
+    // Character with poison vial poisons enemy
+    const mockCharRogue: CharacterEntity = {
+      id: 'char_rogue_1',
+      userId: 'user_u5',
+      name: 'Плут',
+      race: 'Человек',
+      characterClass: 'Плут',
+      level: 1,
+      hpCurrent: 9,
+      hpMax: 9,
+      ac: 13,
+      stats: { str: 10, dex: 16, con: 12, int: 12, wis: 10, cha: 12 },
+      skills: ['Скрытность'],
+      abilities: [],
+      inventory: [
+        { id: 'item_poison_1', name: 'Склянка с ядом гадюки', type: 'potion', quantity: 1, description: 'Смертоносный яд' },
+        { id: 'item_dagger_1', name: 'Кинжал', type: 'weapon', quantity: 1, damage: '1d4' },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+
+    const validPoisonAction: TurnActionEntity = {
+      id: 'act_poison_valid_1',
+      roomId: 'room_test',
+      playerId: 'user_u5',
+      characterId: 'char_rogue_1',
+      characterName: 'Плут',
+      actionText: 'Отравить разбойника ядом',
+      actionType: 'poison',
+    };
+
+    const validPoisonRes = mechanicalArbiter.evaluateAction(
+      validPoisonAction,
+      mockCharRogue,
+      [mockEnemy],
+      [],
+      12
+    );
+    assert.ok(validPoisonRes.damageRolled! >= 2, `Poison damage (2d4) must be >= 2, got ${validPoisonRes.damageRolled}`);
+    assert.strictEqual(validPoisonRes.consumedItems?.length, 1, '1 poison item must be consumed');
+    assert.strictEqual(validPoisonRes.consumedItems?.[0].itemId, 'item_poison_1');
+
+    // 7. Non-spellcaster Magic Spellcasting Blocked:
+    const mockFighterSpellAction: TurnActionEntity = {
+      id: 'act_spell_fighter_1',
+      roomId: 'room_test',
+      playerId: 'user_u1',
+      characterId: 'char_unarmed_1',
+      characterName: 'Кулачник',
+      actionText: 'Кастую файербол во врагов',
+      actionType: 'magic',
+    };
+
+    const fighterSpellRes = mechanicalArbiter.evaluateAction(
+      mockFighterSpellAction,
+      mockCharUnarmed,
+      [mockEnemy],
+      [],
+      12
+    );
+    assert.ok(fighterSpellRes.promptDirective.includes('не владеет магией'), 'Non-spellcaster magic cast must be blocked');
+
+    console.log('✅ Inventory & capability grounding (Weapons, Healing, Poison, Magic, Unarmed Strike) verified!\n');
+  }
+
+  console.log('🎉 ALL 32 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

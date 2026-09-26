@@ -139,6 +139,11 @@ export class ActionIntentEngine {
       return 'social_influence';
     }
 
+    // 2.5. Poisoning / applying poison
+    if (/(?:травлю|отрав(?:ить|ляю|лю)|подсып(?:ать|аю|ал)\s+.*яд|подмеш(?:ать|иваю)\s+.*яд|нанес(?:ти|у)\s+яд\s+на)/i.test(text)) {
+      return 'poison_apply';
+    }
+
     // 3. Healing & assistance
     if (/(?:леч(?:у|ить)|исцел(?:яю|ить)|перевяз(?:ка|ать|ываю)|зелье\s+лечени|бинту(?:ю|ем)|стабилиз|помо(?:щь|гаю)|оказываю\s+помощь)/i.test(text)) {
       return 'heal_assist';

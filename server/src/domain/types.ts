@@ -123,6 +123,7 @@ export type ActionIntentClass =
   | 'environment_interaction'
   | 'rest_recovery'
   | 'location_return'
+  | 'poison_apply'
   | 'general_action';
 
 export interface ActionIntentDTO {

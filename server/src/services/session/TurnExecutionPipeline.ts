@@ -14,6 +14,7 @@ import {
   searchedObjectRepository,
   IWorldNPCRepository,
   worldNPCRepository,
+  itemLedgerRepository,
 } from '../../repositories';
 import {
   RoomEntity,
@@ -301,7 +302,29 @@ export class TurnExecutionPipeline {
         if (!update.characterId) continue;
         const char = this.characters.findById(update.characterId);
         if (char) {
-          const delta = update.hpDelta || 0;
+          let delta = update.hpDelta || 0;
+          if (delta > 0) {
+            // Guard against phantom heals: check if authorized by Mechanical Arbiter or resting
+            const matchingRes = mechanicalResolutions.find(
+              (r) => (r.characterId === update.characterId && r.actionType === 'heal') ||
+                     (r.targetUpdate && r.targetUpdate.targetId === update.characterId && r.actionType === 'heal')
+            );
+            if (matchingRes) {
+              if (!matchingRes.healRolled || matchingRes.healRolled <= 0) {
+                delta = 0; // Arbiter rejected the heal (no potion/bandages/spells)
+              } else {
+                delta = matchingRes.healRolled; // Authoritative value
+              }
+            } else {
+              const isRestAction = actionsToResolve.some(
+                (a) => a.characterId === update.characterId && /(отдых|перевал|привал|ночлег|сон|спать)/i.test(a.actionText || '')
+              );
+              if (!isRestAction) {
+                delta = 0; // Reject unauthorized AI heal
+              }
+            }
+          }
+
           playerHpDeltas[char.id] = delta;
           if (delta !== 0) {
             this.characters.updateHp(char.id, delta);
@@ -315,15 +338,21 @@ export class TurnExecutionPipeline {
       if (res.targetUpdate) {
         const tu = res.targetUpdate;
         if (tu.targetType === 'enemy' || tu.targetType === 'npc') {
+          const hpDelta = tu.hpAfter - tu.hpBefore;
           sceneEntityManager.updateEntity(room, tu.targetId, {
-            hpDelta: -tu.damage,
+            hpDelta,
+            hpCurrent: tu.hpAfter,
             status: tu.newStatus,
           });
         }
       }
-      if (res.healRolled && res.characterId) {
-        this.characters.updateHp(res.characterId, res.healRolled);
-        playerHpDeltas[res.characterId] = (playerHpDeltas[res.characterId] || 0) + res.healRolled;
+      if (res.healRolled && res.healRolled > 0 && res.characterId) {
+        if (!res.targetUpdate) {
+          if (playerHpDeltas[res.characterId] === undefined) {
+            this.characters.updateHp(res.characterId, res.healRolled);
+            playerHpDeltas[res.characterId] = res.healRolled;
+          }
+        }
       }
     }
 
@@ -370,6 +399,50 @@ export class TurnExecutionPipeline {
           itemActivities,
           inventoryNotifications
         );
+      }
+    }
+
+    // Authoritative consumption of items registered by Mechanical Arbiter (potions, bandages, poison, etc.)
+    for (const res of mechanicalResolutions) {
+      if (res.consumedItems && res.consumedItems.length > 0) {
+        const charId = res.characterId;
+        const char = charId ? this.characters.findById(charId) : undefined;
+        if (char) {
+          for (const ci of res.consumedItems) {
+            const alreadyRemoved = inventoryNotifications.some(
+              (n) => n.characterId === char.id && n.action === 'remove' &&
+                (n.itemName.toLowerCase().includes(ci.itemName.toLowerCase()) || ci.itemName.toLowerCase().includes(n.itemName.toLowerCase()))
+            );
+            if (!alreadyRemoved) {
+              const effectiveItemId = ci.itemId || `item_${crypto.randomUUID().slice(0, 8)}`;
+              this.characters.removeItemFromInventory(char.id, effectiveItemId, ci.quantity, ci.reason);
+              itemLedgerRepository.recordItemEvent(
+                char.id,
+                char.name,
+                effectiveItemId,
+                ci.itemName,
+                'misc',
+                'consumed',
+                ci.quantity,
+                room.roundNumber,
+                ci.reason,
+                room.id
+              );
+              inventoryNotifications.push({
+                id: crypto.randomUUID(),
+                characterId: char.id,
+                characterName: char.name,
+                action: 'remove',
+                itemName: ci.itemName,
+                quantity: ci.quantity,
+                reason: ci.reason,
+                timestamp: new Date().toISOString(),
+              });
+              if (!itemActivities[char.id]) itemActivities[char.id] = [];
+              itemActivities[char.id].push(`Израсходован предмет: ${ci.itemName} (-${ci.quantity} шт.)`);
+            }
+          }
+        }
       }
     }
 

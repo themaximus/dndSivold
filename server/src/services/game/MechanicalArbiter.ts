@@ -25,6 +25,7 @@ export interface FailureConsequence {
 export type ActionIntentType =
   | 'attack'
   | 'heal'
+  | 'poison'
   | 'pacify_animal'
   | 'persuasion_negotiate'
   | 'intimidation_repel'
@@ -141,11 +142,30 @@ export class MechanicalArbiter {
       );
     }
 
+    // Non-spellcaster attempting magic/spells check
+    const isMagicAttempt = (action.actionType as string) === 'magic' ||
+      /(?:касту(?:ю|ет)|сотворя(?:ю|ет)\s+заклинани|заклинани(?:е|ем)|файербол|огненн(?:ый|ым)\s+шар|магическ(?:ую|ая)\s+стрел|призыва(?:ю|ет)\s+молни)/i.test(actionText);
+    if (isMagicAttempt && character && !this.isSpellcaster(character)) {
+      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Персонаж ${character.name} (${character.characterClass}) не владеет магией и не имеет свитков или заклинаний в свойствах! Заклинание не может быть сотворено (0 урона/эффекта). ЗАПРЕЩЕНО добавлять магический урон или эффекты.`;
+      return {
+        actionId: action.id,
+        characterId: character.id,
+        characterName: character.name,
+        actionType: 'check',
+        consumedItems: [],
+        promptDirective: directive,
+        auditNotes: `Попытка сотворения магии немагическим классом (${character.characterClass}): действие заблокировано.`,
+      };
+    }
+
     const intent = this.classifyIntent(actionText, action.actionType);
 
     switch (intent) {
       case 'heal':
         return this.resolveHealingAction(action, character, currentEnemies, currentNPCs);
+
+      case 'poison':
+        return this.resolvePoisonAction(action, character, currentEnemies, currentNPCs, roomDC);
 
       case 'pacify_animal':
         return this.resolvePacificationAction(action, character, currentEnemies, currentNPCs, roomDC);
@@ -231,14 +251,27 @@ export class MechanicalArbiter {
     }
 
     // 1. Healing / potions / bandaging
+    if (explicitType === 'heal') {
+      return 'heal';
+    }
+
     // Requires physical consumption verbs (drinking, pouring, administering, wrapping bandages)
     // or giving/administering a potion/salve/bandage/medicine
-    const hasPhysicalHealVerb = /(выпи(л|ть|ваю)|пь(ет|ю|ем)|глота(ет|ю|ть)|пои(т|ть|л)\s*(зельем|водой|снадобь)?|отпои(ть|л|ю)|напои(ть|л|ю)|вли(ть|л|ваю|вать)|наложи(л|ть|ваю)\s+повязк|перевяз(ал|ать|ываю)|леч(ить|у|ат)|исцел(ить|яю|яет)|подлеч(ить|у)|обработа(ть|л|ю)\s+ран|оказа(ть|л|зываю)\s+помощь)/i.test(speech.physicalAction || text);
+    const hasPhysicalHealVerb = /(выпи(л|ть|ваю)|пь(ет|ю|ем)|глота(ет|ю|ть)|по(ю|ит|ить|ил|ят|им)|пои(т|ть|л)\s*(зельем|водой|снадобь)?|отпои(ть|л|ю)|напои(ть|л|ю)|вли(ть|л|ваю|вать)|наложи(л|ть|ваю)\s+повязк|перевяз(ал|ать|ываю)|леч(ить|у|ат)|исцел(ить|яю|яет)|подлеч(ить|у)|обработа(ть|л|ю)\s+ран|оказа(ть|л|зываю)\s+помощь)/i.test(speech.physicalAction || text);
     const mentionsPotionItemExplicitly = /(зель[ея]|снадобь[ея]|эликсир|склянк(а|у)\s+с\s+зельем|лекарств|бальзам|бинт|повязк)/i.test(speech.physicalAction || text);
     const givesHealingItem = /(дать|даю|протянуть|влить|скармливаю|применить|использовать|поделиться)\s+.*(зель|снадобь|лекарств|эликсир|склянк|бальзам|бинт|повязк)/i.test(speech.physicalAction || text);
 
     if ((hasPhysicalHealVerb && mentionsPotionItemExplicitly) || givesHealingItem || (hasPhysicalHealVerb && !speech.isPureSpeech && /(ранен|ран[ыа]|гонец|гонц|спутник|союзник|себя|здоровь)/i.test(text))) {
       return 'heal';
+    }
+
+    // 1.5. Poisoning / applying poison
+    if (explicitType === 'poison') {
+      return 'poison';
+    }
+    const isPoisonAction = /(?:травлю|отрав(?:ить|ляю|лю)|подсып(?:ать|аю|ал)\s+.*яд|подмеш(?:ать|иваю)\s+.*яд|нанес(?:ти|у)\s+яд\s+на)/i.test(speech.physicalAction || text);
+    if (isPoisonAction) {
+      return 'poison';
     }
 
     // 2. Distraction / environment (throwing sand/stones/torches, noise, collapsing)
@@ -892,8 +925,8 @@ export class MechanicalArbiter {
       }
     }
 
-    // 2. Item & Ledger Verification (Catches phantom potions)
-    const availablePotions = (character?.inventory || []).filter(i => {
+    // 2. Check available healing sources: Potions, Bandages/Kit, and Magic
+    const availablePotions = (character?.inventory || []).filter((i) => {
       if (!i || (i.quantity !== undefined && i.quantity <= 0)) return false;
       const isPotionType = i.type === 'potion' || i.name.toLowerCase().includes('зелье') || ((i.healAmount || 0) > 0);
       if (!isPotionType) return false;
@@ -906,38 +939,99 @@ export class MechanicalArbiter {
       return true;
     });
 
-    const potion = availablePotions[0];
+    const availableBandages = (character?.inventory || []).filter((i) => {
+      if (!i || (i.quantity !== undefined && i.quantity <= 0)) return false;
+      const isBandage = /бинт|повязк|аптечк|набор целител/i.test(i.name.toLowerCase());
+      if (!isBandage) return false;
+      if (character && itemLedgerRepository) {
+        const status = itemLedgerRepository.getItemStatus(character.id, i.id);
+        if (status === 'broken' || status === 'destroyed' || status === 'consumed') {
+          return false;
+        }
+      }
+      return true;
+    });
 
-    // If character does NOT have an available potion
-    if (!potion) {
-      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: У персонажа ${character?.name || action.characterName} НЕТ доступного зелья исцеления (оно разбито, израсходовано или отсутствует в рюкзаке). Предмет НЕ МОЖЕТ быть применено! Исцеление не состоялось (+0 HP). Персонаж лишь обнаруживает пустой подсумок, осколки склянки или тратит время впустую.`;
+    const healingAbility = (character?.abilities || []).find((a) =>
+      /исцелен|лечени|наложение рук|возложение рук|cure|heal/i.test(a.name) ||
+      /исцелен|лечени|восстанавл.*хит|heal.*hp/i.test(a.description)
+    );
+    const isHealingClass = /(?:жрец|паладин|друид|бард)/i.test(character?.characterClass || '');
+
+    const potion = availablePotions[0];
+    const bandage = availableBandages[0];
+
+    // If character does NOT have ANY healing source
+    if (!potion && !bandage && !healingAbility && !isHealingClass) {
+      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: У персонажа ${character?.name || action.characterName} НЕТ зелья исцеления, бинтов или целительной магии в рюкзаке/свойствах! Восстановление здоровья НЕВОЗМОЖНО (+0 HP). ЗАПРЕЩЕНО повышать HP цели («hpCurrent»)! Опиши, что персонаж лишь осматривает раны или тратит время впустую без необходимых медицинских средств.`;
+      let noHealTargetUpdate: MechanicalTargetUpdate | undefined;
+      if (targetEntity) {
+        noHealTargetUpdate = {
+          targetId: targetEntity.id,
+          targetName: targetEntity.name,
+          targetType: targetType === 'self' ? 'npc' : targetType,
+          hpBefore: targetEntity.hpCurrent,
+          hpAfter: targetEntity.hpCurrent,
+          damage: 0,
+          isDead: targetEntity.isDead,
+          newStatus: targetEntity.status,
+        };
+      }
       return {
         actionId: action.id,
         characterId: character?.id || action.characterId,
         characterName: character?.name || action.characterName,
         actionType: 'heal',
         healRolled: 0,
+        targetUpdate: noHealTargetUpdate,
         consumedItems: [],
         promptDirective: directive,
-        auditNotes: `Попытка исцеления без доступного зелья: предмет отсутствует в инвентаре или разбит/израсходован в ItemLedger. +0 HP.`,
+        auditNotes: `Попытка исцеления без зелья/бинтов/магии: 0 HP. Исцеление заблокировано.`,
       };
     }
 
-    // 3. Roll healing amount
-    let healAmount = potion.healAmount || 0;
-    let healFormula = '2d4 + 2';
-    if (!healAmount || healAmount <= 0) {
-      const d1 = crypto.randomInt(1, 5);
-      const d2 = crypto.randomInt(1, 5);
-      healAmount = d1 + d2 + 2;
-    }
+    // 3. Roll healing amount based on best available source
+    let healAmount = 0;
+    let healFormula = '';
+    const consumedItems: ConsumedItemRecord[] = [];
+    let methodDescription = '';
 
-    const consumedItems: ConsumedItemRecord[] = [{
-      itemId: potion.id,
-      itemName: potion.name,
-      quantity: 1,
-      reason: `Использовано для исцеления (${targetName})`,
-    }];
+    if (potion) {
+      healAmount = potion.healAmount || 0;
+      healFormula = '2d4 + 2';
+      if (!healAmount || healAmount <= 0) {
+        const d1 = crypto.randomInt(1, 5);
+        const d2 = crypto.randomInt(1, 5);
+        healAmount = d1 + d2 + 2;
+      }
+      consumedItems.push({
+        itemId: potion.id,
+        itemName: potion.name,
+        quantity: 1,
+        reason: `Использовано для исцеления (${targetName})`,
+      });
+      methodDescription = `Применено зелье «${potion.name}». Восстановлено +${healAmount} HP для ${targetName}. Предмет израсходован из рюкзака.`;
+    } else if (bandage) {
+      const wisMod = calculateModifier(character?.stats?.wis || 10);
+      const d4 = crypto.randomInt(1, 5);
+      healAmount = Math.max(1, d4 + Math.max(0, wisMod));
+      healFormula = `1d4 + ${Math.max(0, wisMod)}`;
+      consumedItems.push({
+        itemId: bandage.id,
+        itemName: bandage.name,
+        quantity: 1,
+        reason: `Использовано для перевязки ран (${targetName})`,
+      });
+      methodDescription = `Использованы бинты «${bandage.name}». Раны перевязаны, восстановлено +${healAmount} HP для ${targetName}. 1 ед. бинтов израсходована.`;
+    } else {
+      // Magic healing
+      const statMod = calculateModifier(character?.stats?.wis || character?.stats?.cha || 10);
+      const d8 = crypto.randomInt(1, 9);
+      healAmount = Math.max(1, d8 + Math.max(0, statMod));
+      healFormula = `1d8 + ${Math.max(0, statMod)}`;
+      const spellName = healingAbility?.name || 'Заклинание исцеления';
+      methodDescription = `Применена целительная магия (${spellName}). Восстановлено +${healAmount} HP для ${targetName}.`;
+    }
 
     let targetUpdate: MechanicalTargetUpdate | undefined;
     if ((targetType === 'npc' || targetType === 'enemy') && targetEntity) {
@@ -951,25 +1045,140 @@ export class MechanicalArbiter {
         hpAfter,
         damage: 0,
         isDead: false,
-        newStatus: `Восстановил силы благодаря зелью (+${healAmount} HP). Отношение улучшено.`,
+        newStatus: `Восстановил силы (+${healAmount} HP). Состояние стабилизировано.`,
       };
     }
 
     const isSelfHeal = targetType === 'self';
-    const effectiveSelfHeal = isSelfHeal ? healAmount : 0;
 
-    const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Применено зелье «${potion.name}». Восстановлено +${healAmount} HP для ${targetName}. ${isSelfHeal ? 'Раны персонажа затягиваются.' : `Зелье передано / влито ${targetName}, его состояние стабилизируется.`} Предмет «${potion.name}» израсходован из рюкзака.`;
+    const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: ${methodDescription} ${isSelfHeal ? 'Раны персонажа затягиваются.' : `Состояние ${targetName} улучшается.`}`;
 
     return {
       actionId: action.id,
       characterId: character?.id || action.characterId,
       characterName: character?.name || action.characterName,
       actionType: 'heal',
-      healRolled: effectiveSelfHeal,
+      healRolled: healAmount,
       targetUpdate,
       consumedItems,
       promptDirective: directive,
-      auditNotes: `Исцеление: ${targetName} получил +${healAmount} HP (${healFormula}). Предмет: ${potion.name}. Инициатор получил: +${effectiveSelfHeal} HP.`,
+      auditNotes: `Исцеление: ${targetName} получил +${healAmount} HP (${healFormula}).`,
+    };
+  }
+
+  /**
+   * Checks whether a character has magical capabilities (spellcaster class, spell abilities, or scrolls).
+   */
+  public isSpellcaster(character: CharacterEntity | undefined): boolean {
+    if (!character) return false;
+    const cls = (character.characterClass || '').toLowerCase();
+    const isCasterClass = /(волшебник|чародей|колдун|жрец|друид|бард|паладин|следопыт|маг)/i.test(cls);
+    if (isCasterClass) return true;
+    const hasSpellAbility = (character.abilities || []).some(
+      (a) => a.type === 'spell' || /заклинани|каст|spell/i.test(a.description || '')
+    );
+    if (hasSpellAbility) return true;
+    const hasScroll = (character.inventory || []).some(
+      (i) => i && i.type === 'scroll' && (i.quantity === undefined || i.quantity > 0)
+    );
+    if (hasScroll) return true;
+    return false;
+  }
+
+  /**
+   * Resolves poisoning action (administering poison, coating weapons, poisoning drink/food).
+   * Validates inventory availability and prevents phantom poisoning.
+   */
+  private resolvePoisonAction(
+    action: TurnActionEntity,
+    character: CharacterEntity | undefined,
+    currentEnemies: RoomEnemy[],
+    currentNPCs: RoomNPC[],
+    roomDC: number
+  ): MechanicalResolution {
+    const targetInfo = this.findTarget(action, currentEnemies, currentNPCs);
+    const target = targetInfo?.target;
+    const targetName = target?.name || 'Цель';
+    const targetType = targetInfo?.type || 'enemy';
+
+    // 1. Check if character possesses poison in inventory or ability
+    const availablePoisons = (character?.inventory || []).filter((i) => {
+      if (!i || (i.quantity !== undefined && i.quantity <= 0)) return false;
+      const isPoison = /яд|токсин|отрав/i.test(i.name.toLowerCase()) ||
+        (i.type === 'potion' && /яд|токсин|отрав/i.test(i.description || ''));
+      if (!isPoison) return false;
+      if (character && itemLedgerRepository) {
+        const status = itemLedgerRepository.getItemStatus(character.id, i.id);
+        if (status === 'broken' || status === 'destroyed' || status === 'consumed') {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const poisonItem = availablePoisons[0];
+    const poisonAbility = (character?.abilities || []).find((a) =>
+      /яд|токсин|отрав/i.test(a.name) || /яд|токсин|отрав/i.test(a.description)
+    );
+
+    // If character does NOT have poison
+    if (!poisonItem && !poisonAbility) {
+      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: У персонажа ${character?.name || action.characterName} НЕТ яда или токсинов в рюкзаке/свойствах! Попытка отравления НЕВОЗМОЖНА (+0 урона, цель НЕ отравлена). ЗАПРЕЩЕНО накладывать эффект отравления или снижать HP цели! Опиши, что персонаж обнаруживает отсутствие яда.`;
+      return {
+        actionId: action.id,
+        characterId: character?.id || action.characterId,
+        characterName: character?.name || action.characterName,
+        actionType: 'poison',
+        damageRolled: 0,
+        consumedItems: [],
+        promptDirective: directive,
+        auditNotes: `Попытка отравления без яда в инвентаре: 0 урона, цель не отравлена.`,
+      };
+    }
+
+    // Character HAS poison: roll damage and consume item
+    const poisonRoll = crypto.randomInt(1, 5) + crypto.randomInt(1, 5); // 2d4
+    const consumedItems: ConsumedItemRecord[] = [];
+    if (poisonItem) {
+      consumedItems.push({
+        itemId: poisonItem.id,
+        itemName: poisonItem.name,
+        quantity: 1,
+        reason: `Использовано для отравления (${targetName})`,
+      });
+    }
+
+    let targetUpdate: MechanicalTargetUpdate | undefined;
+    if (target) {
+      const hpBefore = target.hpCurrent;
+      const hpAfter = Math.max(0, hpBefore - poisonRoll);
+      const isDead = hpAfter <= 0;
+      targetUpdate = {
+        targetId: target.id,
+        targetName: target.name,
+        targetType,
+        hpBefore,
+        hpAfter,
+        damage: poisonRoll,
+        isDead,
+        newStatus: isDead ? 'Погиб от яда' : `Отравлен ядом «${poisonItem?.name || 'Токсин'}» (-${poisonRoll} HP). Состояние: отравлен.`,
+      };
+    }
+
+    const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Применен яд «${poisonItem?.name || poisonAbility?.name || 'Токсин'}». Цель «${targetName}» отравлена! Нанесен урон ядом: ${poisonRoll} HP.${poisonItem ? ` 1 склянка яда «${poisonItem.name}» израсходована из рюкзака.` : ''}`;
+
+    return {
+      actionId: action.id,
+      characterId: character?.id || action.characterId,
+      characterName: character?.name || action.characterName,
+      actionType: 'poison',
+      damageRolled: poisonRoll,
+      damageFormula: '2d4 (яд)',
+      damageRolls: [poisonRoll],
+      targetUpdate,
+      consumedItems,
+      promptDirective: directive,
+      auditNotes: `Отравление: ${targetName} получил ${poisonRoll} урона ядом.${poisonItem ? ` Израсходован: ${poisonItem.name}.` : ''}`,
     };
   }
 
@@ -983,6 +1192,60 @@ export class MechanicalArbiter {
     currentNPCs: RoomNPC[],
     knownTarget: { target: RoomEnemy | RoomNPC; type: 'enemy' | 'npc' } | null
   ): MechanicalResolution {
+    // 0. Phantom Ranged Weapon Check
+    const actLower = (action?.actionText || '').toLowerCase();
+    const claimsRangedAttack = /(?:выстрел|стреля(?:ю|ть|ет)|выстрелить|стрельнуть|из\s+(?:лука|арбалета|мушкета|ружья)|снаря(?:д|дом)|стрел(?:ой|у)|болт(?:ом)?)/i.test(actLower);
+    const hasRangedWeapon = (character?.inventory || []).some(i =>
+      i && (i.quantity === undefined || i.quantity > 0) &&
+      (/(?:лук|арбалет|crossbow|bow|sling|праща|мушкет|ружь)/i.test(i.name) ||
+       (i.type === 'weapon' && /(?:лук|арбалет|crossbow|bow|sling|праща|мушкет|ружь|ranged|дальнобойн)/i.test(i.description || '')))
+    );
+
+    if (claimsRangedAttack && !hasRangedWeapon) {
+      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: У персонажа ${character?.name || action.characterName} НЕТ оружия дальнего боя (лука/арбалета) в рюкзаке! Выстрел НЕВОЗМОЖЕН (0 урона). ЗАПРЕЩЕНО наносить урон или описывать попадание из несуществующего оружия дальнего боя! Опиши, что у персонажа нет при себе дальнобойного оружия.`;
+      return {
+        actionId: action.id,
+        characterId: character?.id || action.characterId,
+        characterName: character?.name || action.characterName,
+        actionType: 'attack',
+        isHit: false,
+        damageRolled: 0,
+        consumedItems: [],
+        promptDirective: directive,
+        auditNotes: `Попытка дистанционной атаки без дальнобойного оружия в инвентаре: атака отклонена (0 урона).`,
+      };
+    }
+
+    // Poison coating check
+    const claimsPoisonCoating = /(?:смаз(?:ать|ываю|ал)\s+.*яд|отравленн(?:ым|ой|ую|ыми)|нанес(?:ти|у)\s+яд|яд(?:ом)?\s+на\s+(?:клинок|меч|оружие|стрел|болт)|отрав(?:ить|ляю)\s+(?:клинок|меч|оружие|стрел))/i.test(actLower);
+    let poisonBonusDamage = 0;
+    let poisonItemToConsume: any = undefined;
+    let poisonDirectiveNote = '';
+
+    if (claimsPoisonCoating) {
+      const availablePoisons = (character?.inventory || []).filter((i) => {
+        if (!i || (i.quantity !== undefined && i.quantity <= 0)) return false;
+        const isPoison = /яд|токсин|отрав/i.test(i.name.toLowerCase()) ||
+          (i.type === 'potion' && /яд|токсин|отрав/i.test(i.description || ''));
+        if (!isPoison) return false;
+        if (character && itemLedgerRepository) {
+          const status = itemLedgerRepository.getItemStatus(character.id, i.id);
+          if (status === 'broken' || status === 'destroyed' || status === 'consumed') {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      if (availablePoisons.length > 0) {
+        poisonItemToConsume = availablePoisons[0];
+        poisonBonusDamage = crypto.randomInt(1, 5) + crypto.randomInt(1, 5); // 2d4
+        poisonDirectiveNote = ` Оружие успешно смазано ядом «${poisonItemToConsume.name}» (+${poisonBonusDamage} дополнительного урона ядом)! Склянка яда израсходована.`;
+      } else {
+        poisonDirectiveNote = ` ⚠️ У персонажа НЕТ яда в инвентаре! Бонусный урон ядом и эффект отравления ОТКЛОНЕНЫ (0 урона ядом).`;
+      }
+    }
+
     const d20Roll = action.diceRolls && action.diceRolls.length > 0 ? action.diceRolls[0] : null;
     const targetInfo = knownTarget || this.findTarget(action, currentEnemies, currentNPCs);
 
@@ -1048,7 +1311,17 @@ export class MechanicalArbiter {
         failureConsequence = this.generateFailureConsequence(action, character, target, targetAc, true);
       }
 
-      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Атака ПРОМАХНУЛАСЬ (${rollTotal} vs КБ ${targetAc} цели «${target.name}»). Урон цели: 0 HP. Цель ${target.name} уклонилась или отразила выпад доспехом/щитом. Никакого вреда цели не нанесено.${failureConsequence ? `\n⚡ ПОСЛЕДСТВИЕ КРИТИЧЕСКОГО ПРОМАХА: ${failureConsequence.description}` : ''}`;
+      const consumedItems: ConsumedItemRecord[] = [];
+      if (poisonItemToConsume) {
+        consumedItems.push({
+          itemId: poisonItemToConsume.id,
+          itemName: poisonItemToConsume.name,
+          quantity: 1,
+          reason: 'Использовано для смазывания оружия ядом (атака промахнулась)',
+        });
+      }
+
+      const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: Атака ПРОМАХНУЛАСЬ (${rollTotal} vs КБ ${targetAc} цели «${target.name}»). Урон цели: 0 HP. Цель ${target.name} уклонилась или отразила выпад доспехом/щитом. Никакого вреда цели не нанесено.${poisonDirectiveNote}${failureConsequence ? `\n⚡ ПОСЛЕДСТВИЕ КРИТИЧЕСКОГО ПРОМАХА: ${failureConsequence.description}` : ''}`;
 
       return {
         actionId: action.id,
@@ -1057,7 +1330,7 @@ export class MechanicalArbiter {
         actionType: 'attack',
         isHit: false,
         damageRolled: 0,
-        consumedItems: [],
+        consumedItems,
         failureConsequence,
         promptDirective: directive,
         auditNotes: `${action.characterName} атаковал ${target.name}: ${missReason}. Урон: 0.${failureConsequence ? ` Последствие: ${failureConsequence.type}.` : ''}`,
@@ -1067,13 +1340,26 @@ export class MechanicalArbiter {
     // Attack HIT! Procedural weapon damage
     const { damageTotal, formula, rolls } = this.calculateWeaponDamage(character, action?.actionText || '', isCritSuccess);
 
+    const totalDamage = damageTotal + poisonBonusDamage;
+    const effectiveFormula = poisonBonusDamage > 0 ? `${formula} + ${poisonBonusDamage} (яд 2d4)` : formula;
+
+    const consumedItems: ConsumedItemRecord[] = [];
+    if (poisonItemToConsume) {
+      consumedItems.push({
+        itemId: poisonItemToConsume.id,
+        itemName: poisonItemToConsume.name,
+        quantity: 1,
+        reason: 'Использовано для смазывания оружия ядом',
+      });
+    }
+
     const hpBefore = target.hpCurrent;
-    const hpAfter = Math.max(0, hpBefore - damageTotal);
+    const hpAfter = Math.max(0, hpBefore - totalDamage);
     const isDead = hpAfter <= 0;
 
     // Damage also damages enemy willpower
     const wpBefore = target.willpower ?? 80;
-    const wpDamage = Math.round((damageTotal / target.hpMax) * 60) + (isCritSuccess ? 20 : 0);
+    const wpDamage = Math.round((totalDamage / target.hpMax) * 60) + (isCritSuccess ? 20 : 0);
     const wpAfter = Math.max(0, wpBefore - wpDamage);
 
     const newStatus = isDead
@@ -1088,7 +1374,7 @@ export class MechanicalArbiter {
       targetType,
       hpBefore,
       hpAfter,
-      damage: damageTotal,
+      damage: totalDamage,
       isDead,
       newStatus,
       willpowerAfter: wpAfter,
@@ -1098,7 +1384,7 @@ export class MechanicalArbiter {
     if (!isDead) {
       directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР:
 - Результат атаки: ПОПАДАНИЕ (${rollTotal} vs КБ ${targetAc}).
-- Процедурный урон оружия: ${damageTotal} (Бросок: ${formula} = [${rolls.join('+')}]).
+- Процедурный урон оружия: ${totalDamage} (Бросок: ${effectiveFormula} = [${rolls.join('+')}]).${poisonDirectiveNote}
 - Состояние цели: У «${target.name}» осталось ${hpAfter}/${target.hpMax} HP (Воля: ${wpAfter}%).
 - 🛑 СТРОГОЕ ТРЕБОВАНИЕ МАСТЕРУ: Цель «${target.name}» ЖИВА И ОСТАЁТСЯ В СТРОЮ!
 - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО описывать смерть, обезглавливание или вывод ${target.name} из строя в этом ходе!
@@ -1106,8 +1392,8 @@ export class MechanicalArbiter {
     } else {
       directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР:
 - Результат атаки: СМЕРТЕЛЬНОЕ ПОПАДАНИЕ (${rollTotal} vs КБ ${targetAc})!
-- Процедурный урон оружия: ${damageTotal} (Бросок: ${formula} = [${rolls.join('+')}]).
-- Состояние цели: Урон ${damageTotal} добил оставшиеся ${hpBefore} HP цели «${target.name}».
+- Процедурный урон оружия: ${totalDamage} (Бросок: ${effectiveFormula} = [${rolls.join('+')}]).${poisonDirectiveNote}
+- Состояние цели: Урон ${totalDamage} добил оставшиеся ${hpBefore} HP цели «${target.name}».
 - Цель «${target.name}» ПОВЕРЖЕНА (0/${target.hpMax} HP). Опиши зрелищный добивающий удар.`;
     }
 
@@ -1117,13 +1403,13 @@ export class MechanicalArbiter {
       characterName: action.characterName,
       actionType: 'attack',
       isHit: true,
-      damageRolled: damageTotal,
-      damageFormula: formula,
+      damageRolled: totalDamage,
+      damageFormula: effectiveFormula,
       damageRolls: rolls,
       targetUpdate,
-      consumedItems: [],
+      consumedItems,
       promptDirective: directive,
-      auditNotes: `Атака по «${target.name}»: ПОПАДАНИЕ (${rollTotal} vs КБ ${targetAc}). Урон: ${damageTotal} (${formula}). HP цели: ${hpBefore} -> ${hpAfter}/${target.hpMax}. Воля: ${wpBefore}% -> ${wpAfter}%.`,
+      auditNotes: `Атака по «${target.name}»: ПОПАДАНИЕ (${rollTotal} vs КБ ${targetAc}). Урон: ${totalDamage} (${effectiveFormula}). HP цели: ${hpBefore} -> ${hpAfter}/${target.hpMax}. Воля: ${wpBefore}% -> ${wpAfter}%.`,
     };
   }
 
@@ -1199,11 +1485,41 @@ export class MechanicalArbiter {
       }
     }
 
+    const isExplicitUnarmed = /(?:кулак|ногой|ногами|руками|безоружн|рукопашн(?:ый|ую|о)|пощечин|по затылку|зубами|головой)/i.test(actLower);
+
+    // If character has no weapons in inventory or explicitly strikes unarmed: D&D 5e Unarmed Strike
+    if (!weapon || isExplicitUnarmed) {
+      const isMonk = /(монах|monk)/i.test(character.characterClass || '');
+      const statMod = Math.max(0, calculateModifier(character.stats?.str || 10));
+      const dexMod = Math.max(0, calculateModifier(character.stats?.dex || 10));
+      const bestMod = isMonk ? Math.max(statMod, dexMod) : statMod;
+
+      if (isMonk) {
+        const rollsCount = isCrit ? 2 : 1;
+        const rolls: number[] = [];
+        for (let i = 0; i < rollsCount; i++) {
+          rolls.push(crypto.randomInt(1, 5));
+        }
+        const sum = rolls.reduce((a, b) => a + b, 0);
+        const damageTotal = Math.max(1, sum + bestMod);
+        const formula = `${rollsCount}d4 + ${bestMod} (Монах, безоружный удар)`;
+        return { damageTotal, formula, rolls };
+      }
+
+      const damageTotal = Math.max(1, 1 + bestMod);
+      const formula = `1 + ${bestMod} (безоружный удар)`;
+      return {
+        damageTotal,
+        formula,
+        rolls: [1],
+      };
+    }
+
     let diceCount = 1;
     let diceSides = 6;
     let explicitBonus = 0;
 
-    const rawDamage = weapon?.damage?.trim().toLowerCase() || '1d8';
+    const rawDamage = weapon.damage?.trim().toLowerCase() || '1d6';
     const match = rawDamage.match(/^(\d*)d(\d+)(?:\s*\+\s*(\d+))?$/);
     if (match) {
       diceCount = match[1] ? parseInt(match[1], 10) : 1;
@@ -1216,7 +1532,7 @@ export class MechanicalArbiter {
 
     const effectiveDiceCount = isCrit ? diceCount * 2 : diceCount;
 
-    const isFinesseOrRanged = /(лук|арбалет|кинжал|рапир|кортик|шпага|дротик|bow|dagger|rapier|crossbow)/i.test(weapon?.name || rawDamage);
+    const isFinesseOrRanged = /(лук|арбалет|кинжал|рапир|кортик|шпага|дротик|bow|dagger|rapier|crossbow)/i.test(weapon.name || rawDamage);
     const statKey = isFinesseOrRanged ? 'dex' : 'str';
     const statScore = character.stats?.[statKey] || 10;
     const statMod = calculateModifier(statScore);

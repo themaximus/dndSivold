@@ -995,7 +995,21 @@ export class SceneEntityManager {
           }
 
           if (npc.hpCurrent !== undefined) {
-            existing.stats.hpCurrent = Math.max(0, npc.hpCurrent);
+            // Guard against unauthorized phantom heals from AI hallucinations
+            if (npc.hpCurrent > existing.stats.hpCurrent) {
+              const authorizedHeal = mechanicalResolutions.some(
+                (r) => r.targetUpdate &&
+                  (r.targetUpdate.targetId === existing.entityId ||
+                   (r.targetUpdate.targetName && r.targetUpdate.targetName.toLowerCase() === existing.canonicalName.toLowerCase())) &&
+                  r.targetUpdate.hpAfter > r.targetUpdate.hpBefore
+              );
+              if (authorizedHeal) {
+                existing.stats.hpCurrent = Math.max(0, Math.min(existing.stats.hpMax, npc.hpCurrent));
+              }
+              // If not authorized by Mechanical Arbiter, reject the heal and keep current HP
+            } else {
+              existing.stats.hpCurrent = Math.max(0, npc.hpCurrent);
+            }
           }
           if (npc.hpMax !== undefined) {
             existing.stats.hpMax = Math.max(existing.stats.hpMax, npc.hpMax);
@@ -1044,7 +1058,7 @@ export class SceneEntityManager {
       }
     }
 
-    // 3. Process Player Hostile Actions & Damage against NPCs
+    // 3. Process Player Hostile & Healing Actions from Mechanical Resolutions
     if (Array.isArray(mechanicalResolutions)) {
       for (const res of mechanicalResolutions) {
         if (res.targetUpdate && (res.targetUpdate.targetType === 'npc' || res.targetUpdate.targetType === 'enemy')) {
@@ -1054,6 +1068,12 @@ export class SceneEntityManager {
             res.targetUpdate.targetId
           );
           if (ent) {
+            // Authoritatively apply HP from Mechanical Arbiter
+            ent.stats.hpCurrent = Math.max(0, Math.min(ent.stats.hpMax, res.targetUpdate.hpAfter));
+            if (res.targetUpdate.isDead || ent.stats.hpCurrent <= 0) {
+              ent.lifecycle = 'defeated';
+            }
+
             if (res.targetUpdate.damage > 0 || (res.damageRolled && res.damageRolled > 0)) {
               ent.faction = 'hostile';
               ent.combatRole = 'hostile_threat';
@@ -1063,6 +1083,8 @@ export class SceneEntityManager {
               } else if (!ent.status.toLowerCase().includes('атак')) {
                 ent.status = 'Враждебен: атакован отрядом, вступает в бой';
               }
+            } else if (res.targetUpdate.newStatus) {
+              ent.status = res.targetUpdate.newStatus;
             }
             updatedEntityIds.add(ent.entityId);
           }

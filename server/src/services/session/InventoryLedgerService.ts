@@ -723,7 +723,7 @@ export class InventoryLedgerService {
     const narrativeLower = (dmResult.narrative || '').toLowerCase();
 
     // Regex for consuming / drinking / using up / spending an item
-    const consumeRegex = /(выпива(ю|ет|л|ла|ли|ем)|пь(ю|ет|ем|ют|ил|ила|или)|испи(л|ла|ли|ть)|глота(ю|ет|ют|л|ла)|использу(ю|ет|ем|ют|вал|вала)|применя(ю|ет|ем|ют)|трач(у|ит|им|ат|ил|ила)|броса(ю|ет|ем|ют|л|ла)|швыря(ю|ет|ем|л|ла)|зажига(ю|ет|ем|л|ла)|леч(усь|ится|имся|ил|ила)|перевязыва(ю|ет|ем|л|ла)|ввож(у|ит|им|л|ла)|активиру(ю|ет|ем)|вскрыва(ю|ет|ем)\s+зель)/i;
+    const consumeRegex = /(выпива(ю|ет|л|ла|ли|ем)|пь(ю|ет|ем|ют|ил|ила|или)|испи(л|ла|ли|ть)|глота(ю|ет|ют|л|ла)|использу(ю|ет|ем|ют|вал|вала)|применя(ю|ет|ем|ют)|трач(у|ит|им|ат|ил|ила)|броса(ю|ет|ем|ют|л|ла)|швыря(ю|ет|ем|л|ла)|зажига(ю|ет|ем|л|ла)|леч(усь|ится|имся|ил|ила)|перевязыва(ю|ет|ем|л|ла)|ввож(у|ит|им|л|ла)|активиру(ю|ет|ем)|вскрыва(ю|ет|ем)\s+зель|травлю|отрав(?:ить|ляю|лю|ил|ила)|смазыва(?:ю|ет|ем|л|ла)|нанош(?:у|ит|им)|подсып(?:ать|аю|ал|ала)|подмеш(?:ать|иваю|ал|ала))/i;
 
     if (!consumeRegex.test(actionLower) && !consumeRegex.test(narrativeLower)) return;
 
@@ -743,8 +743,9 @@ export class InventoryLedgerService {
       const isGenericBandage = /бинт|аптечк|перевяз/i.test(actionLower) && (itemNameClean.includes('бинт') || itemNameClean.includes('аптечк'));
       const isGenericTorch = /факел/i.test(actionLower) && itemNameClean.includes('факел');
       const isGenericScroll = /свиток/i.test(actionLower) && (item.type === 'scroll' || itemNameClean.includes('свиток'));
+      const isGenericPoison = /яд|токсин|отрав/i.test(actionLower) && (/яд|токсин|отрав/i.test(itemNameClean) || (item.type === 'potion' && /яд|токсин|отрав/i.test(item.description || '')));
 
-      const isItemConsumed = isNameInAction || isGenericPotion || isGenericBandage || isGenericTorch || isGenericScroll;
+      const isItemConsumed = isNameInAction || isGenericPotion || isGenericBandage || isGenericTorch || isGenericScroll || isGenericPoison;
       if (!isItemConsumed) continue;
 
       // Check if already removed this round
@@ -792,8 +793,9 @@ export class InventoryLedgerService {
       if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
       itemActivitiesByCharacter[char.id].push(`Израсходован предмет: ${item.name} (-1 шт.)`);
 
-      // If it has healing and HP is damaged, apply heal
-      const healAmount = item.healAmount || (item.type === 'potion' || itemNameClean.includes('зелье') ? 8 : 0);
+      // If it has healing and HP is damaged, apply heal (ensure poisons never heal!)
+      const isPoison = /яд|токсин|отрав/i.test(itemNameClean) || (item.description && /яд|токсин|отрав/i.test(item.description));
+      const healAmount = isPoison ? 0 : (item.healAmount || (item.type === 'potion' && !isPoison ? 8 : 0));
       if (healAmount > 0) {
         const afterChar = this.characters.findById(char.id);
         if (afterChar && afterChar.hpCurrent < afterChar.hpMax) {
