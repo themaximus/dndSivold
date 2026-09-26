@@ -145,25 +145,38 @@ export class DMResponseValidator {
           : [],
         inventoryUpdates: Array.isArray(parsed.inventoryUpdates)
           ? parsed.inventoryUpdates
-              .filter((u: any) => u && u.item && typeof u.item.name === 'string' && u.item.name.trim().length > 0)
-              .map((u: any) => ({
-                characterId: String(u.characterId || ''),
-                characterName: u.characterName ? String(u.characterName) : undefined,
-                action: u.action === 'remove' ? 'remove' : 'add',
-                reason: typeof u.reason === 'string' && u.reason.trim() ? u.reason.trim() : undefined,
-                item: {
-                  name: String(u.item.name).trim(),
-                  quantity: typeof u.item.quantity === 'number' && u.item.quantity > 0 ? u.item.quantity : 1,
-                  type: u.item.type || 'misc',
-                  description: typeof u.item.description === 'string' ? u.item.description.trim() : '',
-                  damage: u.item.damage,
-                  healAmount: u.item.healAmount,
-                  ac_bonus: u.item.ac_bonus,
-                  history: Array.isArray(u.item.history)
-                    ? u.item.history.map(String)
-                    : (u.reason ? [String(u.reason)] : undefined),
-                },
-              }))
+              .map((u: any) => {
+                if (!u) return null;
+                let rawItem = u.item;
+                if (typeof rawItem === 'string') {
+                  rawItem = { name: rawItem };
+                } else if (!rawItem && typeof u.itemName === 'string') {
+                  rawItem = { name: u.itemName };
+                }
+                if (!rawItem || typeof rawItem.name !== 'string' || !rawItem.name.trim()) {
+                  return null;
+                }
+                const itemName = rawItem.name.replace(/^[«"']+|[»"']+$/g, '').trim();
+                return {
+                  characterId: String(u.characterId || ''),
+                  characterName: u.characterName ? String(u.characterName) : undefined,
+                  action: u.action === 'remove' ? 'remove' : 'add',
+                  reason: typeof u.reason === 'string' && u.reason.trim() ? u.reason.trim() : undefined,
+                  item: {
+                    name: itemName,
+                    quantity: typeof rawItem.quantity === 'number' && rawItem.quantity > 0 ? rawItem.quantity : 1,
+                    type: rawItem.type || 'misc',
+                    description: typeof rawItem.description === 'string' ? rawItem.description.trim() : '',
+                    damage: rawItem.damage,
+                    healAmount: rawItem.healAmount,
+                    ac_bonus: rawItem.ac_bonus,
+                    history: Array.isArray(rawItem.history)
+                      ? rawItem.history.map(String)
+                      : (u.reason ? [String(u.reason)] : undefined),
+                  },
+                };
+              })
+              .filter((x: any): x is NonNullable<typeof x> => !!x)
           : [],
         ruleViolations: Array.isArray(parsed.ruleViolations) ? parsed.ruleViolations : [],
         mood: parsed.mood,

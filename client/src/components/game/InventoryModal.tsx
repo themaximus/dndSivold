@@ -1,6 +1,6 @@
 import React from 'react';
 import { Character, InventoryItem } from '../../types';
-import { X, Package, Sword, Shield, Sparkles, Heart, Check } from 'lucide-react';
+import { X, Package, Sword, Shield, Sparkles, Heart, Check, Trash2 } from 'lucide-react';
 
 interface InventoryModalProps {
   isOpen: boolean;
@@ -8,6 +8,7 @@ interface InventoryModalProps {
   character: Character | null;
   onUseItem: (itemId: string) => void;
   onEquipWeapon: (itemId: string) => void;
+  onDropItem?: (itemId: string) => void;
 }
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({
@@ -16,6 +17,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   character,
   onUseItem,
   onEquipWeapon,
+  onDropItem,
 }) => {
   if (!isOpen || !character) return null;
 
@@ -28,7 +30,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       case 'armor':
         return <Shield className="w-4 h-4 text-blue-400" />;
       case 'potion':
-        return <Sparkles className="w-4 h-4 text-emerald-400" />;
+        return <Heart className="w-4 h-4 text-emerald-400" />;
+      case 'scroll':
+        return <Sparkles className="w-4 h-4 text-indigo-400" />;
       default:
         return <Package className="w-4 h-4 text-purple-400" />;
     }
@@ -63,8 +67,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           ) : (
             items.map(item => {
               const isEquipped = character.activeWeaponId === item.id;
-              const isPotion = item.type === 'potion' || !!item.healAmount;
+              const isPotion = item.type === 'potion' || !!item.healAmount || item.name.toLowerCase().includes('зелье');
+              const isScroll = item.type === 'scroll' || item.name.toLowerCase().includes('свиток');
               const isWeapon = item.type === 'weapon';
+              const isConsumable = isPotion || isScroll || item.type === 'food' || item.type === 'misc';
 
               return (
                 <div
@@ -113,6 +119,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         </button>
                       )}
 
+                      {!isPotion && isConsumable && (
+                        <button
+                          type="button"
+                          onClick={() => onUseItem(item.id)}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Использовать
+                        </button>
+                      )}
+
                       {isWeapon && !isEquipped && (
                         <button
                           type="button"
@@ -121,6 +138,18 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         >
                           <Sword className="w-3.5 h-3.5" />
                           Экипировать
+                        </button>
+                      )}
+
+                      {onDropItem && (
+                        <button
+                          type="button"
+                          onClick={() => onDropItem(item.id)}
+                          title="Выбросить на землю"
+                          className="px-2.5 py-1.5 bg-red-950/20 hover:bg-red-900/40 border border-red-900/40 text-red-300 hover:text-red-100 rounded-lg text-xs transition-colors flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Выбросить</span>
                         </button>
                       )}
                     </div>

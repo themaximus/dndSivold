@@ -91,6 +91,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     setTurnMode,
     pickupLoot,
     useItem,
+    dropItem,
     equipWeapon,
     rollDeathSave,
     fetchTalents,
@@ -371,6 +372,7 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
           character={myCharacter}
           onUseItem={useItem}
           onEquipWeapon={equipWeapon}
+          onDropItem={dropItem}
         />
 
         {/* Talent Progression Tree Modal */}

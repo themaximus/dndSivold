@@ -349,7 +349,7 @@ export class TurnExecutionPipeline {
       itemActivities
     );
 
-    // Procedural item recovery for acting characters
+    // Procedural item recovery & consumption for acting characters
     for (const action of actionsToResolve) {
       const char = activeCharacters.find((c) => c.id === action.characterId);
       if (char) {
@@ -359,6 +359,14 @@ export class TurnExecutionPipeline {
           char,
           dmResult,
           false,
+          itemActivities,
+          inventoryNotifications
+        );
+        inventoryLedgerService.handleProceduralItemConsumption(
+          room,
+          action,
+          char,
+          dmResult,
           itemActivities,
           inventoryNotifications
         );

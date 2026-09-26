@@ -14,6 +14,7 @@ import { GeminiAIProvider } from '../services/ai/GeminiAIProvider';
 import { DeepSeekAIProvider } from '../services/ai/DeepSeekAIProvider';
 import { narrativeSynthesizer } from '../services/session/NarrativeSynthesizer';
 import { roomSessionManager } from '../services/session/RoomSessionManager';
+import { characterRepository, roomRepository } from '../repositories';
 
 async function runTests() {
   console.log('🚀 Starting Architecture Verification Test Suite...\n');
@@ -1375,9 +1376,112 @@ async function runTests() {
   assert.strictEqual(revertedPlayer?.hasActedThisRound, false, 'hasActedThisRound must be rolled back to false');
   assert.strictEqual(revertedPlayer?.hasRolledThisRound, false, 'hasRolledThisRound must be rolled back to false');
   assert.strictEqual(db.turnActions.findByRoomAndRound(rollbackRoomId, 1).length, 0, 'Pending turn action must be deleted from DB');
-  console.log('✅ AI key decryption, simulation fallback, and turn action rollback verified!\n');
+  // ----------------------------------------------------
+  // Test 28: Inventory Item Subtraction, Procedural Consumption & Dropping
+  // ----------------------------------------------------
+  {
+    console.log('Test 28: Inventory Item Subtraction, Procedural Consumption & Dropping');
+    const invTestCharId = 'char_inv_test_' + crypto.randomUUID();
+    const testChar: CharacterEntity = {
+      id: invTestCharId,
+      userId: 'user_inv_test',
+      name: 'Элиас',
+      characterClass: 'Воин',
+      race: 'Человек',
+      level: 2,
+      hpCurrent: 10,
+      hpMax: 20,
+      stats: { strength: 16, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 10, charisma: 10 },
+      inventory: [
+        {
+          id: 'item_pot_1',
+          name: '«Зелье лечения»',
+          type: 'potion',
+          description: 'Восстанавливает 8 HP',
+          quantity: 2,
+          healAmount: 8,
+        },
+        {
+          id: 'item_torch_1',
+          name: 'Факел',
+          type: 'misc',
+          description: 'Освещает путь',
+          quantity: 1,
+        },
+        {
+          id: 'item_sword_1',
+          name: 'Стальной меч',
+          type: 'weapon',
+          description: 'Острый клинок',
+          quantity: 1,
+          damage: '1d8',
+        },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+    db.characters.create(testChar);
 
-  console.log('🎉 ALL 27 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+    // 1. Direct removeItem with quotes & inflection
+    const charRepo = characterRepository;
+    const removedDirect = charRepo.removeItemFromInventory(invTestCharId, 'зелье лечения', 1);
+    assert.ok(removedDirect, 'Character must be returned');
+    const potionAfterDirect = removedDirect.inventory.find(i => i.id === 'item_pot_1');
+    assert.strictEqual(potionAfterDirect?.quantity, 1, 'Potion quantity must be decremented from 2 to 1');
+
+    // 2. Procedural item consumption during turn
+    const invLedger = systemLocator.get('inventoryLedgerService');
+    const mockInvRoom: RoomEntity = {
+      id: 'room_inv_' + crypto.randomUUID(),
+      code: 'INVR1',
+      hostUserId: 'user_inv_test',
+      title: 'Пещера',
+      setting: 'Фэнтези',
+      status: 'active',
+      roundNumber: 2,
+      currentSituation: 'В темноте',
+      sceneEntities: [],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.create(mockInvRoom);
+
+    const mockTurnAction: any = {
+      id: 'act_inv_1',
+      roomId: mockInvRoom.id,
+      roundNumber: 2,
+      playerId: 'user_inv_test',
+      characterId: invTestCharId,
+      characterName: 'Элиас',
+      actionText: 'Я достаю и выпиваю зелье лечения, чтобы залечить раны!',
+      diceRolls: [],
+      submittedAt: new Date().toISOString(),
+    };
+
+    const mockDmResult: any = {
+      narrative: 'Элиас осушает флакон, и его раны затягиваются магической энергией.',
+      inventoryUpdates: [], // LLM omitted updates!
+    };
+
+    const itemActivities: Record<string, string[]> = {};
+    const notifications: any[] = [];
+    invLedger.handleProceduralItemConsumption(mockInvRoom, mockTurnAction, removedDirect, mockDmResult, itemActivities, notifications);
+
+    const charAfterConsumption = charRepo.findById(invTestCharId);
+    const potionAfterConsumption = charAfterConsumption?.inventory?.find(i => i.id === 'item_pot_1');
+    assert.strictEqual(potionAfterConsumption, undefined, 'Potion was quantity 1 and consumed, so it must be removed from inventory');
+    assert.strictEqual(charAfterConsumption?.hpCurrent, 18, 'HP must be healed by 8 from 10 to 18');
+    assert.strictEqual(notifications.length, 1, 'A removal notification must be generated');
+    assert.strictEqual(notifications[0].action, 'remove');
+
+    // 3. Dropping an item to ground
+    const dropResult = invLedger.dropItem(mockInvRoom.id, invTestCharId, 'item_sword_1');
+    assert.ok(dropResult, 'Drop result must succeed');
+    assert.strictEqual(dropResult.character?.inventory?.some(i => i.id === 'item_sword_1'), false, 'Sword must be removed from inventory');
+    const updatedRoomWithLoot = db.rooms.findById(mockInvRoom.id);
+    assert.ok(updatedRoomWithLoot?.availableLoot?.some(l => l.name === 'Стальной меч'), 'Dropped sword must appear in room available loot');
+    console.log('✅ Inventory item subtraction, procedural consumption, and item dropping verified!\n');
+  }
+
+  console.log('🎉 ALL 28 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

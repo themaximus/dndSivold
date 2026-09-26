@@ -23,7 +23,7 @@ import {
   SearchedObjectUpdate,
 } from '../../domain/types';
 import { sanitizeRoom } from '../security/CryptoService';
-import { stemRussianWord } from './SceneEntityManager';
+import { stemRussianWord, extractSearchTokens } from './SceneEntityManager';
 
 export class InventoryLedgerService {
   private rooms: IRoomRepository;
@@ -67,6 +67,57 @@ export class InventoryLedgerService {
     );
 
     return { room: sanitizeRoom(room), character: updatedChar, item };
+  }
+
+  /**
+   * Character drops an item from inventory to the ground (room available loot).
+   */
+  public dropItem(roomId: string, characterId: string, itemId: string) {
+    const char = this.characters.findById(characterId);
+    if (!char) return null;
+
+    const inventory = char.inventory || [];
+    const item = inventory.find((i) => i.id === itemId);
+    if (!item) return null;
+
+    const room = this.rooms.findById(roomId);
+    if (!room) return null;
+
+    const reason = `Выброшен на землю в раунде ${room.roundNumber}.`;
+    const updatedChar = this.characters.removeItemFromInventory(characterId, itemId, 1, reason);
+
+    const lootItem: RoomLootItem = {
+      id: crypto.randomUUID(),
+      name: item.name,
+      type: (item.type as any) || 'misc',
+      description: item.description || 'Выброшенный предмет.',
+      quantity: 1,
+      damage: item.damage,
+      ac_bonus: item.ac_bonus,
+      healAmount: item.healAmount,
+      roundDropped: room.roundNumber,
+    };
+
+    const updatedRoom = this.rooms.addLoot(roomId, [lootItem]);
+
+    this.itemLedgers.recordItemEvent(
+      characterId,
+      char.name || 'Персонаж',
+      item.id,
+      item.name,
+      item.type,
+      'dropped_on_ground',
+      1,
+      room.roundNumber,
+      reason,
+      roomId
+    );
+
+    return {
+      room: updatedRoom ? sanitizeRoom(updatedRoom) : null,
+      character: updatedChar,
+      item: lootItem,
+    };
   }
 
   /**
@@ -637,6 +688,106 @@ export class InventoryLedgerService {
         itemActivitiesByCharacter[char.id].push(`Поднят предмет: ${newInvItem.name}`);
         break;
       }
+    }
+  }
+
+  /**
+   * Procedural item consumption when a character drinks, uses, casts from, burns, or consumes an item during a turn.
+   * Guarantees that items are subtracted from inventory even if AI LLM omitted inventoryUpdates.
+   */
+  public handleProceduralItemConsumption(
+    room: RoomEntity,
+    action: TurnActionEntity,
+    char: CharacterEntity,
+    dmResult: AIDMResponse,
+    itemActivitiesByCharacter: Record<string, string[]>,
+    inventoryNotifications: InventoryNotification[]
+  ): void {
+    if (!action || !char || !char.inventory || char.inventory.length === 0) return;
+
+    const actionLower = (action.actionText || '').toLowerCase();
+    const narrativeLower = (dmResult.narrative || '').toLowerCase();
+
+    // Regex for consuming / drinking / using up / spending an item
+    const consumeRegex = /(выпива(ю|ет|л|ла|ли|ем)|пь(ю|ет|ем|ют|ил|ила|или)|испи(л|ла|ли|ть)|глота(ю|ет|ют|л|ла)|использу(ю|ет|ем|ют|вал|вала)|применя(ю|ет|ем|ют)|трач(у|ит|им|ат|ил|ила)|броса(ю|ет|ем|ют|л|ла)|швыря(ю|ет|ем|л|ла)|зажига(ю|ет|ем|л|ла)|леч(усь|ится|имся|ил|ила)|перевязыва(ю|ет|ем|л|ла)|ввож(у|ит|им|л|ла)|активиру(ю|ет|ем)|вскрыва(ю|ет|ем)\s+зель)/i;
+
+    if (!consumeRegex.test(actionLower) && !consumeRegex.test(narrativeLower)) return;
+
+    const freshChar = this.characters.findById(char.id) || char;
+    const currentInv = freshChar.inventory || [];
+
+    for (const item of currentInv) {
+      if (!item || !item.name) continue;
+      const itemNameClean = item.name.toLowerCase().replace(/^[«"']+|[»"']+$/g, '').trim();
+
+      // Check if item is mentioned in action text
+      const isNameInAction = actionLower.includes(itemNameClean) ||
+        (itemNameClean.length >= 4 && actionLower.includes(itemNameClean.slice(0, -2)));
+
+      // Generic matches
+      const isGenericPotion = /зель|эликсир|снадобь/i.test(actionLower) && (item.type === 'potion' || itemNameClean.includes('зелье') || itemNameClean.includes('эликсир'));
+      const isGenericBandage = /бинт|аптечк|перевяз/i.test(actionLower) && (itemNameClean.includes('бинт') || itemNameClean.includes('аптечк'));
+      const isGenericTorch = /факел/i.test(actionLower) && itemNameClean.includes('факел');
+      const isGenericScroll = /свиток/i.test(actionLower) && (item.type === 'scroll' || itemNameClean.includes('свиток'));
+
+      const isItemConsumed = isNameInAction || isGenericPotion || isGenericBandage || isGenericTorch || isGenericScroll;
+      if (!isItemConsumed) continue;
+
+      // Check if already removed this round
+      const alreadyRemovedInNotifications = inventoryNotifications.some(
+        (n) => n.characterId === char.id && n.action === 'remove' &&
+          (n.itemName.toLowerCase().includes(itemNameClean) || itemNameClean.includes(n.itemName.toLowerCase()))
+      );
+
+      const alreadyRemovedInDm = Array.isArray(dmResult.inventoryUpdates) && dmResult.inventoryUpdates.some(
+        (u) => u.action === 'remove' && (u.characterId === char.id || u.characterName?.toLowerCase() === char.name.toLowerCase()) &&
+          u.item && (u.item.name.toLowerCase().includes(itemNameClean) || itemNameClean.includes(u.item.name.toLowerCase()))
+      );
+
+      if (alreadyRemovedInNotifications || alreadyRemovedInDm) {
+        continue;
+      }
+
+      const removeReason = `Израсходовано при совершении действия в раунде ${room.roundNumber}`;
+      this.characters.removeItemFromInventory(char.id, item.id, 1, removeReason);
+
+      this.itemLedgers.recordItemEvent(
+        char.id,
+        char.name,
+        item.id,
+        item.name,
+        item.type || 'misc',
+        'consumed',
+        1,
+        room.roundNumber,
+        removeReason,
+        room.id
+      );
+
+      inventoryNotifications.push({
+        id: crypto.randomUUID(),
+        characterId: char.id,
+        characterName: char.name,
+        action: 'remove',
+        itemName: item.name,
+        quantity: 1,
+        reason: removeReason,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (!itemActivitiesByCharacter[char.id]) itemActivitiesByCharacter[char.id] = [];
+      itemActivitiesByCharacter[char.id].push(`Израсходован предмет: ${item.name} (-1 шт.)`);
+
+      // If it has healing and HP is damaged, apply heal
+      const healAmount = item.healAmount || (item.type === 'potion' || itemNameClean.includes('зелье') ? 8 : 0);
+      if (healAmount > 0) {
+        const afterChar = this.characters.findById(char.id);
+        if (afterChar && afterChar.hpCurrent < afterChar.hpMax) {
+          this.characters.updateHp(char.id, healAmount);
+        }
+      }
+
+      break;
     }
   }
 }

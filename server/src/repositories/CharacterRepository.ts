@@ -267,13 +267,34 @@ export class CharacterRepository implements ICharacterRepository {
     if (!char) return null;
 
     const inventory = [...(char.inventory || [])];
-    const targetQuery = itemNameOrId.toLowerCase().trim();
-    const idx = inventory.findIndex(i =>
-      i.id === itemNameOrId ||
-      i.name.toLowerCase().trim() === targetQuery ||
-      i.name.toLowerCase().includes(targetQuery) ||
-      targetQuery.includes(i.name.toLowerCase().trim())
+    const rawQuery = (itemNameOrId || '').trim();
+    const cleanQuery = rawQuery.toLowerCase().replace(/^[«"']+|[»"']+$/g, '').trim();
+
+    // 1. Direct ID or exact cleaned name match
+    let idx = inventory.findIndex(i =>
+      i.id === rawQuery ||
+      i.id === cleanQuery ||
+      i.name.toLowerCase().trim() === cleanQuery ||
+      i.name.toLowerCase().trim() === rawQuery.toLowerCase()
     );
+
+    // 2. Substring matching
+    if (idx === -1) {
+      idx = inventory.findIndex(i => {
+        const itemClean = i.name.toLowerCase().replace(/^[«"']+|[»"']+$/g, '').trim();
+        return itemClean.includes(cleanQuery) || cleanQuery.includes(itemClean);
+      });
+    }
+
+    // 3. Russian stem matching (inflection tolerance: зелья <-> зелье, бинты <-> бинт)
+    if (idx === -1 && cleanQuery.length >= 3) {
+      const qStem = cleanQuery.replace(/[аяоеуыиью]+$/i, '');
+      idx = inventory.findIndex(i => {
+        const itemClean = i.name.toLowerCase().replace(/^[«"']+|[»"']+$/g, '').trim();
+        const iStem = itemClean.replace(/[аяоеуыиью]+$/i, '');
+        return (qStem.length >= 3 && iStem.includes(qStem)) || (iStem.length >= 3 && qStem.includes(iStem));
+      });
+    }
 
     if (idx === -1) return char;
 
@@ -305,7 +326,32 @@ export class CharacterRepository implements ICharacterRepository {
     if (!char) return { character: null, healAmount: 0, itemName: '' };
 
     const inventory = [...(char.inventory || [])];
-    const idx = inventory.findIndex(i => i.id === itemId);
+    const rawQuery = (itemId || '').trim();
+    const cleanQuery = rawQuery.toLowerCase().replace(/^[«"']+|[»"']+$/g, '').trim();
+
+    let idx = inventory.findIndex(i =>
+      i.id === rawQuery ||
+      i.id === cleanQuery ||
+      i.name.toLowerCase().trim() === cleanQuery ||
+      i.name.toLowerCase().trim() === rawQuery.toLowerCase()
+    );
+
+    if (idx === -1) {
+      idx = inventory.findIndex(i => {
+        const itemClean = i.name.toLowerCase().replace(/^[«"']+|[»"']+$/g, '').trim();
+        return itemClean.includes(cleanQuery) || cleanQuery.includes(itemClean);
+      });
+    }
+
+    if (idx === -1 && cleanQuery.length >= 3) {
+      const qStem = cleanQuery.replace(/[аяоеуыиью]+$/i, '');
+      idx = inventory.findIndex(i => {
+        const itemClean = i.name.toLowerCase().replace(/^[«"']+|[»"']+$/g, '').trim();
+        const iStem = itemClean.replace(/[аяоеуыиью]+$/i, '');
+        return (qStem.length >= 3 && iStem.includes(qStem)) || (iStem.length >= 3 && qStem.includes(iStem));
+      });
+    }
+
     if (idx === -1) return { character: char, healAmount: 0, itemName: '' };
 
     const item = { ...inventory[idx] };

@@ -193,6 +193,13 @@ export function useGameSession(roomCode: string) {
       }
     });
 
+    socket.on('item_dropped', (data: { itemId: string; characterId?: string; item: RoomLootItem; character: Character; room: Room }) => {
+      if (data.room) setRoom(data.room);
+      if (data.character && (myPlayer?.characterId === data.character.id || myPlayer?.characterId === data.characterId)) {
+        setMyCharacter(data.character);
+      }
+    });
+
     socket.on('character_updated', (updatedChar: Character) => {
       setMyCharacter(prev => {
         if (!prev || prev.id === updatedChar.id || myPlayer?.characterId === updatedChar.id || user?.id === updatedChar.userId) {
@@ -273,6 +280,7 @@ export function useGameSession(roomCode: string) {
       socket.off('round_resolved');
       socket.off('dice_rolled');
       socket.off('loot_picked_up');
+      socket.off('item_dropped');
       socket.off('item_used');
       socket.off('character_updated');
       socket.off('reactions_requested');
@@ -352,6 +360,16 @@ export function useGameSession(roomCode: string) {
     if (!myCharacter) return;
     const socket = getSocket();
     socket.emit('use_item', {
+      roomCode,
+      characterId: myCharacter.id,
+      itemId,
+    });
+  }, [roomCode, myCharacter]);
+
+  const dropItem = useCallback((itemId: string) => {
+    if (!myCharacter) return;
+    const socket = getSocket();
+    socket.emit('drop_item', {
       roomCode,
       characterId: myCharacter.id,
       itemId,
@@ -529,6 +547,7 @@ export function useGameSession(roomCode: string) {
     setTurnMode,
     pickupLoot,
     useItem,
+    dropItem,
     equipWeapon,
     rollDeathSave,
     fetchTalents,

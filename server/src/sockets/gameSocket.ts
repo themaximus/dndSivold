@@ -50,6 +50,7 @@ export function setupGameSockets(io: Server) {
     socket.on('set_turn_mode', (data) => inventorySocketController.handleSetTurnMode(io, socket, data));
     socket.on('pickup_loot', (data) => inventorySocketController.handlePickupLoot(io, socket, data));
     socket.on('use_item', (data) => inventorySocketController.handleUseItem(io, socket, data));
+    socket.on('drop_item', (data) => inventorySocketController.handleDropItem(io, socket, data));
     socket.on('equip_weapon', (data) => inventorySocketController.handleEquipWeapon(io, socket, data));
     socket.on('player_short_rest', (data, callback) => inventorySocketController.handleShortRest(io, socket, data, callback));
     socket.on('player_long_rest', (data, callback) => inventorySocketController.handleLongRest(io, socket, data, callback));

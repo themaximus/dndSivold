@@ -148,6 +148,67 @@ export class InventorySocketController {
         timestamp: new Date().toISOString(),
       });
 
+      io.to(room.id).emit('character_updated', result.character);
+
+      const updated = this.roomManager.getRoomAndPlayers(roomCode);
+      if (updated) {
+        io.to(room.id).emit('room_players_updated', updated.players);
+      }
+    }
+  }
+
+  public handleDropItem(
+    io: Server,
+    socket: AuthenticatedSocket,
+    { roomCode, characterId, itemId }: { roomCode: string; characterId: string; itemId: string }
+  ): void {
+    const room = roomRepository.findByCode(roomCode);
+    if (!room) return;
+
+    const result = this.inventoryService.dropItem(room.id, characterId, itemId);
+    if (result && result.character) {
+      io.to(room.id).emit('item_dropped', {
+        itemId,
+        characterId: result.character.id,
+        item: result.item,
+        character: result.character,
+        room: result.room,
+      });
+
+      io.to(room.id).emit('character_updated', result.character);
+
+      const charName = result.character.name || 'Герой';
+      io.to(room.id).emit('feed_activity', {
+        id: crypto.randomUUID(),
+        type: 'item_dropped',
+        text: `🗑️ ${charName} выбросил предмет: «${result.item.name}»`,
+        timestamp: new Date().toISOString(),
+      });
+
+      const updatedRoom = roomRepository.addMilestones(room.id, [
+        {
+          id: crypto.randomUUID(),
+          round: room.roundNumber,
+          milestone: `🗑️ ${charName} оставил на земле предмет: «${result.item.name}».`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+
+      if (updatedRoom) {
+        io.to(room.id).emit('room_updated', sanitizeRoom(updatedRoom));
+      }
+
+      io.to(room.id).emit('inventory_notification', {
+        id: crypto.randomUUID(),
+        characterId: result.character.id,
+        characterName: charName,
+        action: 'remove',
+        itemName: result.item.name,
+        quantity: 1,
+        reason: 'Предмет выброшен из инвентаря на землю',
+        timestamp: new Date().toISOString(),
+      });
+
       const updated = this.roomManager.getRoomAndPlayers(roomCode);
       if (updated) {
         io.to(room.id).emit('room_players_updated', updated.players);
