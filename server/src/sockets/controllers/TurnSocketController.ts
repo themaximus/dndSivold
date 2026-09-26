@@ -165,7 +165,7 @@ export class TurnSocketController {
           io.to(room.id).emit('feed_activity', {
             id: crypto.randomUUID(),
             type: 'player_action',
-            text: `💬 ${characterName} вовлекает ${r.targetCharacterName} в совместное действие: «${r.initiatorActionText}». Ожидается реакция и бросок d20!`,
+            text: `⚔️ ${characterName} предпринимает воздействие против ${r.targetCharacterName}: «${r.initiatorActionText}». Ожидается реакция игрока (защита/контрудар/принятие)!`,
             timestamp: new Date().toISOString(),
           });
         });
@@ -284,11 +284,16 @@ export class TurnSocketController {
       room,
     });
 
-    const reactionTone = data.responseType === 'negative' ? 'отказывает / сопротивляется' : data.responseType === 'counter' ? 'контратакует / парирует' : 'помогает / соглашается';
+    const reactionTone =
+      data.responseType === 'positive'
+        ? 'принимает воздействие без сопротивления'
+        : data.responseType === 'counter'
+        ? 'защищается / парирует'
+        : 'оказывает отпор / контратакует';
     io.to(room.id).emit('feed_activity', {
       id: crypto.randomUUID(),
       type: 'player_action',
-      text: `🤝 ${targetCharacterName} реагирует на действие ${initiatorCharacterName} (${reactionTone}): «${data.reactionText}»`,
+      text: `🛡️ ${targetCharacterName} реагирует на воздействие ${initiatorCharacterName} (${reactionTone}): «${data.reactionText}»`,
       timestamp: new Date().toISOString(),
     });
 

@@ -281,7 +281,7 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
           <Clock className={`w-4 h-4 text-amber-400 ${isDMThinking ? 'animate-spin' : ''}`} />
           <span>
             {isWaitingForReactions
-              ? `⏳ Ожидание реакции соратника (${pendingReactionNames.join(', ')}) на совместное действие...`
+              ? `⚔️ Ожидание ответа ${pendingReactionNames.join(', ')} на попытку воздействия...`
               : isDMThinking
               ? (turnMode === 'turn_by_turn' ? 'Мастер Подземелий описывает последствия вашего хода...' : 'Мастер Подземелий обдумывает исход раунда...')
               : (turnMode === 'turn_by_turn' ? 'Ваш ход совершен! Ожидание других героев...' : 'Действие принято! Ожидание остальных искателей приключений...')}

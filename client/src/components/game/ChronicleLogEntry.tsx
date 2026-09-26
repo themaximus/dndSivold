@@ -110,8 +110,9 @@ export const ChronicleLogEntry: React.FC<ChronicleLogEntryProps> = ({
               const subLines = lines.slice(1);
 
               const itemLines = subLines.filter(l => l.includes('🎒 [Инвентарь]:') || l.startsWith('🎒'));
-              const reactionLines = subLines.filter(l => l.includes('[Противодействие]') || l.includes('[Защита') || l.includes('[Содействие]'));
-              const verdictLines = subLines.filter(l => !l.includes('🎒 [Инвентарь]:') && !l.startsWith('🎒') && !l.includes('[Противодействие]') && !l.includes('[Защита') && !l.includes('[Содействие]'));
+              const isReactionLine = (l: string) => l.includes('[Противодействие]') || l.includes('[Защита') || l.includes('[Содействие]') || l.includes('[Контрудар') || l.includes('[Принятие');
+              const reactionLines = subLines.filter(isReactionLine);
+              const verdictLines = subLines.filter(l => !l.includes('🎒 [Инвентарь]:') && !l.startsWith('🎒') && !isReactionLine(l));
               const rawVerdict = verdictLines.join(' ').replace(/^↳\s*/, '');
               const isCritSuccess = rawVerdict.includes('КРИТИЧЕСКИЙ УСПЕХ') || rawVerdict.includes('КРИТИЧЕСКОЕ ПОПАДАНИЕ');
               const isCritFail = rawVerdict.includes('КРИТИЧЕСКИЙ ПРОВАЛ') || rawVerdict.includes('КРИТИЧЕСКИЙ ПРОМАХ');

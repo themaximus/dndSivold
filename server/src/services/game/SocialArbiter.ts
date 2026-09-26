@@ -304,9 +304,9 @@ export class SocialArbiter {
 
     const responseType = reaction.responseType || 'positive';
 
-    // 1. Cooperative Assist / Support Reaction
+    // 1. Voluntary Yield / Accept or Support Reaction (no resistance)
     if (responseType === 'positive') {
-      const promptDirective = `[РЕАКЦИЯ-ПОМОЩЬ: ${reaction.targetCharacterName} поддерживает действие ${reaction.initiatorCharacterName} («${reaction.reactionText || 'Помогает'}»). Инициатор получает тактическое преимущество и бонус +3 к результату!]`;
+      const promptDirective = `[РЕАКЦИЯ-ПРИНЯТИЕ: ${reaction.targetCharacterName} не оказывает сопротивления действию ${reaction.initiatorCharacterName} и добровольно принимает его («${reaction.reactionText || 'Не сопротивляется'}»). Действие разрешается беспрепятственно!]`;
       return {
         reactionRequestId: reaction.id,
         initiatorCharacterName: reaction.initiatorCharacterName,
@@ -316,19 +316,20 @@ export class SocialArbiter {
         responseType,
         outcome: 'assisted',
         damageMitigationMultiplier: 1.0,
-        initiatorRollModifier: 3,
+        initiatorRollModifier: 0,
         promptDirective,
-        auditNote: `Assisted: +3 modifier granted to ${reaction.initiatorCharacterName}`,
+        auditNote: `Voluntary acceptance: ${reaction.targetCharacterName} yields without resistance to ${reaction.initiatorCharacterName}`,
       };
     }
 
-    // 2. Defensive / Parry / Dodge Reaction (PvP or Contested)
+    // 2. Defensive / Parry / Dodge / Counter Reaction (PvP or Contested)
     if (reactRollTotal !== undefined) {
       if (reactRollTotal >= initRollTotal) {
-        // Complete deflection / parry / dodge
+        // Complete deflection / parry / dodge / counter
         const isParry = /парир|блок|щит|меч.*отбил|отразил/i.test(reaction.reactionText || '');
-        const outcome = isParry ? 'parried' : 'dodged';
-        const promptDirective = `[РЕАКЦИЯ-ЗАЩИТА: ${reaction.targetCharacterName} успешно ${isParry ? 'парировал' : 'уклонился от'} атаки ${reaction.initiatorCharacterName}! (Защита: ${reactRollTotal} vs Атака: ${initRollTotal}). Урон ПОЛНОСТЬЮ АННУЛИРОВАН (0 урона)!]`;
+        const isCounter = responseType === 'counter' || /контр|ответн|перехват/i.test(reaction.reactionText || '');
+        const outcome = isCounter ? 'retaliated' : isParry ? 'parried' : 'dodged';
+        const promptDirective = `[РЕАКЦИЯ-ЗАЩИТА: ${reaction.targetCharacterName} успешно ${isCounter ? 'парировал и контратаковал выпад' : isParry ? 'парировал удар' : 'уклонился от воздействия'} ${reaction.initiatorCharacterName}! (Защита: ${reactRollTotal} vs Воздействие: ${initRollTotal}). Урон/негативный эффект ПОЛНОСТЬЮ АННУЛИРОВАН (0 урона)!]`;
 
         return {
           reactionRequestId: reaction.id,
@@ -341,11 +342,11 @@ export class SocialArbiter {
           damageMitigationMultiplier: 0, // 0 damage dealt!
           initiatorRollModifier: 0,
           promptDirective,
-          auditNote: `${outcome.toUpperCase()}: Full damage mitigation (0 damage). Defender ${reactRollTotal} >= Attacker ${initRollTotal}`,
+          auditNote: `${outcome.toUpperCase()}: Full mitigation (0 damage). Defender ${reactRollTotal} >= Attacker ${initRollTotal}`,
         };
       } else if (initRollTotal - reactRollTotal <= 2) {
         // Glancing blow (half damage)
-        const promptDirective = `[РЕАКЦИЯ-ЗАЩИТА: ${reaction.targetCharacterName} частично смягчил удар ${reaction.initiatorCharacterName} (Скользящее попадание: Защита ${reactRollTotal} vs Атака ${initRollTotal}). Урон снижен наполовину (50%)!]`;
+        const promptDirective = `[РЕАКЦИЯ-ЗАЩИТА: ${reaction.targetCharacterName} частично смягчил воздействие ${reaction.initiatorCharacterName} (Скользящее попадание: Защита ${reactRollTotal} vs Воздействие ${initRollTotal}). Урон/эффект снижен наполовину (50%)!]`;
 
         return {
           reactionRequestId: reaction.id,
@@ -364,7 +365,7 @@ export class SocialArbiter {
     }
 
     // Full hit penetrated defense
-    const promptDirective = `[РЕАКЦИЯ: ${reaction.targetCharacterName} попытался защититься («${reaction.reactionText || 'Уклонение'}»), но атака ${reaction.initiatorCharacterName} пробила защиту (${initRollTotal} vs ${reactRollTotal ?? 'без кубика'}).]`;
+    const promptDirective = `[РЕАКЦИЯ: ${reaction.targetCharacterName} попытался защититься («${reaction.reactionText || 'Защита'}»), но действие ${reaction.initiatorCharacterName} пробило защиту (${initRollTotal} vs ${reactRollTotal ?? 'без кубика'}). Воздействие реализовано в полной мере!]`;
 
     return {
       reactionRequestId: reaction.id,

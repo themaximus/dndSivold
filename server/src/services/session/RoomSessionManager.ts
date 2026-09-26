@@ -300,11 +300,54 @@ export class RoomSessionManager {
     return this.getRoomAndPlayers(room.code);
   }
 
+  /**
+   * Determines if the player's action is attempting to exert direct physical,
+   * coercive, theft, magical, or harmful impact on another character (PvP / Contested action).
+   * Innocent narrative mentions (talking, walking together, looking, handing items) are NOT impact attempts.
+   */
+  public isImpactAttempt(actionText: string, actionType?: string): boolean {
+    const textLower = (actionText || '').toLowerCase();
+
+    // 1. Explicit attack type selected in UI
+    if (actionType === 'attack') return true;
+
+    // 2. Direct violent attack, strike, shooting, cutting, stabbing
+    const isAttack = /(?:атак|удар|рассеч|пырнул|убить|выстрел|вонзил|поразил|приконч|сбить\s+с\s+ног|напал|рубл|вруб|пытаюсь\s+(?:ударить|ранить|убить)|стреляю|бью|метнул.*в)/i.test(textLower);
+    if (isAttack) return true;
+
+    // 3. Forced physical control, grappling, shoving, disarming, tying up, wrestling
+    const isPhysicalForce = /(?:толкн|толка|схват|скрут|связа|свяжу|обезоруж|отнять|отобрать|вырвать|повали|залом|прижал|придушить|задушить|нокаутир|связыва|оглуш|выруб)/i.test(textLower);
+    if (isPhysicalForce) return true;
+
+    // 4. Covert theft / pickpocketing another character
+    const isTheft = /(?:украс|крад|стяну|обчист|вытащить\s+из\s+карман|залезть\s+в\s+(?:карман|сумк|вещмешок)|срезать\s+кошел|обшар(?:иваю|ить)\s+карман)/i.test(textLower);
+    if (isTheft) return true;
+
+    // 5. Hostile magic / mind control / curse / disabling spells directed at character
+    const isHostileMagic = /(?:очарова|подчини|внуши|прокля|усыпи|парализ|замороз|испепел|направить\s+заклинание\s+в|напасть\s+магией|одурмани|подсып|отрави)/i.test(textLower);
+    if (isHostileMagic) return true;
+
+    // 6. Armed threat / coercion / hostile interrogation by force
+    const isThreat = /(?:угрожа|запуга|приставил\s+(?:нож|клинок|меч|оружие|арбалет)|убью,\s+если|выпыта|допрос(?:ить|иваю)\s+силой)/i.test(textLower);
+    if (isThreat) return true;
+
+    return false;
+  }
+
+  /**
+   * Detects if an action exerts direct contested impact on another player character in the room.
+   * If the action is purely conversational, cooperative, or narrative, returns an empty array.
+   */
   public detectCharacterMentions(
     actionText: string,
     roomId: string,
-    actingUserId: string
+    actingUserId: string,
+    actionType?: string
   ): Array<{ userId: string; characterId: string; characterName: string }> {
+    if (!this.isImpactAttempt(actionText, actionType)) {
+      return [];
+    }
+
     const players = this.rooms.findPlayersByRoomId(roomId);
     const mentions: Array<{ userId: string; characterId: string; characterName: string }> = [];
     const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -398,7 +441,7 @@ export class RoomSessionManager {
       hasRolledThisRound: true,
     });
 
-    const mentionedCharacters = this.detectCharacterMentions(actionText, room.id, userId);
+    const mentionedCharacters = this.detectCharacterMentions(actionText, room.id, userId, meta?.actionType);
     let pendingReactions: CharacterReactionRequest[] = [];
 
     if (mentionedCharacters.length > 0) {

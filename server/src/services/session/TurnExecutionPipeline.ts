@@ -684,10 +684,10 @@ export class TurnExecutionPipeline {
             }
             const typeBadge =
               r.responseType === 'negative'
-                ? '⚔️ [Противодействие]'
+                ? '⚔️ [Контрудар / Отпор]'
                 : r.responseType === 'counter'
-                ? '🛡️ [Защита/Парирование]'
-                : '🤝 [Содействие]';
+                ? '🛡️ [Защита / Уклонение]'
+                : '🏳️ [Принятие без сопротивления]';
             return `【${r.targetCharacterName}】: ${typeBadge} «${r.reactionText || ''}»${rVerdict ? `\n   ↳ ${rVerdict}` : ''}`;
           })
           .join('\n\n');

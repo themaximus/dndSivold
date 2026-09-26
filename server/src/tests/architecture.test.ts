@@ -15,6 +15,7 @@ import { DeepSeekAIProvider } from '../services/ai/DeepSeekAIProvider';
 import { narrativeSynthesizer } from '../services/session/NarrativeSynthesizer';
 import { roomSessionManager } from '../services/session/RoomSessionManager';
 import { characterRepository, roomRepository } from '../repositories';
+import { socialArbiter } from '../services/game/SocialArbiter';
 
 async function runTests() {
   console.log('🚀 Starting Architecture Verification Test Suite...\n');
@@ -1481,7 +1482,105 @@ async function runTests() {
     console.log('✅ Inventory item subtraction, procedural consumption, and item dropping verified!\n');
   }
 
-  console.log('🎉 ALL 28 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 29: Inter-Character Contested Impact Detection & Modern Reaction Handling
+  // ----------------------------------------------------
+  {
+    console.log('Test 29: Inter-Character Contested Impact Detection & Modern Reaction Handling');
+    const rsm = roomSessionManager;
+    const testRoomId = 'room_react_test_' + crypto.randomUUID();
+    const mockRoom: RoomEntity = {
+      id: testRoomId,
+      code: 'REACT1',
+      hostUserId: 'user_initiator',
+      title: 'Таверна',
+      setting: 'Фэнтези',
+      status: 'active',
+      roundNumber: 1,
+      currentSituation: 'В таверне за столом',
+      sceneEntities: [],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.create(mockRoom);
+
+    // Register companion player and character
+    const targetUserId = 'user_target_' + crypto.randomUUID();
+    const targetCharId = 'char_target_' + crypto.randomUUID();
+    const targetChar: CharacterEntity = {
+      id: targetCharId,
+      userId: targetUserId,
+      name: 'Бригитта',
+      characterClass: 'Плут',
+      race: 'Человек',
+      level: 2,
+      hpCurrent: 14,
+      hpMax: 14,
+      stats: { strength: 10, dexterity: 16, constitution: 12, intelligence: 12, wisdom: 10, charisma: 14 },
+      inventory: [],
+      createdAt: new Date().toISOString(),
+    };
+    db.characters.create(targetChar);
+
+    db.roomPlayers.create({
+      id: 'rp_' + crypto.randomUUID(),
+      roomId: testRoomId,
+      userId: targetUserId,
+      username: 'BrigittePlayer',
+      characterId: targetCharId,
+      isReady: true,
+      isOnline: true,
+      hasActedThisRound: false,
+      hasRolledThisRound: false,
+      joinedAt: new Date().toISOString(),
+    });
+
+    // 1. Innocent narrative mention should NOT trigger a reaction modal!
+    const innocentAction = 'Мы с Бригиттой садимся за стол и заказываем две кружки эля.';
+    const innocentMentions = rsm.detectCharacterMentions(innocentAction, testRoomId, 'user_initiator');
+    assert.strictEqual(innocentMentions.length, 0, 'Innocent mention must NOT trigger a reaction request');
+
+    // 2. Direct hostile physical attack attempt DOES trigger a reaction!
+    const attackAction = 'Я выхватываю кинжал и бью Бригитту в плечо!';
+    const attackMentions = rsm.detectCharacterMentions(attackAction, testRoomId, 'user_initiator');
+    assert.strictEqual(attackMentions.length, 1, 'Physical strike must trigger an impact reaction');
+    assert.strictEqual(attackMentions[0].characterName, 'Бригитта');
+
+    // 3. Forced grappling / theft attempt DOES trigger a reaction!
+    const theftAction = 'Пытаюсь скрутить Бригитту и вытащить кошелек из её пояса';
+    const theftMentions = rsm.detectCharacterMentions(theftAction, testRoomId, 'user_initiator');
+    assert.strictEqual(theftMentions.length, 1, 'Forced grapple/theft must trigger an impact reaction');
+
+    // 4. SocialArbiter evaluates voluntary yielding (positive response without conflict)
+    const yieldRequest: any = {
+      id: 'req_yield_1',
+      initiatorCharacterName: 'Воин',
+      targetCharacterName: 'Бригитта',
+      initiatorRoll: { total: 15 },
+      reactionRoll: null,
+      responseType: 'positive',
+      reactionText: 'Подчиняюсь и не сопротивляюсь',
+    };
+    const yieldEval = socialArbiter.evaluateContestedReaction(yieldRequest);
+    assert.strictEqual(yieldEval.outcome, 'assisted', 'Voluntary yielding must resolve peacefully');
+    assert.ok(yieldEval.promptDirective.includes('РЕАКЦИЯ-ПРИНЯТИЕ'), 'Directive must state acceptance reaction');
+
+    // 5. SocialArbiter evaluates defensive parry/dodge contest
+    const defenseRequest: any = {
+      id: 'req_def_1',
+      initiatorCharacterName: 'Воин',
+      targetCharacterName: 'Бригитта',
+      initiatorRoll: { total: 14 },
+      reactionRoll: { total: 18 },
+      responseType: 'counter',
+      reactionText: 'Парирую кинжалом выпад и ухожу в сторону',
+    };
+    const defenseEval = socialArbiter.evaluateContestedReaction(defenseRequest);
+    assert.strictEqual(defenseEval.damageMitigationMultiplier, 0, 'Successful defense must negate damage (0 damage)');
+    assert.ok(defenseEval.outcome === 'retaliated' || defenseEval.outcome === 'parried', 'Outcome must be parried or retaliated');
+    console.log('✅ Inter-character contested impact detection and modern reactions verified!\n');
+  }
+
+  console.log('🎉 ALL 29 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {
