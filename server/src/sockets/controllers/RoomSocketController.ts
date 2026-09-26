@@ -137,6 +137,22 @@ export class RoomSocketController {
     }
 
     const character = player?.characterId ? characterRepository.findById(player.characterId) : undefined;
+
+    // Enforce condition-based disadvantage on server if character is afflicted
+    if (character && Array.isArray(character.conditions)) {
+      const conds = character.conditions.map(c => c.toLowerCase());
+      const hasNegativeCondition = conds.some(c => ['prone', 'poisoned', 'blinded', 'frightened', 'restrained', 'exhaustion'].includes(c));
+      if (hasNegativeCondition && !data.request.disadvantage) {
+        if (data.request.advantage) {
+          // D&D 5e: Mutual cancellation between advantage and negative condition
+          data.request.advantage = false;
+          data.request.disadvantage = false;
+        } else {
+          data.request.disadvantage = true;
+        }
+      }
+    }
+
     const rollResult = executeServerRoll(data.request, character);
 
     if (room.status === 'active' && player) {

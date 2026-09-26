@@ -53,6 +53,9 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     defaultAdvantage?: boolean;
     defaultDisadvantage?: boolean;
     defaultStatKey?: string;
+    advantageReason?: string;
+    disadvantageReason?: string;
+    isMutualCancel?: boolean;
   }>({});
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isTalentsOpen, setIsTalentsOpen] = useState(false);
@@ -215,7 +218,15 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     // Rolls cannot be discarded mid-turn
   };
 
-  const handleOpenDiceModal = (opts?: { defaultPurpose?: string; defaultAdvantage?: boolean; defaultDisadvantage?: boolean; defaultStatKey?: string }) => {
+  const handleOpenDiceModal = (opts?: {
+    defaultPurpose?: string;
+    defaultAdvantage?: boolean;
+    defaultDisadvantage?: boolean;
+    defaultStatKey?: string;
+    advantageReason?: string;
+    disadvantageReason?: string;
+    isMutualCancel?: boolean;
+  }) => {
     setDiceModalOpts(opts || {});
     setIsDiceModalOpen(true);
   };
@@ -334,6 +345,9 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
             initialPurpose={diceModalOpts.defaultPurpose}
             initialAdvantage={diceModalOpts.defaultAdvantage}
             initialDisadvantage={diceModalOpts.defaultDisadvantage}
+            advantageReason={diceModalOpts.advantageReason}
+            disadvantageReason={diceModalOpts.disadvantageReason}
+            isMutualCancel={diceModalOpts.isMutualCancel}
             onClose={() => setIsDiceModalOpen(false)}
             onRollComplete={handleAttachRoll}
           />

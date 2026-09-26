@@ -73,13 +73,16 @@ export function executeServerRoll(req: RollRequest, character?: CharacterEntity)
   let isCriticalSuccess = false;
   let isCriticalFail = false;
 
-  // D20 specific advantage / disadvantage / crits
+  // D20 specific advantage / disadvantage / crits (with D&D 5e mutual cancellation)
   if (sides === 20 && count === 1) {
-    if (req.advantage) {
+    const hasAdv = !!req.advantage && !req.disadvantage;
+    const hasDisadv = !!req.disadvantage && !req.advantage;
+
+    if (hasAdv) {
       const secondRoll = rollSingleDie(20);
       rolls.push(secondRoll);
       baseRoll = Math.max(rolls[0], rolls[1]);
-    } else if (req.disadvantage) {
+    } else if (hasDisadv) {
       const secondRoll = rollSingleDie(20);
       rolls.push(secondRoll);
       baseRoll = Math.min(rolls[0], rolls[1]);

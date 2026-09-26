@@ -34,7 +34,15 @@ interface ActionConsoleProps {
   dmThinkingError?: string | null;
   onDismissError?: () => void;
   onRemoveRoll: (index: number) => void;
-  onOpenDiceModal: (opts?: { defaultPurpose?: string; defaultAdvantage?: boolean; defaultDisadvantage?: boolean; defaultStatKey?: string }) => void;
+  onOpenDiceModal: (opts?: {
+    defaultPurpose?: string;
+    defaultAdvantage?: boolean;
+    defaultDisadvantage?: boolean;
+    defaultStatKey?: string;
+    advantageReason?: string;
+    disadvantageReason?: string;
+    isMutualCancel?: boolean;
+  }) => void;
   onSubmit: (actionText: string, meta?: ActionMeta) => void;
   onRollDeathSave?: (rollResult: { rollTotal: number; isNat20: boolean; isNat1: boolean }) => void;
 }
@@ -87,9 +95,77 @@ export const ActionConsole: React.FC<ActionConsoleProps> = ({
       alert('Сначала опишите задуманное действие вашего персонажа, а затем бросьте кубик!');
       return;
     }
+
+    const textLower = actionText.toLowerCase();
+    const isAttack = textLower.includes('атак') || textLower.includes('удар') || textLower.includes('стрел') || textLower.includes('рубл') || textLower.includes('выстрел');
+    const standUpRegex = /(вста(ю|ть|л|ла|ли|ем|йте)|поднима(юсь|ется|ться)|на ноги|отряхива)/i;
+    const isStandingUp = standUpRegex.test(textLower);
+
+    // 1. Detect Disadvantage from conditions and harsh context
+    let hasDisadvantage = false;
+    let disadvantageReason = '';
+
+    if (character && Array.isArray(character.conditions)) {
+      const conds = character.conditions.map(c => c.toLowerCase());
+      if (conds.includes('prone') && !isStandingUp) {
+        hasDisadvantage = true;
+        disadvantageReason = 'Персонаж сбит с ног (атака или действие лежа)';
+      } else if (conds.includes('poisoned')) {
+        hasDisadvantage = true;
+        disadvantageReason = 'Отравление (мышечная слабость, тошнота и тремор)';
+      } else if (conds.includes('blinded')) {
+        hasDisadvantage = true;
+        disadvantageReason = 'Ослепление (действие вслепую)';
+      } else if (conds.includes('frightened')) {
+        hasDisadvantage = true;
+        disadvantageReason = 'Испуг (паника и дрожь в руках)';
+      } else if (conds.includes('restrained')) {
+        hasDisadvantage = true;
+        disadvantageReason = 'Связан / Опутан (скованность движений)';
+      } else if (conds.includes('exhaustion')) {
+        hasDisadvantage = true;
+        disadvantageReason = 'Критическое истощение сил';
+      }
+    }
+
+    if (!hasDisadvantage) {
+      if (/(вслепую|наугад|не глядя|в темноте|сквозь плотный дым)/i.test(textLower)) {
+        hasDisadvantage = true;
+        disadvantageReason = 'Действие вслепую / в полной темноте';
+      }
+    }
+
+    // 2. Detect Tactical Advantage (rare, earned conditions)
+    let hasAdvantage = false;
+    let advantageReason = '';
+
+    if (/(из-за укрыти|из засад|из тени|скрытно|со спины|врасплох|подкрадыва|незаметно|из маскиров)/i.test(textLower)) {
+      hasAdvantage = true;
+      advantageReason = 'Атака из скрытности / неожиданное нападение из засады';
+    } else if (character && Array.isArray(character.conditions) && (character.conditions.includes('inspired') || character.conditions.includes('blessed'))) {
+      hasAdvantage = true;
+      advantageReason = 'Вдохновение / Благословение';
+    } else if (/(помощь союзника|соратник помогает|прикрыти|отвлекает|с поддержкой)/i.test(textLower)) {
+      hasAdvantage = true;
+      advantageReason = 'Командное содействие соратника';
+    } else if (isAttack && primaryEnemy?.status?.toLowerCase().includes('сбит')) {
+      hasAdvantage = true;
+      advantageReason = `Враг (${primaryEnemy.name}) сбит с ног в ближнем бою`;
+    }
+
+    // 3. D&D 5e: Mutual cancellation
+    const isMutualCancel = hasAdvantage && hasDisadvantage;
+    const finalAdvantage = hasAdvantage && !hasDisadvantage;
+    const finalDisadvantage = hasDisadvantage && !hasAdvantage;
+
     onOpenDiceModal({
       defaultPurpose: `Проверка характеристики (${statShort}): ${actionText.trim().slice(0, 40)}`,
       defaultStatKey: requiredCheckStat,
+      defaultAdvantage: finalAdvantage,
+      defaultDisadvantage: finalDisadvantage,
+      advantageReason: hasAdvantage ? advantageReason : undefined,
+      disadvantageReason: hasDisadvantage ? disadvantageReason : undefined,
+      isMutualCancel,
     });
   };
 

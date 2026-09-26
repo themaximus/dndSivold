@@ -14,6 +14,9 @@ interface DiceRollerModalProps {
   initialPurpose?: string;
   initialAdvantage?: boolean;
   initialDisadvantage?: boolean;
+  advantageReason?: string;
+  disadvantageReason?: string;
+  isMutualCancel?: boolean;
   onClose: () => void;
   onRollComplete: (roll: DiceRollResult) => void;
 }
@@ -26,13 +29,16 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
   initialPurpose,
   initialAdvantage = false,
   initialDisadvantage = false,
+  advantageReason,
+  disadvantageReason,
+  isMutualCancel = false,
   onClose,
   onRollComplete,
 }) => {
   const statKey = defaultStatKey ? defaultStatKey.toLowerCase() : 'dex';
   const [purpose] = useState(initialPurpose || '');
-  const [advantage, setAdvantage] = useState(initialAdvantage);
-  const [disadvantage, setDisadvantage] = useState(initialDisadvantage);
+  const advantage = !isMutualCancel && initialAdvantage;
+  const disadvantage = !isMutualCancel && initialDisadvantage;
   const [isRolling, setIsRolling] = useState(false);
   const [lastRoll, setLastRoll] = useState<DiceRollResult | null>(null);
   const [pendingDie, setPendingDie] = useState<number | null>(null);
@@ -230,39 +236,44 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
             })}
           </div>
 
-          {/* Advantage / Disadvantage toggles */}
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <button
-              type="button"
-              disabled={isRolling || !!lastRoll}
-              onClick={() => {
-                setAdvantage(!advantage);
-                setDisadvantage(false);
-              }}
-              className={`py-1.5 px-3 rounded-xl border text-xs font-semibold transition-all disabled:opacity-50 ${
-                advantage
-                  ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              ✦ Преимущество (2d20 max)
-            </button>
-            <button
-              type="button"
-              disabled={isRolling || !!lastRoll}
-              onClick={() => {
-                setDisadvantage(!disadvantage);
-                setAdvantage(false);
-              }}
-              className={`py-1.5 px-3 rounded-xl border text-xs font-semibold transition-all disabled:opacity-50 ${
-                disadvantage
-                  ? 'bg-rose-500/20 border-rose-500 text-rose-300'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              ▼ Помеха (2d20 min)
-            </button>
-          </div>
+          {/* Circumstances: Advantage, Disadvantage, or Mutual Cancellation */}
+          {isMutualCancel ? (
+            <div className="mt-3 p-3 rounded-2xl bg-amber-950/30 border border-amber-500/40 text-xs text-amber-200 flex items-start gap-2.5">
+              <span className="text-base leading-none mt-0.5">⚖️</span>
+              <div className="flex-1 leading-tight">
+                <span className="font-bold text-amber-300">Взаимная компенсация (Правило D&D 5e):</span>
+                <p className="text-[11px] text-amber-200/80 mt-0.5">
+                  Условия Преимущества и Помехи действуют одновременно и взаимно аннулируют друг друга. Совершается стандартный бросок 1d20.
+                </p>
+              </div>
+            </div>
+          ) : advantage ? (
+            <div className="mt-3 p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/50 text-xs text-emerald-200 flex items-start gap-2.5 animate-in fade-in">
+              <span className="text-base leading-none text-emerald-400 mt-0.5">✦</span>
+              <div className="flex-1 leading-tight">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-emerald-300">Преимущество (2d20 max)</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/30 font-bold">АКТИВНО</span>
+                </div>
+                <p className="text-[11px] text-emerald-200/90 mt-0.5">
+                  {advantageReason || 'Особые тактические условия / Командная помощь соратника'}
+                </p>
+              </div>
+            </div>
+          ) : disadvantage ? (
+            <div className="mt-3 p-3 rounded-2xl bg-rose-950/40 border border-rose-500/50 text-xs text-rose-200 flex items-start gap-2.5 animate-in fade-in">
+              <span className="text-base leading-none text-rose-400 mt-0.5">▼</span>
+              <div className="flex-1 leading-tight">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-rose-300">Помеха (2d20 min)</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-rose-500/20 text-rose-300 rounded border border-rose-500/30 font-bold">АКТИВНО</span>
+                </div>
+                <p className="text-[11px] text-rose-200/90 mt-0.5">
+                  {disadvantageReason || 'Негативное состояние / Опасные условия окружения'}
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Roll Result Outcome Display */}
@@ -313,7 +324,14 @@ export const DiceRollerModal: React.FC<DiceRollerModalProps> = ({
                 {lastRoll.total}
               </div>
               <div className="text-xs text-slate-300 font-mono">
-                Кость [{lastRoll.rolls.join(', ')}] {lastRoll.modifier >= 0 ? `+ ${lastRoll.modifier}` : `- ${Math.abs(lastRoll.modifier)}`} ({lastRoll.statName ? lastRoll.statName.toUpperCase() : 'модификатор'})
+                {lastRoll.rolls.length > 1
+                  ? advantage
+                    ? `Кости [${lastRoll.rolls.join(', ')}] (выбран max: ${lastRoll.baseRoll})`
+                    : disadvantage
+                    ? `Кости [${lastRoll.rolls.join(', ')}] (выбран min: ${lastRoll.baseRoll})`
+                    : `Кости [${lastRoll.rolls.join(', ')}] (база: ${lastRoll.baseRoll})`
+                  : `Кость [${lastRoll.baseRoll}]`}{' '}
+                {lastRoll.modifier >= 0 ? `+ ${lastRoll.modifier}` : `- ${Math.abs(lastRoll.modifier)}`} ({lastRoll.statName ? lastRoll.statName.toUpperCase() : 'модификатор'})
               </div>
             </div>
           );
