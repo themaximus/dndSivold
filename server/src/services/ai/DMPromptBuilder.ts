@@ -115,14 +115,22 @@ export class DMPromptBuilder {
       const activeWep = c.activeWeaponId
         ? c.inventory?.find(i => i.id === c.activeWeaponId || i.name.toLowerCase() === c.activeWeaponId?.toLowerCase())?.name
         : undefined;
+      const activeShield = c.activeShieldId
+        ? c.inventory?.find(i => i.id === c.activeShieldId || i.name.toLowerCase() === c.activeShieldId?.toLowerCase())?.name
+        : undefined;
+      const activeArmor = c.activeArmorId
+        ? c.inventory?.find(i => i.id === c.activeArmorId || i.name.toLowerCase() === c.activeArmorId?.toLowerCase())?.name
+        : undefined;
       const wepStr = activeWep ? ` | Оружие: ${activeWep}` : '';
+      const shieldStr = activeShield ? ` | Щит: ${activeShield}` : '';
+      const armorStr = activeArmor ? ` | Доспех: ${activeArmor}` : '';
       const itemsList = c.inventory && c.inventory.length > 0
         ? c.inventory.map(i => `${i.name}${i.quantity && i.quantity > 1 ? ` (x${i.quantity})` : ''}`).join(', ')
         : 'пусто';
       const statsStr = `СИЛ ${c.stats?.str ?? 10}, ЛОВ ${c.stats?.dex ?? 10}, ТЕЛ ${c.stats?.con ?? 10}, ИНТ ${c.stats?.int ?? 10}, МУД ${c.stats?.wis ?? 10}, ХАР ${c.stats?.cha ?? 10}`;
       const statusStr = c.lifeState === 'dead' ? ' [☠ ПОГИБ]' : c.lifeState === 'downed' ? ' [⚠️ ПРИ СМЕРТИ]' : '';
 
-      return `* ID: "${c.id}" | ${c.name} (${c.race} ${c.characterClass}, ур. ${c.level})${statusStr}: HP ${c.hpCurrent}/${c.hpMax}, КБ ${c.ac} | ${statsStr}${wepStr}${condStr}\n  Рюкзак: ${itemsList}${c.bio ? `\n  Квента: "${c.bio}"` : ''}`;
+      return `* ID: "${c.id}" | ${c.name} (${c.race} ${c.characterClass}, ур. ${c.level})${statusStr}: HP ${c.hpCurrent}/${c.hpMax}, КБ ${c.ac} | ${statsStr}${wepStr}${shieldStr}${armorStr}${condStr}\n  Рюкзак: ${itemsList}${c.bio ? `\n  Квента: "${c.bio}"` : ''}`;
     }).join('\n');
   }
 

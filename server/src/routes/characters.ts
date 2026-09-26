@@ -73,6 +73,12 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
       ? customInventory.filter((i: any) => i && typeof i.name === 'string' && i.name.trim().length > 0)
       : classConfig.startingInventory;
 
+    const firstWeapon = inventory.find((i: any) => i.type === 'weapon' || /(?:меч|клинок|кинжал|лук|арбалет|топор|секира|булава|посох|молот)/i.test(i.name));
+    const firstArmor = inventory.find((i: any) => (i.type === 'armor' && !/(?:щит|баклер|тарч)/i.test(i.name)) || /(?:доспех|латы|кольчуг|кирас|нагрудник|кожанк)/i.test(i.name));
+    const firstShield = inventory.find((i: any) => /(?:щит|баклер|тарч|павез)/i.test(i.name));
+    const isTwoHanded = firstWeapon && /(?:двуручн|клеймор|эспадон|цвайхендер|секир[аы]\s+предков|великая\s+секир)/i.test(firstWeapon.name);
+    const shieldBonus = (!isTwoHanded && firstShield) ? (firstShield.ac_bonus || 2) : 0;
+
     const newCharacter: CharacterEntity = {
       id: crypto.randomUUID(),
       userId,
@@ -82,13 +88,16 @@ router.post('/', authMiddleware, (req: Request, res: Response): void => {
       level: 1,
       hpCurrent: hpMax,
       hpMax,
-      ac,
+      ac: ac + shieldBonus,
       stats: defaultStats,
       skills: Array.isArray(skills) && skills.length > 0 ? skills : classConfig.savingThrows,
       abilities,
       inventory,
       bio: bio?.trim() || '',
       avatarUrl: avatarUrl?.trim() || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`,
+      activeWeaponId: firstWeapon?.id,
+      activeArmorId: firstArmor?.id,
+      activeShieldId: (!isTwoHanded && firstShield) ? firstShield.id : undefined,
       createdAt: new Date().toISOString(),
     };
 

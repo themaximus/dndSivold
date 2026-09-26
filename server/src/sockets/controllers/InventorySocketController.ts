@@ -230,10 +230,75 @@ export class InventorySocketController {
 
       const weapon = updatedChar.inventory?.find((i) => i.id === itemId);
       const weaponName = weapon?.name || 'Оружие';
+      const isEquipped = updatedChar.activeWeaponId === itemId;
       io.to(room.id).emit('feed_activity', {
         id: crypto.randomUUID(),
         type: 'gear_equipped',
-        text: `⚔️ ${updatedChar.name} экипировал оружие: ${weaponName}`,
+        text: isEquipped
+          ? `⚔️ ${updatedChar.name} экипировал оружие: ${weaponName}`
+          : `⚔️ ${updatedChar.name} убрал оружие: ${weaponName}`,
+        timestamp: new Date().toISOString(),
+      });
+
+      const updated = this.roomManager.getRoomAndPlayers(roomCode);
+      if (updated) {
+        io.to(room.id).emit('room_players_updated', updated.players);
+      }
+    }
+  }
+
+  public handleEquipShield(
+    io: Server,
+    socket: AuthenticatedSocket,
+    { roomCode, characterId, itemId }: { roomCode: string; characterId: string; itemId: string }
+  ): void {
+    const room = roomRepository.findByCode(roomCode);
+    if (!room) return;
+
+    const updatedChar = this.inventoryService.equipShield(characterId, itemId);
+    if (updatedChar) {
+      io.to(room.id).emit('character_updated', updatedChar);
+
+      const shield = updatedChar.inventory?.find((i) => i.id === itemId);
+      const shieldName = shield?.name || 'Щит';
+      const isEquipped = updatedChar.activeShieldId === itemId;
+      io.to(room.id).emit('feed_activity', {
+        id: crypto.randomUUID(),
+        type: 'gear_equipped',
+        text: isEquipped
+          ? `🛡️ ${updatedChar.name} экипировал щит: ${shieldName} (+2 КБ)`
+          : `🛡️ ${updatedChar.name} снял щит: ${shieldName}`,
+        timestamp: new Date().toISOString(),
+      });
+
+      const updated = this.roomManager.getRoomAndPlayers(roomCode);
+      if (updated) {
+        io.to(room.id).emit('room_players_updated', updated.players);
+      }
+    }
+  }
+
+  public handleEquipArmor(
+    io: Server,
+    socket: AuthenticatedSocket,
+    { roomCode, characterId, itemId }: { roomCode: string; characterId: string; itemId: string }
+  ): void {
+    const room = roomRepository.findByCode(roomCode);
+    if (!room) return;
+
+    const updatedChar = this.inventoryService.equipArmor(characterId, itemId);
+    if (updatedChar) {
+      io.to(room.id).emit('character_updated', updatedChar);
+
+      const armor = updatedChar.inventory?.find((i) => i.id === itemId);
+      const armorName = armor?.name || 'Доспех';
+      const isEquipped = updatedChar.activeArmorId === itemId;
+      io.to(room.id).emit('feed_activity', {
+        id: crypto.randomUUID(),
+        type: 'gear_equipped',
+        text: isEquipped
+          ? `🥋 ${updatedChar.name} надел доспех: ${armorName} (КБ: ${updatedChar.ac})`
+          : `🥋 ${updatedChar.name} снял доспех: ${armorName} (КБ: ${updatedChar.ac})`,
         timestamp: new Date().toISOString(),
       });
 

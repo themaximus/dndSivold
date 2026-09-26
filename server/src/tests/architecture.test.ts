@@ -1580,7 +1580,79 @@ async function runTests() {
     console.log('✅ Inter-character contested impact detection and modern reactions verified!\n');
   }
 
-  console.log('🎉 ALL 29 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 30: Equipment System (Weapons, Shields, Armor, 2H Exclusivity & AC Recalculation)
+  // ----------------------------------------------------
+  {
+    console.log('Test 30: Equipment System (Weapons, Shields, Armor, 2H Exclusivity & AC Recalculation)');
+    const eqCharId = 'char_eq_test_1';
+    db.characters.create({
+      id: eqCharId,
+      userId: 'user_eq',
+      name: 'Бранн Железнобокий',
+      race: 'Дворф',
+      characterClass: 'Воин',
+      level: 1,
+      hpCurrent: 12,
+      hpMax: 12,
+      ac: 10,
+      stats: { str: 16, dex: 12, con: 16, int: 10, wis: 12, cha: 8 },
+      skills: ['Атлетика'],
+      abilities: [],
+      inventory: [
+        { id: 'item_2h_sword', name: 'Двуручный меч', type: 'weapon', quantity: 1, damage: '2d6' },
+        { id: 'item_1h_axe', name: 'Боевой топор', type: 'weapon', quantity: 1, damage: '1d8' },
+        { id: 'item_shield', name: 'Стальной щит', type: 'armor', quantity: 1, ac_bonus: 2 },
+        { id: 'item_chainmail', name: 'Кольчуга', type: 'armor', quantity: 1, ac_bonus: 6 },
+      ],
+      bio: 'Ветеран множества осад.',
+      avatarUrl: '',
+      createdAt: new Date().toISOString(),
+    });
+
+    // 1. Verify auto-equip on hydration (Character created with items gets starting gear equipped)
+    const initialChar = characterRepository.findById(eqCharId);
+    assert(initialChar?.activeArmorId === 'item_chainmail', 'Chainmail must be auto-equipped as activeArmorId');
+    assert(initialChar?.activeWeaponId === 'item_2h_sword', '2H Sword must be auto-equipped as activeWeaponId');
+    assert(initialChar?.activeShieldId === undefined, 'Shield should not be auto-equipped while wielding 2H sword');
+    assert(initialChar?.ac === 16, `Initial AC with chainmail must be 16, got ${initialChar?.ac}`);
+
+    // 2. Switch weapon to 1H Axe
+    const after1H = characterRepository.equipWeapon(eqCharId, 'item_1h_axe');
+    assert(after1H?.activeWeaponId === 'item_1h_axe', '1H Axe must be equipped as activeWeaponId');
+
+    // 3. Equip Shield (+2 AC -> 18)
+    const afterShield = characterRepository.equipShield(eqCharId, 'item_shield');
+    assert(afterShield?.activeShieldId === 'item_shield', 'Shield must be equipped as activeShieldId');
+    assert(afterShield?.ac === 18, `AC with shield must be 18, got ${afterShield?.ac}`);
+    assert(afterShield?.activeWeaponId === 'item_1h_axe', '1H Axe should remain equipped with shield');
+
+    // 4. Equip Two-Handed Sword -> Should automatically unequip Shield and lower AC by 2!
+    const after2H = characterRepository.equipWeapon(eqCharId, 'item_2h_sword');
+    assert(after2H?.activeWeaponId === 'item_2h_sword', '2H Sword must be equipped');
+    assert(after2H?.activeShieldId === undefined, 'Shield must be automatically unequipped when wielding a 2H weapon');
+    assert(after2H?.ac === 16, `AC must drop back to 16 without shield, got ${after2H?.ac}`);
+
+    // 5. Re-equip Shield -> Should automatically unequip 2H weapon and increase AC to 18!
+    const afterShieldAgain = characterRepository.equipShield(eqCharId, 'item_shield');
+    assert(afterShieldAgain?.activeShieldId === 'item_shield', 'Shield must be re-equipped');
+    assert(afterShieldAgain?.activeWeaponId === undefined, '2H weapon must be unequipped when equipping shield');
+    assert(afterShieldAgain?.ac === 18, `AC must be 18 with shield, got ${afterShieldAgain?.ac}`);
+
+    // 6. Unequip Shield (Toggle off) -> AC drops back to 16
+    const afterShieldToggle = characterRepository.equipShield(eqCharId, 'item_shield');
+    assert(afterShieldToggle?.activeShieldId === undefined, 'Shield should toggle off when re-clicking');
+    assert(afterShieldToggle?.ac === 16, `AC must be 16 after unequip, got ${afterShieldToggle?.ac}`);
+
+    // 7. Unequip Chainmail (Toggle off) -> AC drops back to 10
+    const afterArmorToggle = characterRepository.equipArmor(eqCharId, 'item_chainmail');
+    assert(afterArmorToggle?.activeArmorId === undefined, 'Chainmail should toggle off when re-clicking');
+    assert(afterArmorToggle?.ac === 10, `AC must be 10 without armor, got ${afterArmorToggle?.ac}`);
+
+    console.log('✅ Equipment system, two-handed weapon mutual exclusivity, and dynamic AC calculation verified!\n');
+  }
+
+  console.log('🎉 ALL 30 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

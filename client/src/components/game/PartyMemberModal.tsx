@@ -181,33 +181,64 @@ export const PartyMemberModal: React.FC<PartyMemberModalProps> = ({
             </h4>
             {character.inventory && character.inventory.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {character.inventory.map((item, idx) => (
-                  <div
-                    key={item.id || idx}
-                    className="bg-fantasy-panel border border-fantasy-border/70 p-2.5 rounded-xl flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-200">{item.name}</div>
-                      <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
-                        {item.description || item.type}
-                      </div>
-                      {item.history && item.history.length > 0 && (
-                        <div className="text-[9px] text-amber-300/80 italic mt-0.5 truncate max-w-[200px]" title={item.history[item.history.length - 1]}>
-                          📜 {item.history[item.history.length - 1]}
+                {character.inventory.map((item, idx) => {
+                  const isWeaponEquipped = item.id === character.activeWeaponId;
+                  const isShieldEquipped = item.id === character.activeShieldId;
+                  const isArmorEquipped = item.id === character.activeArmorId;
+                  const isEquipped = isWeaponEquipped || isShieldEquipped || isArmorEquipped;
+
+                  return (
+                    <div
+                      key={item.id || idx}
+                      className={`p-2.5 rounded-xl flex items-center justify-between text-xs border transition-colors ${
+                        isEquipped
+                          ? 'bg-amber-950/30 border-amber-500/50 shadow-sm'
+                          : 'bg-fantasy-panel border-fantasy-border/70'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-slate-200">{item.name}</span>
+                          {isWeaponEquipped && (
+                            <span className="px-1.5 py-0.2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded text-[9px] font-bold">
+                              Оружие
+                            </span>
+                          )}
+                          {isShieldEquipped && (
+                            <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-300 border border-blue-500/40 rounded text-[9px] font-bold">
+                              Щит
+                            </span>
+                          )}
+                          {isArmorEquipped && (
+                            <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded text-[9px] font-bold">
+                              Доспех
+                            </span>
+                          )}
                         </div>
-                      )}
+                        <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                          {item.description || item.type}
+                        </div>
+                        {item.history && item.history.length > 0 && (
+                          <div className="text-[9px] text-amber-300/80 italic mt-0.5 truncate max-w-[200px]" title={item.history[item.history.length - 1]}>
+                            📜 {item.history[item.history.length - 1]}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        {item.damage && (
+                          <span className="text-[10px] text-amber-400 font-mono block">({item.damage})</span>
+                        )}
+                        {item.ac_bonus && (
+                          <span className="text-[10px] text-blue-400 font-mono block">(+{item.ac_bonus} КБ)</span>
+                        )}
+                        {item.healAmount && (
+                          <span className="text-[10px] text-emerald-400 font-mono block">(+{item.healAmount} HP)</span>
+                        )}
+                        <span className="text-[10px] text-slate-500 font-mono">x{item.quantity || 1}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {item.damage && (
-                        <span className="text-[10px] text-amber-400 font-mono block">({item.damage})</span>
-                      )}
-                      {item.healAmount && (
-                        <span className="text-[10px] text-emerald-400 font-mono block">(+{item.healAmount} HP)</span>
-                      )}
-                      <span className="text-[10px] text-slate-500 font-mono">x{item.quantity || 1}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-slate-500 italic">Рюкзак пуст</p>

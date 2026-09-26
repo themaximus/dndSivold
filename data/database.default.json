@@ -415,10 +415,518 @@
         }
       ],
       "createdAt": "2026-09-21T21:26:28.308Z"
+    },
+    {
+      "id": "char_inv_test_59e46dc3-1ba4-4b51-981c-161f328fdb96",
+      "userId": "user_inv_test",
+      "name": "Элиас",
+      "characterClass": "Воин",
+      "race": "Человек",
+      "level": 2,
+      "hpCurrent": 18,
+      "hpMax": 20,
+      "stats": {
+        "strength": 16,
+        "dexterity": 12,
+        "constitution": 14,
+        "intelligence": 10,
+        "wisdom": 10,
+        "charisma": 10
+      },
+      "inventory": [
+        {
+          "id": "item_torch_1",
+          "name": "Факел",
+          "type": "misc",
+          "description": "Освещает путь",
+          "quantity": 1,
+          "history": [
+            "Стартовое снаряжение искателя приключений."
+          ]
+        }
+      ],
+      "createdAt": "2026-09-26T07:18:29.498Z",
+      "hitDiceType": "d10",
+      "hitDiceMax": 2,
+      "hitDiceCurrent": 2,
+      "conditions": []
+    },
+    {
+      "id": "char_target_be0c3a7e-2f23-4daf-9b81-e998d1212383",
+      "userId": "user_target_9f603ef1-60de-4a56-89f6-dd481ec621a0",
+      "name": "Бригитта",
+      "characterClass": "Плут",
+      "race": "Человек",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 14,
+      "stats": {
+        "strength": 10,
+        "dexterity": 16,
+        "constitution": 12,
+        "intelligence": 12,
+        "wisdom": 10,
+        "charisma": 14
+      },
+      "inventory": [],
+      "createdAt": "2026-09-26T07:18:29.502Z",
+      "hitDiceType": "d8",
+      "hitDiceMax": 2,
+      "hitDiceCurrent": 2,
+      "conditions": []
+    },
+    {
+      "id": "char_inv_test_0ae0523e-49e7-455f-a7b0-ddf9533366c6",
+      "userId": "user_inv_test",
+      "name": "Элиас",
+      "characterClass": "Воин",
+      "race": "Человек",
+      "level": 2,
+      "hpCurrent": 18,
+      "hpMax": 20,
+      "stats": {
+        "strength": 16,
+        "dexterity": 12,
+        "constitution": 14,
+        "intelligence": 10,
+        "wisdom": 10,
+        "charisma": 10
+      },
+      "inventory": [
+        {
+          "id": "item_torch_1",
+          "name": "Факел",
+          "type": "misc",
+          "description": "Освещает путь",
+          "quantity": 1,
+          "history": [
+            "Стартовое снаряжение искателя приключений."
+          ]
+        }
+      ],
+      "createdAt": "2026-09-26T07:19:46.542Z",
+      "hitDiceType": "d10",
+      "hitDiceMax": 2,
+      "hitDiceCurrent": 2,
+      "conditions": []
+    },
+    {
+      "id": "char_target_c806fbbd-eb22-41c5-affc-9f9e1e8392cb",
+      "userId": "user_target_cdbd5826-eaf2-423f-9423-6c4408d243e7",
+      "name": "Бригитта",
+      "characterClass": "Плут",
+      "race": "Человек",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 14,
+      "stats": {
+        "strength": 10,
+        "dexterity": 16,
+        "constitution": 12,
+        "intelligence": 12,
+        "wisdom": 10,
+        "charisma": 14
+      },
+      "inventory": [],
+      "createdAt": "2026-09-26T07:19:46.549Z",
+      "hitDiceType": "d8",
+      "hitDiceMax": 2,
+      "hitDiceCurrent": 2,
+      "conditions": []
+    },
+    {
+      "id": "char_eq_test_1",
+      "userId": "user_eq",
+      "name": "Бранн Железнобокий",
+      "race": "Дворф",
+      "characterClass": "Воин",
+      "level": 1,
+      "hpCurrent": 12,
+      "hpMax": 12,
+      "ac": 10,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 16,
+        "int": 10,
+        "wis": 12,
+        "cha": 8
+      },
+      "skills": [
+        "Атлетика"
+      ],
+      "abilities": [],
+      "inventory": [
+        {
+          "id": "item_2h_sword",
+          "name": "Двуручный меч",
+          "type": "weapon",
+          "quantity": 1,
+          "damage": "2d6",
+          "history": [
+            "Стартовое снаряжение искателя приключений."
+          ]
+        },
+        {
+          "id": "item_1h_axe",
+          "name": "Боевой топор",
+          "type": "weapon",
+          "quantity": 1,
+          "damage": "1d8",
+          "history": [
+            "Стартовое снаряжение искателя приключений."
+          ]
+        },
+        {
+          "id": "item_shield",
+          "name": "Стальной щит",
+          "type": "armor",
+          "quantity": 1,
+          "ac_bonus": 2,
+          "history": [
+            "Стартовое снаряжение искателя приключений."
+          ]
+        },
+        {
+          "id": "item_chainmail",
+          "name": "Кольчуга",
+          "type": "armor",
+          "quantity": 1,
+          "ac_bonus": 6,
+          "history": [
+            "Стартовое снаряжение искателя приключений."
+          ]
+        }
+      ],
+      "bio": "Ветеран множества осад.",
+      "avatarUrl": "",
+      "createdAt": "2026-09-26T07:19:46.562Z",
+      "hitDiceType": "d10",
+      "hitDiceMax": 1,
+      "hitDiceCurrent": 1,
+      "conditions": []
+    },
+    {
+      "id": "char_inv_test_4bb414d6-3f9b-4842-ac3e-39d17a6a5940",
+      "userId": "user_inv_test",
+      "name": "Элиас",
+      "characterClass": "Воин",
+      "race": "Человек",
+      "level": 2,
+      "hpCurrent": 18,
+      "hpMax": 20,
+      "stats": {
+        "strength": 16,
+        "dexterity": 12,
+        "constitution": 14,
+        "intelligence": 10,
+        "wisdom": 10,
+        "charisma": 10
+      },
+      "inventory": [
+        {
+          "id": "item_torch_1",
+          "name": "Факел",
+          "type": "misc",
+          "description": "Освещает путь",
+          "quantity": 1,
+          "history": [
+            "Стартовое снаряжение искателя приключений."
+          ]
+        }
+      ],
+      "createdAt": "2026-09-26T07:20:06.574Z",
+      "hitDiceType": "d10",
+      "hitDiceMax": 2,
+      "hitDiceCurrent": 2,
+      "conditions": []
+    },
+    {
+      "id": "char_target_81e9b5dd-e2cc-4d50-8ed4-1f8b37fbcb31",
+      "userId": "user_target_a5ad1548-8cc9-45fb-9dec-dd59824087e3",
+      "name": "Бригитта",
+      "characterClass": "Плут",
+      "race": "Человек",
+      "level": 2,
+      "hpCurrent": 14,
+      "hpMax": 14,
+      "stats": {
+        "strength": 10,
+        "dexterity": 16,
+        "constitution": 12,
+        "intelligence": 12,
+        "wisdom": 10,
+        "charisma": 14
+      },
+      "inventory": [],
+      "createdAt": "2026-09-26T07:20:06.587Z",
+      "hitDiceType": "d8",
+      "hitDiceMax": 2,
+      "hitDiceCurrent": 2,
+      "conditions": []
+    },
+    {
+      "id": "char_eq_test_1",
+      "userId": "user_eq",
+      "name": "Бранн Железнобокий",
+      "race": "Дворф",
+      "characterClass": "Воин",
+      "level": 1,
+      "hpCurrent": 12,
+      "hpMax": 12,
+      "ac": 10,
+      "stats": {
+        "str": 16,
+        "dex": 12,
+        "con": 16,
+        "int": 10,
+        "wis": 12,
+        "cha": 8
+      },
+      "skills": [
+        "Атлетика"
+      ],
+      "abilities": [],
+      "inventory": [
+        {
+          "id": "item_2h_sword",
+          "name": "Двуручный меч",
+          "type": "weapon",
+          "quantity": 1,
+          "damage": "2d6"
+        },
+        {
+          "id": "item_1h_axe",
+          "name": "Боевой топор",
+          "type": "weapon",
+          "quantity": 1,
+          "damage": "1d8"
+        },
+        {
+          "id": "item_shield",
+          "name": "Стальной щит",
+          "type": "armor",
+          "quantity": 1,
+          "ac_bonus": 2
+        },
+        {
+          "id": "item_chainmail",
+          "name": "Кольчуга",
+          "type": "armor",
+          "quantity": 1,
+          "ac_bonus": 6
+        }
+      ],
+      "bio": "Ветеран множества осад.",
+      "avatarUrl": "",
+      "createdAt": "2026-09-26T07:20:06.601Z"
     }
   ],
-  "rooms": [],
-  "roomPlayers": [],
+  "rooms": [
+    {
+      "id": "room_rollback_33e59723-6a92-4451-a339-2148940b1c5f",
+      "code": "ROLL01",
+      "hostUserId": "user_rb_61e6028e-dec3-4b58-80c0-3f42f686959f",
+      "title": "Rollback Room",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 1,
+      "currentSituation": "Опасность",
+      "createdAt": "2026-09-26T07:18:29.497Z"
+    },
+    {
+      "id": "room_inv_0b17f4fe-c455-46d5-9a73-39091d3a5f0d",
+      "code": "INVR1",
+      "hostUserId": "user_inv_test",
+      "title": "Пещера",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 2,
+      "currentSituation": "В темноте",
+      "sceneEntities": [],
+      "createdAt": "2026-09-26T07:18:29.500Z",
+      "availableLoot": [
+        {
+          "id": "3d58594b-cf9e-4ed1-953c-d3b34e81b497",
+          "name": "Стальной меч",
+          "type": "weapon",
+          "description": "Острый клинок",
+          "quantity": 1,
+          "damage": "1d8",
+          "roundDropped": 2
+        }
+      ]
+    },
+    {
+      "id": "room_react_test_7476f47e-74ae-40d1-ad08-498ced0afbbd",
+      "code": "REACT1",
+      "hostUserId": "user_initiator",
+      "title": "Таверна",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 1,
+      "currentSituation": "В таверне за столом",
+      "sceneEntities": [],
+      "createdAt": "2026-09-26T07:18:29.502Z"
+    },
+    {
+      "id": "room_rollback_2c89c92c-32ed-4fe7-bc13-e74985ab2b2f",
+      "code": "ROLL01",
+      "hostUserId": "user_rb_dcba4b70-cb4c-41cf-8ab0-a23504a139cd",
+      "title": "Rollback Room",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 1,
+      "currentSituation": "Опасность",
+      "createdAt": "2026-09-26T07:19:46.541Z"
+    },
+    {
+      "id": "room_inv_f2822896-7959-4c23-9864-8ddca30cf8bf",
+      "code": "INVR1",
+      "hostUserId": "user_inv_test",
+      "title": "Пещера",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 2,
+      "currentSituation": "В темноте",
+      "sceneEntities": [],
+      "createdAt": "2026-09-26T07:19:46.545Z",
+      "availableLoot": [
+        {
+          "id": "62f8fe39-5f98-4c50-b114-4349c37659b3",
+          "name": "Стальной меч",
+          "type": "weapon",
+          "description": "Острый клинок",
+          "quantity": 1,
+          "damage": "1d8",
+          "roundDropped": 2
+        }
+      ]
+    },
+    {
+      "id": "room_react_test_fd9bbe21-04c8-4aef-ac8e-cc495fe0a717",
+      "code": "REACT1",
+      "hostUserId": "user_initiator",
+      "title": "Таверна",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 1,
+      "currentSituation": "В таверне за столом",
+      "sceneEntities": [],
+      "createdAt": "2026-09-26T07:19:46.549Z"
+    },
+    {
+      "id": "room_rollback_8ffcdc29-9a7f-4003-a2c7-3e1d41004550",
+      "code": "ROLL01",
+      "hostUserId": "user_rb_e114d62f-7e24-46fb-889a-6f17718addef",
+      "title": "Rollback Room",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 1,
+      "currentSituation": "Опасность",
+      "createdAt": "2026-09-26T07:20:06.573Z"
+    },
+    {
+      "id": "room_inv_d1e3fbc9-5395-456f-9770-32c8adbe99b1",
+      "code": "INVR1",
+      "hostUserId": "user_inv_test",
+      "title": "Пещера",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 2,
+      "currentSituation": "В темноте",
+      "sceneEntities": [],
+      "createdAt": "2026-09-26T07:20:06.581Z",
+      "availableLoot": [
+        {
+          "id": "6bd15632-542b-4b57-b8e1-ae2916dd4857",
+          "name": "Стальной меч",
+          "type": "weapon",
+          "description": "Острый клинок",
+          "quantity": 1,
+          "damage": "1d8",
+          "roundDropped": 2
+        }
+      ]
+    },
+    {
+      "id": "room_react_test_4fd5ccd7-68bd-43a6-8529-0bfbd40ac9aa",
+      "code": "REACT1",
+      "hostUserId": "user_initiator",
+      "title": "Таверна",
+      "setting": "Фэнтези",
+      "status": "active",
+      "roundNumber": 1,
+      "currentSituation": "В таверне за столом",
+      "sceneEntities": [],
+      "createdAt": "2026-09-26T07:20:06.587Z"
+    }
+  ],
+  "roomPlayers": [
+    {
+      "id": "player_rb_73b05d3a-5487-4e56-8382-f8bd587f61f4",
+      "roomId": "room_rollback_33e59723-6a92-4451-a339-2148940b1c5f",
+      "userId": "user_rb_61e6028e-dec3-4b58-80c0-3f42f686959f",
+      "username": "Hero",
+      "hasActedThisRound": false,
+      "hasRolledThisRound": false,
+      "joinedAt": "2026-09-26T07:18:29.497Z"
+    },
+    {
+      "id": "rp_c19c0b57-1065-4562-8341-60972c1ce05e",
+      "roomId": "room_react_test_7476f47e-74ae-40d1-ad08-498ced0afbbd",
+      "userId": "user_target_9f603ef1-60de-4a56-89f6-dd481ec621a0",
+      "username": "BrigittePlayer",
+      "characterId": "char_target_be0c3a7e-2f23-4daf-9b81-e998d1212383",
+      "isReady": true,
+      "isOnline": true,
+      "hasActedThisRound": false,
+      "hasRolledThisRound": false,
+      "joinedAt": "2026-09-26T07:18:29.503Z"
+    },
+    {
+      "id": "player_rb_5f7d97cd-f44f-4f87-9438-3e331a24217d",
+      "roomId": "room_rollback_2c89c92c-32ed-4fe7-bc13-e74985ab2b2f",
+      "userId": "user_rb_dcba4b70-cb4c-41cf-8ab0-a23504a139cd",
+      "username": "Hero",
+      "hasActedThisRound": false,
+      "hasRolledThisRound": false,
+      "joinedAt": "2026-09-26T07:19:46.541Z"
+    },
+    {
+      "id": "rp_e5f9c838-00cd-421f-b512-f8d1c4973106",
+      "roomId": "room_react_test_fd9bbe21-04c8-4aef-ac8e-cc495fe0a717",
+      "userId": "user_target_cdbd5826-eaf2-423f-9423-6c4408d243e7",
+      "username": "BrigittePlayer",
+      "characterId": "char_target_c806fbbd-eb22-41c5-affc-9f9e1e8392cb",
+      "isReady": true,
+      "isOnline": true,
+      "hasActedThisRound": false,
+      "hasRolledThisRound": false,
+      "joinedAt": "2026-09-26T07:19:46.549Z"
+    },
+    {
+      "id": "player_rb_4472ab9e-54fb-4e66-b8ff-5775b934b378",
+      "roomId": "room_rollback_8ffcdc29-9a7f-4003-a2c7-3e1d41004550",
+      "userId": "user_rb_e114d62f-7e24-46fb-889a-6f17718addef",
+      "username": "Hero",
+      "hasActedThisRound": false,
+      "hasRolledThisRound": false,
+      "joinedAt": "2026-09-26T07:20:06.573Z"
+    },
+    {
+      "id": "rp_de795238-66f7-4be6-9241-1b9bacd83d21",
+      "roomId": "room_react_test_4fd5ccd7-68bd-43a6-8529-0bfbd40ac9aa",
+      "userId": "user_target_a5ad1548-8cc9-45fb-9dec-dd59824087e3",
+      "username": "BrigittePlayer",
+      "characterId": "char_target_81e9b5dd-e2cc-4d50-8ed4-1f8b37fbcb31",
+      "isReady": true,
+      "isOnline": true,
+      "hasActedThisRound": false,
+      "hasRolledThisRound": false,
+      "joinedAt": "2026-09-26T07:20:06.588Z"
+    }
+  ],
   "turnActions": [],
   "gameLogs": [],
   "itemLedgers": [
@@ -477,6 +985,90 @@
       "lastRound": 1,
       "reason": "Раскололось при падении ничком",
       "timestamp": "2026-09-21T21:26:28.324Z"
+    },
+    {
+      "id": "984bc2ba-a0b9-4b5e-9b5d-41b7b2c0b244",
+      "roomId": "room_inv_0b17f4fe-c455-46d5-9a73-39091d3a5f0d",
+      "characterId": "char_inv_test_59e46dc3-1ba4-4b51-981c-161f328fdb96",
+      "characterName": "Элиас",
+      "itemId": "item_pot_1",
+      "itemName": "«Зелье лечения»",
+      "itemType": "potion",
+      "status": "consumed",
+      "quantity": 1,
+      "lastRound": 2,
+      "reason": "Израсходовано при совершении действия в раунде 2",
+      "timestamp": "2026-09-26T07:18:29.502Z"
+    },
+    {
+      "id": "dab02f6f-3ad5-4370-895d-d1f04712a5f2",
+      "roomId": "room_inv_0b17f4fe-c455-46d5-9a73-39091d3a5f0d",
+      "characterId": "char_inv_test_59e46dc3-1ba4-4b51-981c-161f328fdb96",
+      "characterName": "Элиас",
+      "itemId": "item_sword_1",
+      "itemName": "Стальной меч",
+      "itemType": "weapon",
+      "status": "dropped_on_ground",
+      "quantity": 1,
+      "lastRound": 2,
+      "reason": "Выброшен на землю в раунде 2.",
+      "timestamp": "2026-09-26T07:18:29.502Z"
+    },
+    {
+      "id": "9d64dffa-979c-4056-a4f4-45ed46f86606",
+      "roomId": "room_inv_f2822896-7959-4c23-9864-8ddca30cf8bf",
+      "characterId": "char_inv_test_0ae0523e-49e7-455f-a7b0-ddf9533366c6",
+      "characterName": "Элиас",
+      "itemId": "item_pot_1",
+      "itemName": "«Зелье лечения»",
+      "itemType": "potion",
+      "status": "consumed",
+      "quantity": 1,
+      "lastRound": 2,
+      "reason": "Израсходовано при совершении действия в раунде 2",
+      "timestamp": "2026-09-26T07:19:46.548Z"
+    },
+    {
+      "id": "43a1ef29-d69c-464f-8d54-4ec280f6c5f6",
+      "roomId": "room_inv_f2822896-7959-4c23-9864-8ddca30cf8bf",
+      "characterId": "char_inv_test_0ae0523e-49e7-455f-a7b0-ddf9533366c6",
+      "characterName": "Элиас",
+      "itemId": "item_sword_1",
+      "itemName": "Стальной меч",
+      "itemType": "weapon",
+      "status": "dropped_on_ground",
+      "quantity": 1,
+      "lastRound": 2,
+      "reason": "Выброшен на землю в раунде 2.",
+      "timestamp": "2026-09-26T07:19:46.549Z"
+    },
+    {
+      "id": "d68319a7-1867-4098-a643-3628554eccfc",
+      "roomId": "room_inv_d1e3fbc9-5395-456f-9770-32c8adbe99b1",
+      "characterId": "char_inv_test_4bb414d6-3f9b-4842-ac3e-39d17a6a5940",
+      "characterName": "Элиас",
+      "itemId": "item_pot_1",
+      "itemName": "«Зелье лечения»",
+      "itemType": "potion",
+      "status": "consumed",
+      "quantity": 1,
+      "lastRound": 2,
+      "reason": "Израсходовано при совершении действия в раунде 2",
+      "timestamp": "2026-09-26T07:20:06.585Z"
+    },
+    {
+      "id": "825055a4-d403-4907-804c-c0827543e4da",
+      "roomId": "room_inv_d1e3fbc9-5395-456f-9770-32c8adbe99b1",
+      "characterId": "char_inv_test_4bb414d6-3f9b-4842-ac3e-39d17a6a5940",
+      "characterName": "Элиас",
+      "itemId": "item_sword_1",
+      "itemName": "Стальной меч",
+      "itemType": "weapon",
+      "status": "dropped_on_ground",
+      "quantity": 1,
+      "lastRound": 2,
+      "reason": "Выброшен на землю в раунде 2.",
+      "timestamp": "2026-09-26T07:20:06.586Z"
     }
   ],
   "worldNPCs": [
@@ -660,68 +1252,6 @@
       "returnedInRound": 5
     },
     {
-      "id": "ent_npc_c4f38a6e-0cc3-4d9e-9832-381c2abcd887",
-      "roomId": "room_test_1",
-      "name": "Раненый гонец",
-      "role": "Посланник графской стражи",
-      "hpCurrent": 10,
-      "hpMax": 15,
-      "ac": 12,
-      "disposition": "neutral",
-      "affinity": 0,
-      "status": "В мире: location_transition",
-      "combatRole": "neutral_observer",
-      "notes": [
-        "Раунд 1: location_transition (статус: Присутствует в сцене)"
-      ],
-      "departureRound": 1,
-      "departureReason": "location_transition",
-      "narrativeNote": "Присутствует в сцене",
-      "potentialHooks": []
-    },
-    {
-      "id": "ent_npc_25952439-eff6-45be-abaa-a6244a086176",
-      "roomId": "room_test_1",
-      "name": "Трактирщик Боб",
-      "role": "Владелец таверны",
-      "hpCurrent": 20,
-      "hpMax": 20,
-      "ac": 10,
-      "disposition": "neutral",
-      "affinity": 0,
-      "status": "В мире: location_transition",
-      "combatRole": "neutral_observer",
-      "notes": [
-        "Раунд 1: location_transition (статус: Встречен в сцене)"
-      ],
-      "departureRound": 1,
-      "departureReason": "location_transition",
-      "narrativeNote": "Встречен в сцене",
-      "potentialHooks": []
-    },
-    {
-      "id": "ent_npc_d7d0d33f-a1e6-492e-989f-941bb07d8820",
-      "roomId": "room_test_1",
-      "name": "Купец Бальтазар",
-      "role": "Караванщик",
-      "hpCurrent": 15,
-      "hpMax": 15,
-      "ac": 12,
-      "disposition": "neutral",
-      "affinity": 0,
-      "status": "В мире: left_behind",
-      "combatRole": "neutral_observer",
-      "notes": [
-        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)"
-      ],
-      "departureRound": 1,
-      "departureReason": "left_behind",
-      "narrativeNote": "Остался позади на развилке, вне себя от ярости",
-      "potentialHooks": [
-        "Возвращение с восстановленным караваном и наградой за спасение"
-      ]
-    },
-    {
       "id": "ent_npc_e8cd60a5-e53e-4f61-9520-0cb30ad179b0",
       "roomId": "room_archive_test_55be1f1a-b1d9-4618-8ac9-cfdbdcaea36d",
       "name": "Путник Торвальд",
@@ -764,6 +1294,356 @@
         "Подготовка засады или донос властям/бандитам",
         "Подготовка засады или донос властям/бандитам"
       ]
+    },
+    {
+      "id": "ent_npc_87254c03-30b4-4b8e-ac4e-c49ef021c1d0",
+      "roomId": "room_archive_test_f0a76927-1f62-4d66-8167-29be40ec2e95",
+      "name": "Путник Торвальд",
+      "role": "Странник",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: departed",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: departed (статус: Ушел в сторону города)"
+      ],
+      "departureRound": 1,
+      "departureReason": "departed",
+      "narrativeNote": "Ушел в сторону города",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_enemy_821b0ad3-420f-4c57-8c33-1892af7a3c48",
+      "roomId": "room_archive_test_f0a76927-1f62-4d66-8167-29be40ec2e95",
+      "name": "Разбойник Ганс",
+      "role": "Разбойник",
+      "hpCurrent": 0,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: defeated",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: defeated (статус: Повержен в бою)",
+        "Раунд 1: defeated (статус: Ранен в бою (ОЗ: 0/10))"
+      ],
+      "departureRound": 1,
+      "departureReason": "defeated",
+      "narrativeNote": "Повержен в бою в раунде 1. Ранен в бою (ОЗ: 0/10)",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам",
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "ent_npc_d257f84f-2d6e-4b1b-942f-2548defac9fa",
+      "roomId": "room_archive_test_c9a35b0d-da99-496a-a0f7-24a11eacb1ec",
+      "name": "Путник Торвальд",
+      "role": "Странник",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: departed",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: departed (статус: Ушел в сторону города)"
+      ],
+      "departureRound": 1,
+      "departureReason": "departed",
+      "narrativeNote": "Ушел в сторону города",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_enemy_f5fafbfb-8227-45b1-84f6-a4e0b96af397",
+      "roomId": "room_archive_test_c9a35b0d-da99-496a-a0f7-24a11eacb1ec",
+      "name": "Разбойник Ганс",
+      "role": "Разбойник",
+      "hpCurrent": 0,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: defeated",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: defeated (статус: Повержен в бою)",
+        "Раунд 1: defeated (статус: Ранен в бою (ОЗ: 0/10))"
+      ],
+      "departureRound": 1,
+      "departureReason": "defeated",
+      "narrativeNote": "Повержен в бою в раунде 1. Ранен в бою (ОЗ: 0/10)",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам",
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "ent_npc_edd11315-d6ec-4f79-a729-6b07319715b3",
+      "roomId": "room_archive_test_828186e7-2116-4b62-9c6b-a15b669e51ec",
+      "name": "Путник Торвальд",
+      "role": "Странник",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: departed",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: departed (статус: Ушел в сторону города)"
+      ],
+      "departureRound": 1,
+      "departureReason": "departed",
+      "narrativeNote": "Ушел в сторону города",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_enemy_d933c1e7-738f-408a-9775-dca94028e638",
+      "roomId": "room_archive_test_828186e7-2116-4b62-9c6b-a15b669e51ec",
+      "name": "Разбойник Ганс",
+      "role": "Разбойник",
+      "hpCurrent": 0,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: defeated",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: defeated (статус: Повержен в бою)",
+        "Раунд 1: defeated (статус: Ранен в бою (ОЗ: 0/10))"
+      ],
+      "departureRound": 1,
+      "departureReason": "defeated",
+      "narrativeNote": "Повержен в бою в раунде 1. Ранен в бою (ОЗ: 0/10)",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам",
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "ent_npc_af2b4378-875a-44c8-9d3a-e1096c24b099",
+      "roomId": "room_archive_test_e3887788-745f-46d3-b223-64b2ad0c4441",
+      "name": "Путник Торвальд",
+      "role": "Странник",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: departed",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: departed (статус: Ушел в сторону города)"
+      ],
+      "departureRound": 1,
+      "departureReason": "departed",
+      "narrativeNote": "Ушел в сторону города",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_enemy_eeda01c5-bd0e-491a-9cc5-70485096e520",
+      "roomId": "room_archive_test_e3887788-745f-46d3-b223-64b2ad0c4441",
+      "name": "Разбойник Ганс",
+      "role": "Разбойник",
+      "hpCurrent": 0,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: defeated",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: defeated (статус: Повержен в бою)",
+        "Раунд 1: defeated (статус: Ранен в бою (ОЗ: 0/10))"
+      ],
+      "departureRound": 1,
+      "departureReason": "defeated",
+      "narrativeNote": "Повержен в бою в раунде 1. Ранен в бою (ОЗ: 0/10)",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам",
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "ent_npc_b978e6b8-7647-485b-b012-559bb0caa192",
+      "roomId": "room_archive_test_ed9ba1df-109d-4f08-a90a-b102015783e2",
+      "name": "Путник Торвальд",
+      "role": "Странник",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: departed",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: departed (статус: Ушел в сторону города)"
+      ],
+      "departureRound": 1,
+      "departureReason": "departed",
+      "narrativeNote": "Ушел в сторону города",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_enemy_6757072e-1578-43cc-9f74-9b1932d20ff5",
+      "roomId": "room_archive_test_ed9ba1df-109d-4f08-a90a-b102015783e2",
+      "name": "Разбойник Ганс",
+      "role": "Разбойник",
+      "hpCurrent": 0,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: defeated",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: defeated (статус: Повержен в бою)",
+        "Раунд 1: defeated (статус: Ранен в бою (ОЗ: 0/10))"
+      ],
+      "departureRound": 1,
+      "departureReason": "defeated",
+      "narrativeNote": "Повержен в бою в раунде 1. Ранен в бою (ОЗ: 0/10)",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам",
+        "Подготовка засады или донос властям/бандитам"
+      ]
+    },
+    {
+      "id": "ent_npc_4626f4bd-3472-4508-9965-877200d2fa80",
+      "roomId": "room_test_1",
+      "name": "Раненый гонец",
+      "role": "Посланник графской стражи",
+      "hpCurrent": 10,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: location_transition",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: location_transition (статус: Присутствует в сцене)",
+        "Раунд 1: location_transition (статус: Присутствует в сцене)",
+        "Раунд 1: location_transition (статус: Присутствует в сцене)",
+        "Раунд 1: location_transition (статус: Присутствует в сцене)",
+        "Раунд 1: location_transition (статус: Присутствует в сцене)",
+        "Раунд 1: location_transition (статус: Присутствует в сцене)",
+        "Раунд 1: location_transition (статус: Присутствует в сцене)"
+      ],
+      "departureRound": 1,
+      "departureReason": "location_transition",
+      "narrativeNote": "Присутствует в сцене",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_npc_65f7c7c1-7a4f-4c4e-9741-e9f21f85c26d",
+      "roomId": "room_test_1",
+      "name": "Трактирщик Боб",
+      "role": "Владелец таверны",
+      "hpCurrent": 20,
+      "hpMax": 20,
+      "ac": 10,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: location_transition",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: location_transition (статус: Встречен в сцене)",
+        "Раунд 1: location_transition (статус: Встречен в сцене)",
+        "Раунд 1: location_transition (статус: Встречен в сцене)",
+        "Раунд 1: location_transition (статус: Встречен в сцене)",
+        "Раунд 1: location_transition (статус: Встречен в сцене)",
+        "Раунд 1: location_transition (статус: Встречен в сцене)",
+        "Раунд 1: location_transition (статус: Встречен в сцене)"
+      ],
+      "departureRound": 1,
+      "departureReason": "location_transition",
+      "narrativeNote": "Встречен в сцене",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_npc_ec9123e8-e8e8-459d-844a-9243c434932f",
+      "roomId": "room_test_1",
+      "name": "Купец Бальтазар",
+      "role": "Караванщик",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: left_behind",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)",
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)",
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)",
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)",
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)",
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)",
+        "Раунд 1: left_behind (статус: Остался позади на развилке, вне себя от ярости)"
+      ],
+      "departureRound": 1,
+      "departureReason": "left_behind",
+      "narrativeNote": "Остался позади на развилке, вне себя от ярости",
+      "potentialHooks": [
+        "Возвращение с восстановленным караваном и наградой за спасение",
+        "Возвращение с восстановленным караваном и наградой за спасение",
+        "Возвращение с восстановленным караваном и наградой за спасение",
+        "Возвращение с восстановленным караваном и наградой за спасение",
+        "Возвращение с восстановленным караваном и наградой за спасение",
+        "Возвращение с восстановленным караваном и наградой за спасение",
+        "Возвращение с восстановленным караваном и наградой за спасение"
+      ]
+    },
+    {
+      "id": "ent_npc_63bbdf13-3e26-4bdb-bbed-17315466d59a",
+      "roomId": "room_archive_test_3eafbc42-1eaf-4ccd-8cb6-1f9455e7b38f",
+      "name": "Путник Торвальд",
+      "role": "Странник",
+      "hpCurrent": 15,
+      "hpMax": 15,
+      "ac": 12,
+      "disposition": "neutral",
+      "affinity": 0,
+      "status": "В мире: departed",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: departed (статус: Ушел в сторону города)"
+      ],
+      "departureRound": 1,
+      "departureReason": "departed",
+      "narrativeNote": "Ушел в сторону города",
+      "potentialHooks": []
+    },
+    {
+      "id": "ent_enemy_51ff9ef7-ba85-4165-93e0-062be88c84f9",
+      "roomId": "room_archive_test_3eafbc42-1eaf-4ccd-8cb6-1f9455e7b38f",
+      "name": "Разбойник Ганс",
+      "role": "Разбойник",
+      "hpCurrent": 0,
+      "hpMax": 10,
+      "ac": 12,
+      "disposition": "hostile",
+      "affinity": 0,
+      "status": "В мире: defeated",
+      "combatRole": "neutral_observer",
+      "notes": [
+        "Раунд 1: defeated (статус: Повержен в бою)",
+        "Раунд 1: defeated (статус: Ранен в бою (ОЗ: 0/10))"
+      ],
+      "departureRound": 1,
+      "departureReason": "defeated",
+      "narrativeNote": "Повержен в бою в раунде 1. Ранен в бою (ОЗ: 0/10)",
+      "potentialHooks": [
+        "Подготовка засады или донос властям/бандитам",
+        "Подготовка засады или донос властям/бандитам"
+      ]
     }
   ],
   "worldQuests": [
@@ -777,6 +1657,84 @@
       "roundCreated": 1,
       "createdAt": "2026-09-22T13:42:25.145Z",
       "updatedAt": "2026-09-22T13:42:25.146Z",
+      "roundCompleted": 1,
+      "resolutionNote": "Пауки уничтожены"
+    },
+    {
+      "id": "quest_ba50d94a",
+      "roomId": "room_quest_test_053b055a-d58d-4049-9ab6-2c2bc66dae66",
+      "title": "Очистить старую мельницу",
+      "description": "Уничтожить гигантских пауков в мельнице у реки",
+      "category": "task",
+      "status": "completed",
+      "roundCreated": 1,
+      "createdAt": "2026-09-26T07:18:28.214Z",
+      "updatedAt": "2026-09-26T07:18:28.215Z",
+      "roundCompleted": 1,
+      "resolutionNote": "Пауки уничтожены"
+    },
+    {
+      "id": "quest_8dc2d59c",
+      "roomId": "room_quest_test_315350ab-9760-4fab-94fe-30bd1d10aafb",
+      "title": "Очистить старую мельницу",
+      "description": "Уничтожить гигантских пауков в мельнице у реки",
+      "category": "task",
+      "status": "completed",
+      "roundCreated": 1,
+      "createdAt": "2026-09-26T07:18:46.257Z",
+      "updatedAt": "2026-09-26T07:18:46.259Z",
+      "roundCompleted": 1,
+      "resolutionNote": "Пауки уничтожены"
+    },
+    {
+      "id": "quest_502ca013",
+      "roomId": "room_quest_test_7b77d546-97c9-4d5c-b958-20aecf1ba82e",
+      "title": "Очистить старую мельницу",
+      "description": "Уничтожить гигантских пауков в мельнице у реки",
+      "category": "task",
+      "status": "completed",
+      "roundCreated": 1,
+      "createdAt": "2026-09-26T07:19:01.578Z",
+      "updatedAt": "2026-09-26T07:19:01.579Z",
+      "roundCompleted": 1,
+      "resolutionNote": "Пауки уничтожены"
+    },
+    {
+      "id": "quest_292de73c",
+      "roomId": "room_quest_test_f87a9de7-6d89-40a5-8d19-679d547c3ed1",
+      "title": "Очистить старую мельницу",
+      "description": "Уничтожить гигантских пауков в мельнице у реки",
+      "category": "task",
+      "status": "completed",
+      "roundCreated": 1,
+      "createdAt": "2026-09-26T07:19:21.512Z",
+      "updatedAt": "2026-09-26T07:19:21.514Z",
+      "roundCompleted": 1,
+      "resolutionNote": "Пауки уничтожены"
+    },
+    {
+      "id": "quest_6ee16d1b",
+      "roomId": "room_quest_test_054d179d-2eaf-417a-b7df-66870c59a150",
+      "title": "Очистить старую мельницу",
+      "description": "Уничтожить гигантских пауков в мельнице у реки",
+      "category": "task",
+      "status": "completed",
+      "roundCreated": 1,
+      "createdAt": "2026-09-26T07:19:44.886Z",
+      "updatedAt": "2026-09-26T07:19:44.888Z",
+      "roundCompleted": 1,
+      "resolutionNote": "Пауки уничтожены"
+    },
+    {
+      "id": "quest_f7635cef",
+      "roomId": "room_quest_test_d2d07676-5d60-420d-832c-3030f13c582d",
+      "title": "Очистить старую мельницу",
+      "description": "Уничтожить гигантских пауков в мельнице у реки",
+      "category": "task",
+      "status": "completed",
+      "roundCreated": 1,
+      "createdAt": "2026-09-26T07:20:05.044Z",
+      "updatedAt": "2026-09-26T07:20:05.046Z",
       "roundCompleted": 1,
       "resolutionNote": "Пауки уничтожены"
     }

@@ -22,10 +22,19 @@ export interface CharacterAbility {
   range?: string;
 }
 
+export type EquipmentSubtype =
+  | 'ranged'
+  | 'two_handed'
+  | 'one_handed'
+  | 'shield'
+  | 'armor'
+  | 'accessory';
+
 export interface InventoryItem {
   id: string;
   name: string;
   type: 'weapon' | 'armor' | 'potion' | 'scroll' | 'food' | 'misc';
+  subtype?: EquipmentSubtype;
   description: string;
   quantity: number;
   damage?: string;
@@ -60,6 +69,8 @@ export interface Character {
   skillPoints?: number;
   learnedTalents?: string[];
   activeWeaponId?: string;
+  activeShieldId?: string;
+  activeArmorId?: string;
   conditions?: string[];
   hitDiceMax?: number;
   hitDiceCurrent?: number;

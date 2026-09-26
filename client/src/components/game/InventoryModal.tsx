@@ -1,6 +1,7 @@
 import React from 'react';
 import { Character, InventoryItem } from '../../types';
-import { X, Package, Sword, Shield, Sparkles, Heart, Check, Trash2 } from 'lucide-react';
+import { X, Package, Sword, Swords, Crosshair, Shield, ShieldCheck, Sparkles, Heart, Check, Trash2 } from 'lucide-react';
+import { getEquipmentInfo } from '../../utils/equipment';
 
 interface InventoryModalProps {
   isOpen: boolean;
@@ -8,6 +9,8 @@ interface InventoryModalProps {
   character: Character | null;
   onUseItem: (itemId: string) => void;
   onEquipWeapon: (itemId: string) => void;
+  onEquipShield?: (itemId: string) => void;
+  onEquipArmor?: (itemId: string) => void;
   onDropItem?: (itemId: string) => void;
 }
 
@@ -17,25 +20,24 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   character,
   onUseItem,
   onEquipWeapon,
+  onEquipShield,
+  onEquipArmor,
   onDropItem,
 }) => {
   if (!isOpen || !character) return null;
 
   const items = (character.inventory || []).filter(i => i && typeof i.name === 'string' && i.name.trim().length > 0);
 
-  const getItemIcon = (type: string) => {
-    switch (type) {
-      case 'weapon':
-        return <Sword className="w-4 h-4 text-amber-400" />;
-      case 'armor':
-        return <Shield className="w-4 h-4 text-blue-400" />;
-      case 'potion':
-        return <Heart className="w-4 h-4 text-emerald-400" />;
-      case 'scroll':
-        return <Sparkles className="w-4 h-4 text-indigo-400" />;
-      default:
-        return <Package className="w-4 h-4 text-purple-400" />;
-    }
+  const getItemIcon = (item: InventoryItem) => {
+    const info = getEquipmentInfo(item);
+    if (info.subtype === 'ranged') return <Crosshair className="w-4 h-4 text-sky-400" />;
+    if (info.subtype === 'two_handed') return <Swords className="w-4 h-4 text-orange-400" />;
+    if (info.subtype === 'shield') return <Shield className="w-4 h-4 text-blue-400" />;
+    if (info.subtype === 'armor') return <ShieldCheck className="w-4 h-4 text-emerald-400" />;
+    if (item.type === 'weapon') return <Sword className="w-4 h-4 text-amber-400" />;
+    if (item.type === 'potion' || item.name.toLowerCase().includes('зелье')) return <Heart className="w-4 h-4 text-emerald-400" />;
+    if (item.type === 'scroll' || item.name.toLowerCase().includes('свиток')) return <Sparkles className="w-4 h-4 text-indigo-400" />;
+    return <Package className="w-4 h-4 text-purple-400" />;
   };
 
   return (
@@ -47,7 +49,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             <Package className="w-5 h-5 text-amber-400" />
             <div>
               <h2 className="text-base font-rpg font-bold text-amber-300">Инвентарь героя</h2>
-              <p className="text-xs text-slate-400">{character.name} • Здоровье: {character.hpCurrent}/{character.hpMax} HP</p>
+              <p className="text-xs text-slate-400">{character.name} • Здоровье: {character.hpCurrent}/{character.hpMax} HP • КБ: {character.ac}</p>
             </div>
           </div>
           <button
@@ -66,10 +68,18 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             </div>
           ) : (
             items.map(item => {
-              const isEquipped = character.activeWeaponId === item.id;
+              const eqInfo = getEquipmentInfo(item);
+              const isWeaponSlot = eqInfo.slotType === 'weapon';
+              const isShieldSlot = eqInfo.slotType === 'shield';
+              const isArmorSlot = eqInfo.slotType === 'armor';
+
+              const isEquipped =
+                (isWeaponSlot && character.activeWeaponId === item.id) ||
+                (isShieldSlot && character.activeShieldId === item.id) ||
+                (isArmorSlot && character.activeArmorId === item.id);
+
               const isPotion = item.type === 'potion' || !!item.healAmount || item.name.toLowerCase().includes('зелье');
               const isScroll = item.type === 'scroll' || item.name.toLowerCase().includes('свиток');
-              const isWeapon = item.type === 'weapon';
               const isConsumable = isPotion || isScroll || item.type === 'food' || item.type === 'misc';
 
               return (
@@ -77,20 +87,26 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   key={item.id}
                   className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
                     isEquipped
-                      ? 'bg-amber-950/25 border-amber-500/50'
+                      ? 'bg-amber-950/25 border-amber-500/50 shadow-sm'
                       : 'bg-fantasy-panel/70 border-fantasy-border hover:border-slate-600'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <div className="p-2 bg-slate-800/80 rounded-lg border border-slate-700/60 mt-0.5">
-                        {getItemIcon(item.type)}
+                        {getItemIcon(item)}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-semibold text-sm text-slate-100">{item.name}</span>
                           {item.quantity > 1 && (
                             <span className="text-xs text-amber-400 font-mono font-bold">x{item.quantity}</span>
+                          )}
+                          {/* Subtype Badge */}
+                          {(isWeaponSlot || isShieldSlot || isArmorSlot) && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${eqInfo.badgeColor}`}>
+                              {eqInfo.label}
+                            </span>
                           )}
                           {isEquipped && (
                             <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold rounded-full flex items-center gap-1">
@@ -130,7 +146,23 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         </button>
                       )}
 
-                      {isWeapon && !isEquipped && (
+                      {/* Equip / Unequip Toggle */}
+                      {isEquipped ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isWeaponSlot) onEquipWeapon(item.id);
+                            else if (isShieldSlot && onEquipShield) onEquipShield(item.id);
+                            else if (isArmorSlot && onEquipArmor) onEquipArmor(item.id);
+                            else onEquipWeapon(item.id);
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-red-950/40 border border-slate-700 hover:border-red-600/50 text-slate-300 hover:text-red-300 font-medium text-xs rounded-lg transition-colors flex items-center gap-1"
+                          title="Снять снаряжение"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Снять
+                        </button>
+                      ) : isWeaponSlot ? (
                         <button
                           type="button"
                           onClick={() => onEquipWeapon(item.id)}
@@ -139,7 +171,25 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                           <Sword className="w-3.5 h-3.5" />
                           Экипировать
                         </button>
-                      )}
+                      ) : isShieldSlot ? (
+                        <button
+                          type="button"
+                          onClick={() => onEquipShield ? onEquipShield(item.id) : onEquipWeapon(item.id)}
+                          className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500 border border-blue-500/40 text-blue-300 hover:text-black font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <Shield className="w-3.5 h-3.5" />
+                          Надеть щит
+                        </button>
+                      ) : isArmorSlot ? (
+                        <button
+                          type="button"
+                          onClick={() => onEquipArmor ? onEquipArmor(item.id) : onEquipWeapon(item.id)}
+                          className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500 border border-emerald-500/40 text-emerald-300 hover:text-black font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Надеть доспех
+                        </button>
+                      ) : null}
 
                       {onDropItem && (
                         <button

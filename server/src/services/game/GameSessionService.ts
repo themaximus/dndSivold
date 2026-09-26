@@ -246,6 +246,14 @@ export class GameSessionService {
     return this.inventoryService.equipWeapon(characterId, itemId);
   }
 
+  public equipShield(characterId: string, itemId: string) {
+    return this.inventoryService.equipShield(characterId, itemId);
+  }
+
+  public equipArmor(characterId: string, itemId: string) {
+    return this.inventoryService.equipArmor(characterId, itemId);
+  }
+
   // --- Character Progression & Rests ---
 
   public rollDeathSave(

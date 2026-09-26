@@ -17,6 +17,8 @@ export interface ICharacterRepository extends IRepository<CharacterEntity> {
   removeItemFromInventory(id: string, itemNameOrId: string, quantity?: number, reason?: string): CharacterEntity | null;
   useConsumableItem(id: string, itemId: string, targetName?: string): { character: CharacterEntity | null; healAmount: number; itemName: string };
   equipWeapon(id: string, itemId: string): CharacterEntity | null;
+  equipShield(id: string, itemId: string): CharacterEntity | null;
+  equipArmor(id: string, itemId: string): CharacterEntity | null;
   awardXp(id: string, xpAmount: number): CharacterEntity | null;
   performShortRest(id: string, diceCount?: number): {
     character: CharacterEntity | null;
@@ -95,6 +97,35 @@ export class CharacterRepository implements ICharacterRepository {
       if (invChanged || cleanedInventory.length !== char.inventory.length) {
         updates.inventory = cleanedInventory;
         needsUpdate = true;
+      }
+
+      const activeInv = updates.inventory || char.inventory;
+      const isCompletelyUnequipped = char.activeWeaponId === undefined && char.activeArmorId === undefined && char.activeShieldId === undefined;
+      if (activeInv.length > 0 && isCompletelyUnequipped) {
+        const firstWeapon = activeInv.find(i => i.type === 'weapon' || /(?:меч|клинок|кинжал|лук|арбалет|топор|секира|булава|посох|молот)/i.test(i.name));
+        if (firstWeapon) {
+          updates.activeWeaponId = firstWeapon.id;
+          needsUpdate = true;
+        }
+
+        const firstArmor = activeInv.find(i => (i.type === 'armor' && !/(?:щит|баклер|тарч)/i.test(i.name)) || /(?:доспех|латы|кольчуг|кирас|нагрудник|кожанк)/i.test(i.name));
+        if (firstArmor) {
+          updates.activeArmorId = firstArmor.id;
+          if (firstArmor.ac_bonus) {
+            updates.ac = (updates.ac ?? char.ac ?? 10) + firstArmor.ac_bonus;
+          }
+          needsUpdate = true;
+        }
+
+        const firstShield = activeInv.find(i => /(?:щит|баклер|тарч|павез)/i.test(i.name));
+        const currentWeapon = activeInv.find(i => i.id === (updates.activeWeaponId || char.activeWeaponId));
+        const isTwoHanded = currentWeapon && /(?:двуручн|клеймор|эспадон|цвайхендер|секир[аы]\s+предков|великая\s+секир)/i.test(currentWeapon.name);
+        if (firstShield && !isTwoHanded) {
+          updates.activeShieldId = firstShield.id;
+          const shieldBonus = firstShield.ac_bonus || 2;
+          updates.ac = (updates.ac ?? char.ac ?? 10) + shieldBonus;
+          needsUpdate = true;
+        }
       }
     }
 
@@ -311,9 +342,19 @@ export class CharacterRepository implements ICharacterRepository {
       inventory[idx] = item;
     } else {
       inventory.splice(idx, 1);
-      // If the removed item was currently equipped as active weapon, unequip it immediately!
+      // If the removed item was currently equipped, unequip it immediately!
       if (char.activeWeaponId && (char.activeWeaponId === item.id || char.activeWeaponId.toLowerCase() === item.name.toLowerCase())) {
         updates.activeWeaponId = undefined;
+      }
+      if (char.activeShieldId && (char.activeShieldId === item.id || char.activeShieldId.toLowerCase() === item.name.toLowerCase())) {
+        updates.activeShieldId = undefined;
+        const shieldBonus = item.ac_bonus || 2;
+        updates.ac = Math.max(10, (char.ac || 10) - shieldBonus);
+      }
+      if (char.activeArmorId && (char.activeArmorId === item.id || char.activeArmorId.toLowerCase() === item.name.toLowerCase())) {
+        updates.activeArmorId = undefined;
+        const armorBonus = item.ac_bonus || 0;
+        updates.ac = Math.max(10, (updates.ac ?? char.ac) - armorBonus);
       }
     }
 
@@ -369,10 +410,21 @@ export class CharacterRepository implements ICharacterRepository {
       if (char.activeWeaponId && (char.activeWeaponId === item.id || char.activeWeaponId.toLowerCase() === item.name.toLowerCase())) {
         char.activeWeaponId = undefined;
       }
+      if (char.activeShieldId && (char.activeShieldId === item.id || char.activeShieldId.toLowerCase() === item.name.toLowerCase())) {
+        char.activeShieldId = undefined;
+      }
+      if (char.activeArmorId && (char.activeArmorId === item.id || char.activeArmorId.toLowerCase() === item.name.toLowerCase())) {
+        char.activeArmorId = undefined;
+      }
     }
 
     // Apply inventory decrement and healing atomically
-    const updates: Partial<CharacterEntity> = { inventory, activeWeaponId: char.activeWeaponId };
+    const updates: Partial<CharacterEntity> = {
+      inventory,
+      activeWeaponId: char.activeWeaponId,
+      activeShieldId: char.activeShieldId,
+      activeArmorId: char.activeArmorId,
+    };
     if (healAmount > 0 && (!targetName || targetName.toLowerCase() === char.name.toLowerCase())) {
       const newHp = Math.max(0, Math.min(char.hpMax, char.hpCurrent + healAmount));
       updates.hpCurrent = newHp;
@@ -389,7 +441,82 @@ export class CharacterRepository implements ICharacterRepository {
   public equipWeapon(id: string, itemId: string): CharacterEntity | null {
     const char = this.findById(id);
     if (!char) return null;
-    return this.update(id, { activeWeaponId: itemId });
+
+    const isCurrentlyEquipped = char.activeWeaponId === itemId;
+    const newWeaponId = isCurrentlyEquipped ? undefined : itemId;
+    const updates: Partial<CharacterEntity> = { activeWeaponId: newWeaponId };
+
+    // If equipping a two-handed weapon, unequip shield if currently held
+    if (!isCurrentlyEquipped) {
+      const weaponItem = char.inventory?.find(i => i.id === itemId);
+      if (weaponItem) {
+        const isTwoHanded = /(?:двуручн|клеймор|эспадон|цвайхендер|великая\s+секир|тяжелый\s+молот|секир[аы]\s+предков|алебард|глеф|пик[ае]|greatsword|greataxe|halberd|glaive|pike|two[- ]handed)/i.test(weaponItem.name);
+        if (isTwoHanded && char.activeShieldId) {
+          const shieldItem = char.inventory?.find(i => i.id === char.activeShieldId);
+          const shieldBonus = shieldItem?.ac_bonus || 2;
+          updates.activeShieldId = undefined;
+          updates.ac = Math.max(10, (char.ac || 10) - shieldBonus);
+        }
+      }
+    }
+
+    return this.update(id, updates);
+  }
+
+  public equipShield(id: string, itemId: string): CharacterEntity | null {
+    const char = this.findById(id);
+    if (!char) return null;
+
+    const isCurrentlyEquipped = char.activeShieldId === itemId;
+    const newShieldId = isCurrentlyEquipped ? undefined : itemId;
+    const updates: Partial<CharacterEntity> = { activeShieldId: newShieldId };
+
+    const shieldItem = char.inventory?.find(i => i.id === itemId);
+    const shieldBonus = shieldItem?.ac_bonus || 2;
+
+    if (isCurrentlyEquipped) {
+      updates.ac = Math.max(10, (char.ac || 10) - shieldBonus);
+    } else {
+      // If currently holding a two-handed weapon, unequip it
+      if (char.activeWeaponId) {
+        const currentWeapon = char.inventory?.find(i => i.id === char.activeWeaponId);
+        if (currentWeapon) {
+          const isTwoHanded = /(?:двуручн|клеймор|эспадон|цвайхендер|великая\s+секир|тяжелый\s+молот|секир[аы]\s+предков|алебард|глеф|пик[ае]|greatsword|greataxe|halberd|glaive|pike|two[- ]handed)/i.test(currentWeapon.name);
+          if (isTwoHanded) {
+            updates.activeWeaponId = undefined;
+          }
+        }
+      }
+      updates.ac = (char.ac || 10) + shieldBonus;
+    }
+
+    return this.update(id, updates);
+  }
+
+  public equipArmor(id: string, itemId: string): CharacterEntity | null {
+    const char = this.findById(id);
+    if (!char) return null;
+
+    const isCurrentlyEquipped = char.activeArmorId === itemId;
+    const newArmorId = isCurrentlyEquipped ? undefined : itemId;
+    const updates: Partial<CharacterEntity> = { activeArmorId: newArmorId };
+
+    const oldArmor = char.activeArmorId ? char.inventory?.find(i => i.id === char.activeArmorId) : null;
+    const newArmor = !isCurrentlyEquipped ? char.inventory?.find(i => i.id === itemId) : null;
+
+    let acDiff = 0;
+    if (oldArmor) {
+      acDiff -= (oldArmor.ac_bonus || 0);
+    }
+    if (newArmor) {
+      acDiff += (newArmor.ac_bonus || 0);
+    }
+
+    if (acDiff !== 0) {
+      updates.ac = Math.max(10, (char.ac || 10) + acDiff);
+    }
+
+    return this.update(id, updates);
   }
 
   public awardXp(id: string, xpAmount: number): CharacterEntity | null {

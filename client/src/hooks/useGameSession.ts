@@ -386,6 +386,26 @@ export function useGameSession(roomCode: string) {
     });
   }, [roomCode, myCharacter]);
 
+  const equipShield = useCallback((itemId: string) => {
+    if (!myCharacter) return;
+    const socket = getSocket();
+    socket.emit('equip_shield', {
+      roomCode,
+      characterId: myCharacter.id,
+      itemId,
+    });
+  }, [roomCode, myCharacter]);
+
+  const equipArmor = useCallback((itemId: string) => {
+    if (!myCharacter) return;
+    const socket = getSocket();
+    socket.emit('equip_armor', {
+      roomCode,
+      characterId: myCharacter.id,
+      itemId,
+    });
+  }, [roomCode, myCharacter]);
+
   const rollDeathSave = useCallback((rollResult: { rollTotal: number; isNat20: boolean; isNat1: boolean }) => {
     if (!myCharacter) return;
     const socket = getSocket();
@@ -549,6 +569,8 @@ export function useGameSession(roomCode: string) {
     useItem,
     dropItem,
     equipWeapon,
+    equipShield,
+    equipArmor,
     rollDeathSave,
     fetchTalents,
     learnTalent,

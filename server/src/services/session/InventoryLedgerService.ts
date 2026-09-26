@@ -135,6 +135,20 @@ export class InventoryLedgerService {
   }
 
   /**
+   * Equips or unequips a shield.
+   */
+  public equipShield(characterId: string, itemId: string) {
+    return this.characters.equipShield(characterId, itemId);
+  }
+
+  /**
+   * Equips or unequips armor.
+   */
+  public equipArmor(characterId: string, itemId: string) {
+    return this.characters.equipArmor(characterId, itemId);
+  }
+
+  /**
    * Checks if an object/container has already been searched.
    */
   public isObjectExhausted(room: RoomEntity, targetKey: string): boolean {

@@ -93,6 +93,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
     useItem,
     dropItem,
     equipWeapon,
+    equipShield,
+    equipArmor,
     rollDeathSave,
     fetchTalents,
     learnTalent,
@@ -372,6 +374,8 @@ export const GameTable: React.FC<GameTableProps> = ({ roomCode, onLeave, onExitT
           character={myCharacter}
           onUseItem={useItem}
           onEquipWeapon={equipWeapon}
+          onEquipShield={equipShield}
+          onEquipArmor={equipArmor}
           onDropItem={dropItem}
         />
 

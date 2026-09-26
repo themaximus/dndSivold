@@ -1,6 +1,7 @@
 import React from 'react';
 import { RoomPlayer } from '../../types';
-import { Heart, CheckCircle2, Clock, Eye } from 'lucide-react';
+import { Heart, CheckCircle2, Clock, Eye, Sword, Swords, Crosshair, Shield, ShieldCheck, Sparkles } from 'lucide-react';
+import { getCharacterEquippedItems } from '../../utils/equipment';
 
 interface PartyMemberCardProps {
   player: RoomPlayer;
@@ -17,6 +18,24 @@ const CONDITION_BADGES: Record<string, { label: string; color: string; desc: str
   stunned: { label: 'Оглушён', color: 'bg-red-950/70 text-red-300 border-red-600/50', desc: 'Оглушён: не может действовать, проваливает спасброски СИЛ/ЛОВ' },
   cover_half: { label: 'Укрытие 1/2', color: 'bg-indigo-950/70 text-indigo-300 border-indigo-600/50', desc: 'Половинное укрытие (+2 к КБ и спасброскам ЛОВ)' },
   cover_three_quarters: { label: 'Укрытие 3/4', color: 'bg-indigo-950/80 text-cyan-300 border-cyan-600/50', desc: 'Укрытие на три четверти (+5 к КБ и спасброскам ЛОВ)' },
+};
+
+const renderEquippedIcon = (iconName: string, className = 'w-3.5 h-3.5') => {
+  switch (iconName) {
+    case 'crosshair':
+      return <Crosshair className={className} />;
+    case 'swords':
+      return <Swords className={className} />;
+    case 'shield':
+      return <Shield className={className} />;
+    case 'armor':
+      return <ShieldCheck className={className} />;
+    case 'sparkles':
+      return <Sparkles className={className} />;
+    case 'sword':
+    default:
+      return <Sword className={className} />;
+  }
 };
 
 export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
@@ -46,6 +65,7 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
 
   const isDead = char.lifeState === 'dead';
   const isDowned = char.lifeState === 'downed';
+  const equippedItems = getCharacterEquippedItems(char);
 
   return (
     <div
@@ -61,8 +81,8 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
           : 'bg-fantasy-card/70 border-fantasy-border/60 hover:border-slate-500'
       }`}
     >
-      {/* Character Identity */}
-      <div className="flex items-center justify-between gap-2 mb-2">
+      {/* Character Identity & Right Sector */}
+      <div className="flex items-start justify-between gap-2 mb-2">
         <div
           onClick={onInspect}
           className="flex items-center gap-2.5 min-w-0 cursor-pointer group/char flex-1"
@@ -88,48 +108,92 @@ export const PartyMemberCard: React.FC<PartyMemberCardProps> = ({
           </div>
         </div>
 
-        {/* Turn / Life Status & Inspect Button */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {isActiveTurn && !isDead && (
-            <span className="bg-amber-400 text-slate-950 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 animate-pulse">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />
-              Ходит сейчас
-            </span>
-          )}
+        {/* Right Sector: Status Indicators & Equipped Items Zone */}
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            {isActiveTurn && !isDead && (
+              <span className="bg-amber-400 text-slate-950 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />
+                Ходит
+              </span>
+            )}
 
-          {onInspect && (
-            <button
-              type="button"
-              onClick={onInspect}
-              className="p-1 rounded-lg bg-slate-800/80 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition-colors"
-              title="Открыть досье персонажа"
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </button>
-          )}
+            {onInspect && (
+              <button
+                type="button"
+                onClick={onInspect}
+                className="p-1 rounded-lg bg-slate-800/80 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 transition-colors"
+                title="Открыть досье персонажа"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            )}
 
-          {isDead ? (
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600/30 text-red-300 border border-red-500/50">
-              ☠ Погиб
-            </span>
-          ) : isDowned ? (
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600/30 text-rose-300 border border-rose-500/50">
-              При смерти
-            </span>
-          ) : player.hasActedThisRound ? (
-            <span
-              className="p-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center"
-              title="Действие заявлено"
+            {isDead ? (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600/30 text-red-300 border border-red-500/50">
+                ☠ Погиб
+              </span>
+            ) : isDowned ? (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600/30 text-rose-300 border border-rose-500/50">
+                При смерти
+              </span>
+            ) : player.hasActedThisRound ? (
+              <span
+                className="p-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center"
+                title="Действие заявлено"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+              </span>
+            ) : (
+              <span
+                className="p-1 rounded-lg bg-slate-800 text-slate-500 flex items-center"
+                title={isActiveTurn ? "Совершает ход..." : "Ожидает очереди"}
+              >
+                <Clock className="w-4 h-4 animate-spin" />
+              </span>
+            )}
+          </div>
+
+          {/* Dedicated Equipped Items Display Zone */}
+          {equippedItems.length > 0 && (
+            <div
+              className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-950/80 border border-slate-800 shadow-inner"
+              title="Экипированное снаряжение"
             >
-              <CheckCircle2 className="w-4 h-4" />
-            </span>
-          ) : (
-            <span
-              className="p-1 rounded-lg bg-slate-800 text-slate-500 flex items-center"
-              title={isActiveTurn ? "Совершает ход..." : "Ожидает очереди"}
-            >
-              <Clock className="w-4 h-4 animate-spin" />
-            </span>
+              {equippedItems.map(({ item, info }) => (
+                <div
+                  key={item.id}
+                  className={`group/gear relative w-6 h-6 sm:w-7 sm:h-7 rounded-md border flex items-center justify-center transition-all hover:scale-105 shadow-sm cursor-help ${info.badgeColor}`}
+                >
+                  {renderEquippedIcon(info.iconName, 'w-3 h-3 sm:w-3.5 sm:h-3.5')}
+
+                  {/* Micro badge indicator */}
+                  <span className="absolute -bottom-1 -right-1 text-[7px] sm:text-[8px] font-black font-mono leading-none bg-black/90 px-0.5 py-0.2 rounded text-amber-300 border border-slate-700">
+                    {info.microBadge}
+                  </span>
+
+                  {/* Floating Rich Tooltip */}
+                  <div className="absolute right-0 top-full mt-1.5 hidden group-hover/gear:flex flex-col z-50 w-44 p-2 rounded-lg bg-slate-900/95 backdrop-blur-md border border-slate-700 shadow-2xl text-left pointer-events-none animate-fade-in">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-amber-400">
+                      {info.label}
+                    </div>
+                    <div className="text-xs font-semibold text-slate-100 truncate">
+                      {item.name}
+                    </div>
+                    {item.damage && (
+                      <div className="text-[10px] text-amber-300 font-mono mt-0.5">
+                        Урон: {item.damage}
+                      </div>
+                    )}
+                    {item.ac_bonus && (
+                      <div className="text-[10px] text-blue-300 font-mono mt-0.5">
+                        КБ: +{item.ac_bonus}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
