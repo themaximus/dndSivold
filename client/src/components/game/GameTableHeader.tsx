@@ -82,16 +82,6 @@ export const GameTableHeader: React.FC<GameTableHeaderProps> = ({
             <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">
               Раунд {room.roundNumber}
             </span>
-            {room.genre && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-950/40 text-blue-300 border border-blue-800/40">
-                {GENRE_SHORT_LABELS[room.genre] || room.genre}
-              </span>
-            )}
-            {room.campaignDuration && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-indigo-950/40 text-indigo-300 border border-indigo-800/40">
-                {DURATION_SHORT_LABELS[room.campaignDuration] || room.campaignDuration}
-              </span>
-            )}
           </div>
           <p className="text-xs text-slate-400 truncate max-w-xl">
             {room.setting}
