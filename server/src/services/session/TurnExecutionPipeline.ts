@@ -297,44 +297,105 @@ export class TurnExecutionPipeline {
 
     // 7. Authoritative State Mutation: Player HP Updates
     const playerHpDeltas: Record<string, number> = {};
+    const playerUpdateNotes: Record<string, string> = {};
+
+    const resolveChar = (update: { characterId?: string; characterName?: string }): CharacterEntity | undefined => {
+      const rawId = (update.characterId || '').trim();
+      const rawName = (update.characterName || '').trim();
+
+      // 1. Try finding by ID directly in active characters or repo
+      if (rawId) {
+        const byId = activeCharacters.find((c) => c.id === rawId) || this.characters.findById(rawId);
+        if (byId) return byId;
+      }
+
+      // 2. Try finding by name (or if rawId was actually the character name)
+      const query = (rawName || rawId).toLowerCase();
+      if (query) {
+        const byName = activeCharacters.find(
+          (c) => c.name.toLowerCase() === query ||
+                 c.name.toLowerCase().includes(query) ||
+                 query.includes(c.name.toLowerCase())
+        );
+        if (byName) return byName;
+      }
+
+      // 3. Fallback: if only one active character is in the room, resolve to them
+      if (activeCharacters.length === 1) {
+        return activeCharacters[0];
+      }
+
+      return undefined;
+    };
+
     if (dmResult.playerUpdates && Array.isArray(dmResult.playerUpdates)) {
       for (const update of dmResult.playerUpdates) {
-        if (!update.characterId) continue;
-        const char = this.characters.findById(update.characterId);
-        if (char) {
-          let delta = update.hpDelta || 0;
-          if (delta > 0) {
-            // Guard against phantom heals: check if authorized by Mechanical Arbiter or resting
-            const matchingRes = mechanicalResolutions.find(
-              (r) => (r.characterId === update.characterId && r.actionType === 'heal') ||
-                     (r.targetUpdate && r.targetUpdate.targetId === update.characterId && r.actionType === 'heal')
-            );
-            if (matchingRes) {
-              if (!matchingRes.healRolled || matchingRes.healRolled <= 0) {
-                delta = 0; // Arbiter rejected the heal (no potion/bandages/spells)
-              } else {
-                delta = matchingRes.healRolled; // Authoritative value
-              }
+        const char = resolveChar(update);
+        if (!char) continue;
+
+        let delta = update.hpDelta;
+        if (delta === undefined && update.hpCurrent !== undefined) {
+          delta = update.hpCurrent - char.hpCurrent;
+        }
+        delta = delta || 0;
+
+        if (delta > 0) {
+          // Guard against phantom heals: check if authorized by Mechanical Arbiter or resting
+          const matchingRes = mechanicalResolutions.find(
+            (r) => (r.characterId === char.id && r.actionType === 'heal') ||
+                   (r.targetUpdate && r.targetUpdate.targetId === char.id && r.actionType === 'heal')
+          );
+          if (matchingRes) {
+            if (!matchingRes.healRolled || matchingRes.healRolled <= 0) {
+              delta = 0; // Arbiter rejected the heal (no potion/bandages/spells)
             } else {
-              const isRestAction = actionsToResolve.some(
-                (a) => a.characterId === update.characterId && /(отдых|перевал|привал|ночлег|сон|спать)/i.test(a.actionText || '')
-              );
-              if (!isRestAction) {
-                delta = 0; // Reject unauthorized AI heal
-              }
+              delta = matchingRes.healRolled; // Authoritative value
+            }
+          } else {
+            const isRestAction = actionsToResolve.some(
+              (a) => a.characterId === char.id && /(отдых|перевал|привал|ночлег|сон|спать)/i.test(a.actionText || '')
+            );
+            if (!isRestAction) {
+              delta = 0; // Reject unauthorized AI heal
             }
           }
+        }
 
-          playerHpDeltas[char.id] = delta;
-          if (delta !== 0) {
-            this.characters.updateHp(char.id, delta);
-          }
+        playerHpDeltas[char.id] = delta;
+        if (update.note) {
+          playerUpdateNotes[char.id] = update.note;
+        }
+        if (delta !== 0) {
+          this.characters.updateHp(char.id, delta);
         }
       }
     }
 
-    // Also apply healing/damage from Mechanical Resolutions directly
+    // Authoritative mechanical consequences (counter-attacks on crit fail, opportunity attacks on flee, environmental hazards)
     for (const res of mechanicalResolutions) {
+      if (res.failureConsequence && res.characterId) {
+        const fc = res.failureConsequence;
+        const char = activeCharacters.find((c) => c.id === res.characterId) || this.characters.findById(res.characterId);
+        if (char) {
+          if (fc.hpDelta && fc.hpDelta < 0) {
+            // Apply if the AI didn't already register damage (negative delta) for this character
+            if (playerHpDeltas[char.id] === undefined || playerHpDeltas[char.id] >= 0) {
+              this.characters.updateHp(char.id, fc.hpDelta);
+              playerHpDeltas[char.id] = (playerHpDeltas[char.id] || 0) + fc.hpDelta;
+              if (!playerUpdateNotes[char.id]) {
+                playerUpdateNotes[char.id] = fc.description || 'Последствие критического провала';
+              }
+            }
+          }
+          if (fc.conditionAdded) {
+            const currentConditions = char.conditions || [];
+            if (!currentConditions.includes(fc.conditionAdded)) {
+              this.characters.updateConditions(char.id, [...currentConditions, fc.conditionAdded]);
+            }
+          }
+        }
+      }
+
       if (res.targetUpdate) {
         const tu = res.targetUpdate;
         if (tu.targetType === 'enemy' || tu.targetType === 'npc') {
@@ -344,13 +405,53 @@ export class TurnExecutionPipeline {
             hpCurrent: tu.hpAfter,
             status: tu.newStatus,
           });
+        } else if (tu.targetType === 'player' || tu.targetType === 'character') {
+          const char = activeCharacters.find((c) => c.id === tu.targetId) || this.characters.findById(tu.targetId);
+          if (char) {
+            const hpDelta = tu.hpAfter - tu.hpBefore;
+            if (playerHpDeltas[char.id] === undefined && hpDelta !== 0) {
+              this.characters.updateHp(char.id, hpDelta);
+              playerHpDeltas[char.id] = hpDelta;
+            }
+          }
         }
       }
+
       if (res.healRolled && res.healRolled > 0 && res.characterId) {
         if (!res.targetUpdate) {
           if (playerHpDeltas[res.characterId] === undefined) {
             this.characters.updateHp(res.characterId, res.healRolled);
             playerHpDeltas[res.characterId] = res.healRolled;
+          }
+        }
+      }
+    }
+
+    // Fallback: Check narrative / dilemma for explicit player HP mentions if in combat and no damage was recorded yet
+    const hasCombatOrDanger = (room.activeEnemies && room.activeEnemies.some((e) => !e.isDead && e.hpCurrent > 0)) ||
+      actionsToResolve.some((a) => a.actionType === 'attack');
+    if (hasCombatOrDanger) {
+      const textToScan = `${dmResult.choiceDilemma || ''}\n${dmResult.currentSituation || ''}\n${dmResult.narrative || ''}`;
+      for (const char of activeCharacters) {
+        if (playerHpDeltas[char.id] === undefined || playerHpDeltas[char.id] === 0) {
+          const escapedName = char.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const patterns = [
+            new RegExp(`(?:${escapedName})[^.!?\\n]*?\\(([0-9]+)\\s*(?:HP|хп|hit|hp)\\)`, 'i'),
+            new RegExp(`(?:тяжело ранен|балансирует на волоске)[^.!?\\n]*?\\(([0-9]+)\\s*(?:HP|хп|hit|hp)\\)`, 'i'),
+          ];
+          for (const pattern of patterns) {
+            const match = textToScan.match(pattern);
+            if (match && match[1]) {
+              const targetHp = parseInt(match[1], 10);
+              const freshChar = this.characters.findById(char.id) || char;
+              if (targetHp < freshChar.hpCurrent && targetHp >= 0) {
+                const derivedDelta = targetHp - freshChar.hpCurrent;
+                this.characters.updateHp(char.id, derivedDelta);
+                playerHpDeltas[char.id] = derivedDelta;
+                playerUpdateNotes[char.id] = `Урон по описанию сюжета (${targetHp} HP)`;
+                break;
+              }
+            }
           }
         }
       }
@@ -581,13 +682,18 @@ export class TurnExecutionPipeline {
       targetDC: dmResult.nextRoundDC || room.targetDC,
       dcReason: dmResult.nextRoundDCReason || room.dcReason,
       requiredCheckStat: dmResult.requiredCheckStat || room.requiredCheckStat,
-      playerUpdates: (dmResult.playerUpdates || []).map((u) => ({
-        characterId: u.characterId,
-        characterName: u.characterName || 'Персонаж',
-        hpDelta: u.hpDelta || 0,
-        hpCurrent: u.hpCurrent ?? 0,
-        note: u.note || '',
-      })),
+      playerUpdates: activeCharacters.map((c) => {
+        const fresh = this.characters.findById(c.id) || c;
+        const delta = playerHpDeltas[c.id] || 0;
+        const note = playerUpdateNotes[c.id] || (delta < 0 ? 'Получен урон' : delta > 0 ? 'Исцеление' : '');
+        return {
+          characterId: c.id,
+          characterName: c.name,
+          hpDelta: delta,
+          hpCurrent: fresh.hpCurrent,
+          note,
+        };
+      }),
       ruleViolations: dmResult.ruleViolations || [],
       droppedLoot: createdLoot,
       createdAt: new Date().toISOString(),

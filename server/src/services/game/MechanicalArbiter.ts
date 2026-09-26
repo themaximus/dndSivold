@@ -1309,6 +1309,17 @@ export class MechanicalArbiter {
       let failureConsequence: FailureConsequence | undefined;
       if (isCritFail) {
         failureConsequence = this.generateFailureConsequence(action, character, target, targetAc, true);
+        if (target && (!failureConsequence || failureConsequence.hpDelta >= 0)) {
+          const charAC = character?.ac || 10;
+          const dmg = crypto.randomInt(3, 8);
+          failureConsequence = {
+            type: 'damage_hp',
+            severity: 'moderate',
+            hpDelta: -dmg,
+            description: `Ответный удар врага «${target.name}»: ${dmg} урона по КБ ${charAC}`,
+            narrativeDirective: `ВСТРЕЧНЫЙ УРОН: «${target.name}» молниеносно контратакует из-за критического промаха и наносит ${dmg} HP урона! Опиши болезненный удар когтями или оружием.`,
+          };
+        }
       }
 
       const consumedItems: ConsumedItemRecord[] = [];

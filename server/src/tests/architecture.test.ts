@@ -14,7 +14,7 @@ import { GeminiAIProvider } from '../services/ai/GeminiAIProvider';
 import { DeepSeekAIProvider } from '../services/ai/DeepSeekAIProvider';
 import { narrativeSynthesizer } from '../services/session/NarrativeSynthesizer';
 import { roomSessionManager } from '../services/session/RoomSessionManager';
-import { characterRepository, roomRepository } from '../repositories';
+import { characterRepository, roomRepository, turnActionRepository } from '../repositories';
 import { socialArbiter } from '../services/game/SocialArbiter';
 import { mechanicalArbiter } from '../services/game/MechanicalArbiter';
 
@@ -2200,7 +2200,267 @@ async function runTests() {
     console.log('✅ Inventory & capability grounding (Weapons, Healing, Poison, Magic, Unarmed Strike) verified!\n');
   }
 
-  console.log('🎉 ALL 32 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 33: Authoritative Player Damage Resolution & Failure Consequence Application
+  // ----------------------------------------------------
+  console.log('Test 33: Authoritative Player Damage Resolution & Failure Consequence Application');
+
+  // 1. MechanicalArbiter generates counter-attack failure consequence on crit fail (Nat 1)
+  const kirilchikChar: CharacterEntity = {
+    id: `char_kirilchik_${crypto.randomUUID()}`,
+    userId: 'user_kirilchik',
+    name: 'Кирильчик',
+    race: 'Человек',
+    characterClass: 'Воин',
+    level: 3,
+    hpCurrent: 17,
+    hpMax: 17,
+    ac: 15,
+    stats: { str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 10 },
+    skills: ['Атлетика'],
+    abilities: [],
+    inventory: [
+      { id: 'w_sword', name: 'Длинный меч', type: 'weapon', quantity: 1, damage: '1d8+3' }
+    ],
+    avatarUrl: '',
+    bio: '',
+    createdAt: new Date().toISOString(),
+  };
+  characterRepository.create(kirilchikChar);
+
+  const iceBeastEnemy = {
+    id: 'enemy_ice_beast_1',
+    name: 'Ледяной зверь',
+    type: 'elite',
+    hpCurrent: 30,
+    hpMax: 30,
+    ac: 14,
+    status: 'В бою',
+    isDead: false,
+  };
+
+  const critFailAction: TurnActionEntity = {
+    id: `act_crit_fail_${crypto.randomUUID()}`,
+    roomId: 'room_damage_test',
+    playerId: 'user_kirilchik',
+    characterId: kirilchikChar.id,
+    characterName: kirilchikChar.name,
+    actionText: 'Атакую ледяного зверя мечом изо всех сил',
+    actionType: 'attack',
+    roundNumber: 5,
+    targetEnemyId: iceBeastEnemy.id,
+    targetEnemyName: iceBeastEnemy.name,
+    diceRolls: [
+      {
+        type: 'd20',
+        baseRoll: 1,
+        modifier: 5,
+        total: 6,
+        isCriticalFail: true,
+      }
+    ],
+  };
+
+  const arbiterRes = mechanicalArbiter.evaluateAction(
+    critFailAction,
+    kirilchikChar,
+    [iceBeastEnemy],
+    [],
+    12
+  );
+
+  assert.strictEqual(arbiterRes.isHit, false, 'Crit fail attack must not hit');
+  assert.ok(arbiterRes.failureConsequence, 'Failure consequence must be generated on crit fail');
+  assert.strictEqual(arbiterRes.failureConsequence?.type, 'damage_hp', 'Consequence type must be damage_hp');
+  assert.ok(arbiterRes.failureConsequence?.hpDelta && arbiterRes.failureConsequence.hpDelta < 0, 'hpDelta must be negative');
+  const arbiterDamage = arbiterRes.failureConsequence!.hpDelta; // e.g. -4 to -8
+
+  // 2. Room & Turn Execution Pipeline Test
+  const damageTestRoom: RoomEntity = {
+    id: `room_dmg_${crypto.randomUUID()}`,
+    code: 'DMG101',
+    title: 'Ice Cavern',
+    setting: 'fantasy',
+    status: 'active',
+    hostUserId: 'user_kirilchik',
+    roundNumber: 5,
+    targetDC: 12,
+    currentSituation: 'Бой с ледяным зверем',
+    activeEnemies: [iceBeastEnemy],
+    sceneEntities: [],
+    sceneNPCs: [],
+    createdAt: new Date().toISOString(),
+  };
+  roomRepository.create(damageTestRoom);
+  roomRepository.addPlayer({
+    id: `p_kir_${crypto.randomUUID()}`,
+    roomId: damageTestRoom.id,
+    userId: 'user_kirilchik',
+    username: 'KirilchikUser',
+    characterId: kirilchikChar.id,
+    isOnline: true,
+    joinedAt: new Date().toISOString(),
+  });
+
+  critFailAction.roomId = damageTestRoom.id;
+  turnActionRepository.create(critFailAction);
+
+  // Scenario A: AI returns empty playerUpdates, but Arbiter has failure consequence
+  // The engine must authoritatively apply arbiterDamage to Kirilchik!
+  const origSynthesize = narrativeSynthesizer.synthesizeTurnResponse.bind(narrativeSynthesizer);
+  try {
+    narrativeSynthesizer.synthesizeTurnResponse = async () => ({
+      response: {
+        narrative: 'Ледяной зверь перехватывает клинок и наносит сокрушительный контрудар когтями!',
+        playerUpdates: [], // AI forgot to provide player updates!
+        activeEnemies: [iceBeastEnemy],
+        sceneNPCs: [],
+        departedNPCs: [],
+        searchedObjectUpdates: [],
+        conditionUpdates: [],
+        inventoryUpdates: [],
+        questUpdates: [],
+        currentSituation: 'Зверь тяжело ранил Кирильчика.',
+        choiceDilemma: 'Кирильчик тяжело ранен, отступить или защищаться?',
+        enemiesStatus: 'Враг яростен',
+        mood: 'combat',
+        nextRoundDC: 13,
+      } as any,
+      audioUrl: '',
+    });
+
+    const stepResult = await gameSessionService.resolveTurnStep(damageTestRoom.id, 'user_kirilchik');
+    assert.ok(stepResult, 'Turn step must resolve');
+
+    const updatedCharAfterCritFail = characterRepository.findById(kirilchikChar.id);
+    const appliedCritDamage = stepResult.log.playerUpdates?.[0]?.hpDelta;
+    assert.ok(appliedCritDamage && appliedCritDamage < 0, 'Applied crit damage must be negative');
+    assert.strictEqual(
+      updatedCharAfterCritFail?.hpCurrent,
+      17 + appliedCritDamage,
+      `Kirilchik HP must be authoritatively reduced by Arbiter failure damage (${appliedCritDamage})`
+    );
+
+    // Scenario B: Robust character matching by characterName and negative hpDelta
+    // AI sends characterName instead of UUID
+    const actionRound6: TurnActionEntity = {
+      id: `act_round6_${crypto.randomUUID()}`,
+      roomId: damageTestRoom.id,
+      playerId: 'user_kirilchik',
+      characterId: kirilchikChar.id,
+      characterName: kirilchikChar.name,
+      actionText: 'Пытаюсь увернуться от очередного удара',
+      actionType: 'check',
+      roundNumber: 6,
+      diceRolls: [{ type: 'd20', total: 10 }],
+    };
+    turnActionRepository.create(actionRound6);
+
+    narrativeSynthesizer.synthesizeTurnResponse = async () => ({
+      response: {
+        narrative: 'Зверь снова наносит удар лапой по Кирильчику.',
+        playerUpdates: [
+          {
+            characterName: 'Кирильчик', // Name only, no UUID!
+            hpDelta: -3,
+            note: 'Удар лапой',
+          }
+        ],
+        activeEnemies: [iceBeastEnemy],
+        sceneNPCs: [],
+        currentSituation: 'Бой продолжается',
+        choiceDilemma: 'Что предпринять?',
+        mood: 'combat',
+      } as any,
+      audioUrl: '',
+    });
+
+    const stepResultB = await gameSessionService.resolveTurnStep(damageTestRoom.id, 'user_kirilchik');
+    assert.ok(stepResultB, 'Turn step B must resolve');
+    const charAfterB = characterRepository.findById(kirilchikChar.id);
+    assert.strictEqual(
+      charAfterB?.hpCurrent,
+      updatedCharAfterCritFail!.hpCurrent - 3,
+      'Kirilchik HP must be reduced by -3 via characterName matching in playerUpdates'
+    );
+
+    // Scenario C: Deriving delta when only hpCurrent is specified (representing damage)
+    characterRepository.update(kirilchikChar.id, { hpCurrent: 12 });
+    const actionRound7: TurnActionEntity = {
+      id: `act_round7_${crypto.randomUUID()}`,
+      roomId: damageTestRoom.id,
+      playerId: 'user_kirilchik',
+      characterId: kirilchikChar.id,
+      characterName: kirilchikChar.name,
+      actionText: 'Держу оборону',
+      actionType: 'check',
+      roundNumber: 7,
+      diceRolls: [{ type: 'd20', total: 12 }],
+    };
+    turnActionRepository.create(actionRound7);
+
+    narrativeSynthesizer.synthesizeTurnResponse = async () => ({
+      response: {
+        narrative: 'Очередной натиск чудовища.',
+        playerUpdates: [
+          {
+            characterName: 'Кирильчик',
+            hpCurrent: 4, // Model passes explicit hpCurrent: 4 without hpDelta
+            note: 'Осталось 4 HP',
+          }
+        ],
+        activeEnemies: [iceBeastEnemy],
+        sceneNPCs: [],
+        currentSituation: 'Кирильчик едва стоит на ногах',
+        choiceDilemma: 'Что делать?',
+        mood: 'combat',
+      } as any,
+      audioUrl: '',
+    });
+
+    const stepResultC = await gameSessionService.resolveTurnStep(damageTestRoom.id, 'user_kirilchik');
+    assert.ok(stepResultC, 'Turn step C must resolve');
+    const charAfterC = characterRepository.findById(kirilchikChar.id);
+    assert.strictEqual(charAfterC?.hpCurrent, 4, 'Kirilchik HP must be updated to 4 when hpCurrent is passed');
+
+    // Scenario D: Narrative HP fallback extraction (e.g. choiceDilemma says "(2 HP)")
+    const actionRound8: TurnActionEntity = {
+      id: `act_round8_${crypto.randomUUID()}`,
+      roomId: damageTestRoom.id,
+      playerId: 'user_kirilchik',
+      characterId: kirilchikChar.id,
+      characterName: kirilchikChar.name,
+      actionText: 'Отчаянный удар мечом',
+      actionType: 'attack',
+      roundNumber: 8,
+      diceRolls: [{ type: 'd20', total: 11 }],
+    };
+    turnActionRepository.create(actionRound8);
+
+    narrativeSynthesizer.synthesizeTurnResponse = async () => ({
+      response: {
+        narrative: 'Ледяной зверь терзает раны Кирильчика.',
+        playerUpdates: [], // AI omitted playerUpdates completely!
+        activeEnemies: [iceBeastEnemy],
+        sceneNPCs: [],
+        currentSituation: 'Кирильчик на пороге смерти',
+        choiceDilemma: 'Кирильчик тяжело ранен и балансирует на волоске от гибели (2 HP), а тварь готовится добить его...',
+        mood: 'combat',
+      } as any,
+      audioUrl: '',
+    });
+
+    const stepResultD = await gameSessionService.resolveTurnStep(damageTestRoom.id, 'user_kirilchik');
+    assert.ok(stepResultD, 'Turn step D must resolve');
+    const charAfterD = characterRepository.findById(kirilchikChar.id);
+    assert.strictEqual(charAfterD?.hpCurrent, 2, 'Narrative fallback extraction must reduce Kirilchik HP to 2');
+
+    console.log('✅ Authoritative player damage resolution, failure consequence & narrative fallback verified!\n');
+  } finally {
+    narrativeSynthesizer.synthesizeTurnResponse = origSynthesize;
+  }
+
+  console.log('🎉 ALL 33 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {
