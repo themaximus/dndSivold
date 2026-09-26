@@ -574,7 +574,10 @@ export class SceneEntityManager {
     }
   ): SceneEntity | null {
     this.ensureSceneEntities(room);
-    const entity = room.sceneEntities!.find((e) => e.entityId === entityId);
+    let entity = room.sceneEntities!.find((e) => e.entityId === entityId);
+    if (!entity) {
+      entity = this.findEntityByMatch(room.sceneEntities!, entityId) || undefined;
+    }
     if (!entity) return null;
 
     if (updates.hpCurrent !== undefined) {
@@ -995,18 +998,24 @@ export class SceneEntityManager {
           }
 
           if (npc.hpCurrent !== undefined) {
-            // Guard against unauthorized phantom heals from AI hallucinations
-            if (npc.hpCurrent > existing.stats.hpCurrent) {
-              const authorizedHeal = mechanicalResolutions.some(
-                (r) => r.targetUpdate &&
-                  (r.targetUpdate.targetId === existing.entityId ||
-                   (r.targetUpdate.targetName && r.targetUpdate.targetName.toLowerCase() === existing.canonicalName.toLowerCase())) &&
-                  r.targetUpdate.hpAfter > r.targetUpdate.hpBefore
-              );
-              if (authorizedHeal) {
-                existing.stats.hpCurrent = Math.max(0, Math.min(existing.stats.hpMax, npc.hpCurrent));
-              }
-              // If not authorized by Mechanical Arbiter, reject the heal and keep current HP
+            // Check if there is an authoritative targetUpdate for this entity in this round
+            const matchingMechRes = Array.isArray(mechanicalResolutions)
+              ? mechanicalResolutions.find(
+                  (r) => r.targetUpdate &&
+                    (r.targetUpdate.targetId === existing.entityId ||
+                     (r.targetUpdate.targetName && (
+                       r.targetUpdate.targetName.toLowerCase() === existing.canonicalName.toLowerCase() ||
+                       (existing.aliases && existing.aliases.some((a: string) => a.toLowerCase() === r.targetUpdate.targetName?.toLowerCase()))
+                     )))
+                )
+              : undefined;
+
+            if (matchingMechRes?.targetUpdate) {
+              // Mechanical Arbiter is authoritative for HP changes this round!
+              existing.stats.hpCurrent = Math.max(0, Math.min(existing.stats.hpMax, matchingMechRes.targetUpdate.hpAfter));
+            } else if (npc.hpCurrent > existing.stats.hpCurrent) {
+              // Guard against unauthorized phantom heals from AI hallucinations
+              // Reject unauthorized AI phantom heal, keep current HP
             } else {
               existing.stats.hpCurrent = Math.max(0, npc.hpCurrent);
             }
@@ -1084,7 +1093,9 @@ export class SceneEntityManager {
                 ent.status = 'Враждебен: атакован отрядом, вступает в бой';
               }
             } else if (res.targetUpdate.newStatus) {
-              ent.status = res.targetUpdate.newStatus;
+              if (!ent.status || ent.status.includes('Ранен') || ent.status.includes('Присутствует') || ent.status.includes('Без сознания')) {
+                ent.status = res.targetUpdate.newStatus;
+              }
             }
             updatedEntityIds.add(ent.entityId);
           }

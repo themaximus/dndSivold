@@ -162,7 +162,7 @@ export class MechanicalArbiter {
 
     switch (intent) {
       case 'heal':
-        return this.resolveHealingAction(action, character, currentEnemies, currentNPCs);
+        return this.resolveHealingAction(action, character, currentEnemies, currentNPCs, activeRoom);
 
       case 'poison':
         return this.resolvePoisonAction(action, character, currentEnemies, currentNPCs, roomDC);
@@ -207,6 +207,10 @@ export class MechanicalArbiter {
 
   private get inventoryLedger() {
     return systemLocator.get('inventoryLedgerService');
+  }
+
+  private get sceneEntityManager() {
+    return systemLocator.get('sceneEntityManager');
   }
 
   /**
@@ -841,7 +845,8 @@ export class MechanicalArbiter {
     action: TurnActionEntity,
     character: CharacterEntity | undefined,
     currentEnemies: RoomEnemy[],
-    currentNPCs: RoomNPC[]
+    currentNPCs: RoomNPC[],
+    activeRoom?: RoomEntity
   ): MechanicalResolution {
     const actionLower = (action?.actionText || '').toLowerCase();
     const speech = this.extractSpeechAndAction(action?.actionText || '');
@@ -851,8 +856,8 @@ export class MechanicalArbiter {
     let targetType: 'self' | 'npc' | 'enemy' = 'self';
     let targetEntity: RoomNPC | RoomEnemy | undefined;
 
-    // Check if target was found via findTarget (which handles addressed names & ids)
-    const foundTarget = this.findTarget(action, currentEnemies, currentNPCs);
+    // Check if target was found via findTarget (which handles addressed names, ids, and scene entities)
+    const foundTarget = this.findTarget(action, currentEnemies, currentNPCs, activeRoom);
     if (foundTarget) {
       targetName = foundTarget.target.name;
       targetType = foundTarget.type;
@@ -890,13 +895,19 @@ export class MechanicalArbiter {
     } else {
       // Per-NPC and per-Enemy keyword and stem matching
       const actStems = this.extractStems(actionLower);
-      const matchesEntity = (act: string, entity: { name?: string; role?: string; type?: string }) => {
+      const matchesEntity = (act: string, entity: { name?: string; role?: string; type?: string; aliases?: string[] }) => {
         const name = (entity.name || '').toLowerCase();
         const role = ((entity.role || '') + ' ' + (entity.type || '')).toLowerCase();
         if (name && act.includes(name)) return true;
         if (role && role.length >= 4 && act.includes(role)) return true;
+        if (entity.aliases) {
+          for (const alias of entity.aliases) {
+            const aLow = alias.toLowerCase();
+            if (aLow && act.includes(aLow)) return true;
+          }
+        }
 
-        const entityStems = this.extractStems(`${name} ${role}`);
+        const entityStems = this.extractStems(`${name} ${role} ${(entity.aliases || []).join(' ')}`);
         for (const s of entityStems) {
           if (act.includes(s) || actStems.includes(s)) {
             return true;
@@ -920,6 +931,62 @@ export class MechanicalArbiter {
             targetType = 'enemy';
             targetEntity = e;
             break;
+          }
+        }
+      }
+
+      // Check activeRoom scene entities if available
+      if (!targetEntity && activeRoom?.sceneEntities) {
+        const matchedSceneEntity = this.sceneEntityManager.findEntityByMatch(activeRoom.sceneEntities, actionLower);
+        if (matchedSceneEntity) {
+          targetName = matchedSceneEntity.canonicalName;
+          targetType = matchedSceneEntity.faction === 'hostile' ? 'enemy' : 'npc';
+          targetEntity = {
+            id: matchedSceneEntity.entityId,
+            name: matchedSceneEntity.canonicalName,
+            role: matchedSceneEntity.role,
+            hpCurrent: matchedSceneEntity.stats.hpCurrent,
+            hpMax: matchedSceneEntity.stats.hpMax,
+            ac: matchedSceneEntity.stats.ac,
+            disposition: matchedSceneEntity.disposition,
+            combatRole: matchedSceneEntity.combatRole === 'ally_combatant' ? 'ally_combatant' : 'neutral_observer',
+            status: matchedSceneEntity.status,
+            isDead: matchedSceneEntity.lifecycle === 'defeated' || matchedSceneEntity.stats.hpCurrent <= 0,
+          };
+        }
+      }
+
+      // Fallback: If healing action is NOT explicitly directed at self, check for wounded or present NPCs
+      const isExplicitSelfHeal = /(?:^|\s)(себ[яе]|сам(а|ого|ому)?|сво[ихя]|выпива(?:ю|ет)|пью\s+сам)(?:$|\s)/i.test(actionLower);
+      if (!targetEntity && !isExplicitSelfHeal) {
+        const woundedNPC = currentNPCs.find(n => !n.isDead && n.hpCurrent < n.hpMax);
+        if (woundedNPC) {
+          targetName = woundedNPC.name;
+          targetType = 'npc';
+          targetEntity = woundedNPC;
+        } else if (currentNPCs.length === 1) {
+          targetName = currentNPCs[0].name;
+          targetType = 'npc';
+          targetEntity = currentNPCs[0];
+        } else if (activeRoom?.sceneEntities) {
+          const woundedSceneEnt = activeRoom.sceneEntities.find(
+            e => e.lifecycle === 'active' && e.faction !== 'hostile' && e.stats.hpCurrent < e.stats.hpMax
+          );
+          if (woundedSceneEnt) {
+            targetName = woundedSceneEnt.canonicalName;
+            targetType = 'npc';
+            targetEntity = {
+              id: woundedSceneEnt.entityId,
+              name: woundedSceneEnt.canonicalName,
+              role: woundedSceneEnt.role,
+              hpCurrent: woundedSceneEnt.stats.hpCurrent,
+              hpMax: woundedSceneEnt.stats.hpMax,
+              ac: woundedSceneEnt.stats.ac,
+              disposition: woundedSceneEnt.disposition,
+              combatRole: woundedSceneEnt.combatRole === 'ally_combatant' ? 'ally_combatant' : 'neutral_observer',
+              status: woundedSceneEnt.status,
+              isDead: false,
+            };
           }
         }
       }
@@ -1051,7 +1118,11 @@ export class MechanicalArbiter {
 
     const isSelfHeal = targetType === 'self';
 
-    const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: ${methodDescription} ${isSelfHeal ? 'Раны персонажа затягиваются.' : `Состояние ${targetName} улучшается.`}`;
+    const directive = `⚖️ МЕХАНИЧЕСКИЙ АРБИТР: ${methodDescription} ${
+      isSelfHeal
+        ? 'Раны персонажа затягиваются.'
+        : `Состояние цели «${targetName}» улучшается: +${healAmount} HP (теперь ${targetUpdate?.hpAfter ?? healAmount}/${targetEntity?.hpMax ?? 15} HP). В "sceneNPCs" ОБЯЗАТЕЛЬНО укажи "hpCurrent": ${targetUpdate?.hpAfter}!`
+    }`;
 
     return {
       actionId: action.id,
@@ -1594,7 +1665,8 @@ export class MechanicalArbiter {
   public findTarget(
     action: TurnActionEntity,
     enemies: RoomEnemy[],
-    npcs: RoomNPC[]
+    npcs: RoomNPC[],
+    activeRoom?: RoomEntity
   ): { target: RoomEnemy | RoomNPC; type: 'enemy' | 'npc' } | null {
     if (action.targetEnemyId) {
       const e = enemies.find(x => x.id === action.targetEnemyId);
@@ -1620,6 +1692,31 @@ export class MechanicalArbiter {
       if (e) return { target: e, type: 'enemy' };
       const n = npcs.find(x => x.name.toLowerCase().includes(addrLower) || addrLower.includes(x.name.toLowerCase()));
       if (n) return { target: n, type: 'npc' };
+    }
+
+    // Check active scene entities by match (aliases, canonical name, tokens)
+    if (activeRoom?.sceneEntities && activeRoom.sceneEntities.length > 0) {
+      const match = this.sceneEntityManager.findEntityByMatch(activeRoom.sceneEntities, actText);
+      if (match && match.lifecycle === 'active') {
+        return {
+          target: {
+            id: match.entityId,
+            name: match.canonicalName,
+            role: match.role,
+            type: match.faction === 'hostile' ? match.role : undefined,
+            hpCurrent: match.stats.hpCurrent,
+            hpMax: match.stats.hpMax,
+            ac: match.stats.ac,
+            disposition: match.disposition,
+            combatRole: match.combatRole === 'ally_combatant' ? 'ally_combatant' : 'neutral_observer',
+            status: match.status,
+            isDead: match.stats.hpCurrent <= 0,
+            willpower: match.stats.willpower,
+            willpowerMax: match.stats.willpowerMax,
+          } as any,
+          type: match.faction === 'hostile' ? 'enemy' : 'npc',
+        };
+      }
     }
 
     const actLower = actText.toLowerCase();

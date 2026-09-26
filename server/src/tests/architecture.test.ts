@@ -1,6 +1,6 @@
 import assert from 'assert';
 import crypto from 'crypto';
-import { SceneEntityManager, stemRussianWord, extractSearchTokens } from '../services/session/SceneEntityManager';
+import { SceneEntityManager, sceneEntityManager, stemRussianWord, extractSearchTokens } from '../services/session/SceneEntityManager';
 import { ActionIntentEngine } from '../services/session/ActionIntentEngine';
 import { InventoryLedgerService } from '../services/session/InventoryLedgerService';
 import { RoomTransactionMutex } from '../services/session/RoomTransactionMutex';
@@ -2460,7 +2460,167 @@ async function runTests() {
     narrativeSynthesizer.synthesizeTurnResponse = origSynthesize;
   }
 
-  console.log('🎉 ALL 33 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 34: Authoritative Ally Healing & Stale AI Overwrite Prevention (Bradley Scenario)
+  // ----------------------------------------------------
+  {
+    console.log('Test 34: Authoritative Ally Healing & Stale AI Overwrite Prevention (Bradley Scenario)');
+
+    const bradleyRoomId = `room_bradley_${crypto.randomUUID()}`;
+    const kirilchikUserId = `user_kc_${crypto.randomUUID()}`;
+    const kirilchikCharId = `char_kc_${crypto.randomUUID()}`;
+
+    const kirilchikCharacter: CharacterEntity = {
+      id: kirilchikCharId,
+      userId: kirilchikUserId,
+      name: 'Кирильчик',
+      characterClass: 'Плут',
+      race: 'Человек',
+      level: 3,
+      hpCurrent: 14,
+      hpMax: 20,
+      stats: { strength: 10, dexterity: 16, constitution: 12, intelligence: 12, wisdom: 14, charisma: 10 },
+      inventory: [
+        {
+          id: 'pot_heal_bradley',
+          name: 'Зелье лечения',
+          type: 'potion',
+          quantity: 1,
+          healAmount: 7,
+          description: 'Восстанавливает 2d4+2 хитов',
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    characterRepository.create(kirilchikCharacter);
+
+    const bradleyRoom: RoomEntity = {
+      id: bradleyRoomId,
+      code: 'BRAD01',
+      hostUserId: kirilchikUserId,
+      title: 'Встреча на дороге',
+      setting: 'Фэнтези',
+      genre: 'dark_fantasy',
+      status: 'active',
+      turnMode: 'turn_by_turn',
+      roundNumber: 1,
+      targetDC: 12,
+      currentSituation: 'На обочине лежит раненый гонец графской стражи.',
+      createdAt: new Date().toISOString(),
+    };
+    roomRepository.create(bradleyRoom);
+
+    roomRepository.addPlayer({
+      id: `rp_kc_${crypto.randomUUID()}`,
+      roomId: bradleyRoom.id,
+      userId: kirilchikUserId,
+      username: 'Kirilchik',
+      characterId: kirilchikCharacter.id,
+      isOnline: true,
+      joinedAt: new Date().toISOString(),
+    });
+
+    // Register wounded messenger Bradley in the scene
+    const bradleyEntity = sceneEntityManager.registerEntity(bradleyRoom, {
+      name: 'Раненый гонец',
+      role: 'Раненый гонец графской стражи',
+      entityType: 'npc',
+      faction: 'allied',
+      combatRole: 'neutral_observer',
+      disposition: 'friendly',
+      hpCurrent: 3,
+      hpMax: 15,
+      ac: 11,
+      status: 'Тяжело ранен, лежит без сознания на обочине дороги',
+    });
+    sceneEntityManager.addAlias(bradleyEntity, 'Брэдли');
+    sceneEntityManager.addAlias(bradleyEntity, 'Гонец');
+    sceneEntityManager.syncLegacyArrays(bradleyRoom);
+
+    // Player action: «Вылечить Брэдли» with high roll
+    const healAction: TurnActionEntity = {
+      id: `act_heal_${crypto.randomUUID()}`,
+      roomId: bradleyRoom.id,
+      playerId: kirilchikUserId,
+      characterId: kirilchikCharacter.id,
+      characterName: kirilchikCharacter.name,
+      actionText: 'Вылечить Брэдли',
+      actionType: 'heal',
+      roundNumber: 1,
+      diceRolls: [{ type: 'd20', total: 23, isCriticalSuccess: true }],
+      submittedAt: new Date().toISOString(),
+    };
+    turnActionRepository.create(healAction);
+
+    // AI DM returns narrative where Bradley recovers, but echoes stale hpCurrent: 3
+    const origSynthesizeHeal = narrativeSynthesizer.synthesizeTurnResponse.bind(narrativeSynthesizer);
+    try {
+      narrativeSynthesizer.synthesizeTurnResponse = async () => ({
+        response: {
+          narrative: 'Кирильчик аккуратно приподнимает голову гонца и вливает целебное снадобье ему в рот. Брэдли глубоко вздыхает, румянец возвращается к его щекам.',
+          playerUpdates: [],
+          activeEnemies: [],
+          sceneNPCs: [
+            {
+              name: 'Брэдли',
+              role: 'Раненый гонец графской стражи',
+              hpCurrent: 3, // AI DM hallucinated/echoed old HP from input prompt!
+              hpMax: 15,
+              status: 'Пришел в сознание после исцеления, держит тубус.',
+            },
+          ],
+          departedNPCs: [],
+          searchedObjectUpdates: [],
+          conditionUpdates: [],
+          inventoryUpdates: [],
+          questUpdates: [],
+          currentSituation: 'Брэдли пришел в себя и сжимает тубус с донесением.',
+          choiceDilemma: 'Расспросить Брэдли о нападении или осмотреть окрестности?',
+          mood: 'roleplay',
+        } as any,
+        audioUrl: '',
+      });
+
+      const stepResultHeal = await gameSessionService.resolveTurnStep(bradleyRoom.id, kirilchikUserId);
+      assert.ok(stepResultHeal, 'Turn step must resolve');
+
+      // Verify Potion consumed from Kirilchik
+      const charAfterHeal = characterRepository.findById(kirilchikCharId);
+      const potionInInv = charAfterHeal?.inventory.find((i) => i.id === 'pot_heal_bradley');
+      assert.strictEqual(potionInInv, undefined, 'Healing potion must be completely consumed and removed from inventory');
+      assert.strictEqual(charAfterHeal?.hpCurrent, 14, 'Kirilchik HP must not be self-healed (target was Bradley)');
+
+      // Verify Bradley's healed HP is authoritatively preserved (3 + 7 = 10 HP)
+      const bradleyInRoom = bradleyRoom.sceneEntities?.find((e) => e.entityId === bradleyEntity.entityId);
+      assert.ok(bradleyInRoom, 'Bradley must exist in scene entities');
+      assert.strictEqual(
+        bradleyInRoom?.stats.hpCurrent,
+        10,
+        `Bradley HP must be authoritatively updated to 10 (3 + 7), got ${bradleyInRoom?.stats.hpCurrent}`
+      );
+
+      // Verify Bradley's projection HUD reflects healed HP and rich narrative status
+      const projectionNPC = bradleyRoom.sceneProjection?.sceneNPCs?.find((n) => n.name === 'Брэдли' || n.name === 'Раненый гонец');
+      assert.ok(projectionNPC, 'Bradley must be present in sceneProjection');
+      assert.strictEqual(
+        projectionNPC?.hpCurrent,
+        10,
+        `Bradley HUD projected HP must be 10, got ${projectionNPC?.hpCurrent}`
+      );
+      assert.strictEqual(
+        projectionNPC?.status,
+        'Пришел в сознание после исцеления, держит тубус.',
+        'Bradley status must reflect the narrative recovery'
+      );
+
+      console.log('✅ Authoritative ally healing and stale AI overwrite prevention verified!\n');
+    } finally {
+      narrativeSynthesizer.synthesizeTurnResponse = origSynthesizeHeal;
+    }
+  }
+
+  console.log('🎉 ALL 34 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {
