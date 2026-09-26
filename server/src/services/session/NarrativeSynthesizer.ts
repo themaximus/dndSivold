@@ -61,8 +61,9 @@ export class NarrativeSynthesizer {
 
     validated.narrative = sanitizeNarrativeText(validated.narrative);
 
-    // Synthesize any key actors into SceneEntity records with UUIDs
-    sceneEntityManager.synthesizeEntitiesFromNarrative(room, validated.narrative, validated.currentSituation);
+    // Procedural entity management:
+    // If the AI explicitly provided structured sceneNPCs, register them directly.
+    // Only fall back to narrative text regex synthesis if no explicit sceneNPCs were provided.
     if (validated.sceneNPCs && validated.sceneNPCs.length > 0) {
       for (const npc of validated.sceneNPCs) {
         sceneEntityManager.registerEntity(room, {
@@ -76,6 +77,8 @@ export class NarrativeSynthesizer {
           status: npc.status,
         });
       }
+    } else {
+      sceneEntityManager.synthesizeEntitiesFromNarrative(room, validated.narrative, validated.currentSituation);
     }
 
     sceneEntityManager.syncLegacyArrays(room);
@@ -107,8 +110,10 @@ export class NarrativeSynthesizer {
 
     validated.narrative = sanitizeNarrativeText(validated.narrative);
 
-    // Procedural synthesis: ensure any newly introduced actors exist with UUIDs
-    sceneEntityManager.synthesizeEntitiesFromNarrative(room, validated.narrative, validated.currentSituation);
+    // Procedural synthesis fallback: ensure newly introduced actors exist with UUIDs if AI omitted sceneNPCs
+    if (!validated.sceneNPCs || validated.sceneNPCs.length === 0) {
+      sceneEntityManager.synthesizeEntitiesFromNarrative(room, validated.narrative, validated.currentSituation);
+    }
 
     // Check departed NPCs
     sceneEntityManager.handleNPCDepartures(

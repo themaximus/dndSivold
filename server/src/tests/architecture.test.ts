@@ -1652,7 +1652,221 @@ async function runTests() {
     console.log('✅ Equipment system, two-handed weapon mutual exclusivity, and dynamic AC calculation verified!\n');
   }
 
-  console.log('🎉 ALL 30 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  // ----------------------------------------------------
+  // Test 31: Procedural NPC Deduplication, Proper Name Promotion & Archetype Resolution
+  // ----------------------------------------------------
+  {
+    console.log('Test 31: Procedural NPC Deduplication, Proper Name Promotion & Archetype Resolution');
+    const dedupRoomId = 'room_dedup_' + crypto.randomUUID();
+    const mockRoom: RoomEntity = {
+      id: dedupRoomId,
+      code: 'DEDUP1',
+      hostUserId: 'user_host_dedup',
+      title: 'Deduplication Test Room',
+      setting: 'Фэнтези',
+      status: 'active',
+      roundNumber: 1,
+      currentSituation: 'Тяжелораненый гонец хрипит на каменном полу',
+      sceneEntities: [],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.create(mockRoom);
+
+    // 1. Single source of truth / Duplicate prevention:
+    // AI returns named NPC in sceneNPCs while narrative mentions generic archetype "раненый гонец"
+    const aiResponseWithBrendan: AIDMResponse = {
+      narrative: 'Тяжелораненый гонец хрипит на полу, зажимая кровавую рану на боку.',
+      currentSituation: 'Гонец истекает кровью',
+      activeEnemies: [],
+      sceneNPCs: [
+        {
+          id: 'ent_brendan_orig',
+          name: 'Брендан',
+          role: 'Раненый курьер графской стражи',
+          hpCurrent: 3,
+          hpMax: 15,
+          ac: 11,
+          disposition: 'friendly',
+          combatRole: 'neutral_observer',
+          status: 'Тяжело ранен, теряет кровь',
+        },
+      ],
+      partyChoices: [],
+    };
+
+    sem.processRoundEntities(mockRoom, aiResponseWithBrendan);
+
+    const proj1 = sem.buildSceneProjection(mockRoom);
+    assert.strictEqual(proj1.sceneNPCs.length, 1, 'Exactly 1 NPC card must be rendered in sceneNPCs (no duplicate messenger)');
+    assert.strictEqual(proj1.sceneNPCs[0].name, 'Брендан', 'Entity name must be the proper name Brendan');
+    assert.strictEqual(proj1.sceneNPCs[0].hpCurrent, 3, 'Brendan HP must be 3');
+
+    // Verify alias resolution for players targeting "гонец" or "курьер"
+    const resolvedByMessenger = sem.resolveEntity(mockRoom, 'раненый гонец');
+    assert.ok(resolvedByMessenger, 'Must resolve entity via archetype alias');
+    assert.strictEqual(resolvedByMessenger?.canonicalName, 'Брендан', 'Alias "раненый гонец" must resolve to Brendan');
+
+    // 2. Name Promotion:
+    // When a room starts with an unnamed generic archetype ("Раненый гонец") and later AI gives proper name ("Брендан")
+    const promoRoomId = 'room_promo_' + crypto.randomUUID();
+    const promoRoom: RoomEntity = {
+      id: promoRoomId,
+      code: 'PROMO1',
+      hostUserId: 'user_host_promo',
+      title: 'Promotion Test Room',
+      setting: 'Фэнтези',
+      status: 'active',
+      roundNumber: 1,
+      currentSituation: 'В комнате раненый гонец',
+      sceneEntities: [],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.create(promoRoom);
+
+    // Initial procedural spawn of generic archetype
+    const genericEnt = sem.registerEntity(promoRoom, {
+      name: 'Раненый гонец',
+      role: 'Посланник графской стражи',
+      hpCurrent: 12,
+      hpMax: 12,
+      ac: 11,
+      status: 'Без сознания на полу',
+    });
+    const originalEntityId = genericEnt.entityId;
+
+    // AI introduces his name as "Брендан" in next round
+    const promoRound: AIDMResponse = {
+      narrative: 'Брендан слабо приоткрывает глаза: "Я... курьер графа..."',
+      currentSituation: 'Брендан пришел в себя',
+      sceneNPCs: [
+        {
+          name: 'Брендан',
+          role: 'Раненый курьер графской стражи',
+          hpCurrent: 12,
+          hpMax: 15,
+          status: 'Слабо говорит',
+        },
+      ],
+      activeEnemies: [],
+      partyChoices: [],
+    };
+
+    sem.processRoundEntities(promoRoom, promoRound);
+
+    const projPromo = sem.buildSceneProjection(promoRoom);
+    assert.strictEqual(projPromo.sceneNPCs.length, 1, 'Only 1 entity should exist after name promotion');
+    assert.strictEqual(projPromo.sceneNPCs[0].entityId, originalEntityId, 'UUID must be preserved during name promotion');
+    assert.strictEqual(projPromo.sceneNPCs[0].name, 'Брендан', 'Entity must be promoted to Brendan');
+    assert.ok(promoRoom.sceneEntities?.find((e) => e.entityId === originalEntityId)?.aliases.includes('Раненый гонец'), 'Old generic name preserved in aliases');
+
+    // 3. Automatic Deduplication of Existing Rooms with Twin Cards & Healed HP Preservation:
+    // Simulating the user active game where DB has two duplicate cards
+    const twinRoomId = 'room_twin_' + crypto.randomUUID();
+    const twinRoom: RoomEntity = {
+      id: twinRoomId,
+      code: 'TWIN01',
+      hostUserId: 'user_twin',
+      title: 'Twin Duplicates Room',
+      setting: 'Фэнтези',
+      status: 'active',
+      roundNumber: 2,
+      currentSituation: 'В зале раненые',
+      sceneEntities: [
+        {
+          entityId: 'ent_generic_twin',
+          canonicalName: 'Раненый гонец',
+          aliases: ['Раненый гонец', 'гонец'],
+          entityType: 'npc',
+          faction: 'neutral',
+          combatRole: 'neutral_observer',
+          lifecycle: 'active',
+          stats: { hpCurrent: 13, hpMax: 13, ac: 11, conditions: [], willpower: 100, willpowerMax: 100 },
+          role: 'Посланник графской стражи',
+          status: 'Раны перевязаны, идет на поправку',
+          location: { roomId: twinRoomId },
+          createdAt: new Date().toISOString(),
+        },
+        {
+          entityId: 'ent_brendan_twin',
+          canonicalName: 'Брендан',
+          aliases: ['Брендан'],
+          entityType: 'npc',
+          faction: 'neutral',
+          combatRole: 'neutral_observer',
+          lifecycle: 'active',
+          stats: { hpCurrent: 3, hpMax: 15, ac: 11, conditions: [], willpower: 100, willpowerMax: 100 },
+          role: 'Раненый курьер графской стражи',
+          status: 'Истекает кровью',
+          location: { roomId: twinRoomId },
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.create(twinRoom);
+
+    // Building projection must automatically trigger deduplication
+    const projTwin = sem.buildSceneProjection(twinRoom);
+    assert.strictEqual(projTwin.sceneNPCs.length, 1, 'Deduplication must collapse twins to 1 active card');
+    assert.strictEqual(projTwin.sceneNPCs[0].name, 'Брендан', 'Primary card must be named Brendan');
+    assert.strictEqual(projTwin.sceneNPCs[0].hpCurrent, 13, 'Player heal (13 HP) must be preserved from generic twin');
+    const retiredGeneric = twinRoom.sceneEntities?.find((e) => e.entityId === 'ent_generic_twin');
+    assert.strictEqual(retiredGeneric?.lifecycle, 'departed', 'Generic duplicate must be marked departed');
+
+    // 4. Distinction Guarantee: Distinct named NPCs must NEVER be merged!
+    const guardsRoomId = 'room_guards_' + crypto.randomUUID();
+    const guardsRoom: RoomEntity = {
+      id: guardsRoomId,
+      code: 'GUARDS',
+      hostUserId: 'user_guards',
+      title: 'Guards Room',
+      setting: 'Фэнтези',
+      status: 'active',
+      roundNumber: 1,
+      currentSituation: 'У ворот стоят двое стражников',
+      sceneEntities: [
+        {
+          entityId: 'ent_guard_walter',
+          canonicalName: 'Вальтер',
+          aliases: ['Вальтер'],
+          entityType: 'npc',
+          faction: 'neutral',
+          combatRole: 'neutral_observer',
+          lifecycle: 'active',
+          stats: { hpCurrent: 22, hpMax: 22, ac: 14, conditions: [], willpower: 100, willpowerMax: 100 },
+          role: 'Городской стражник',
+          status: 'Охраняет ворота',
+          location: { roomId: guardsRoomId },
+          createdAt: new Date().toISOString(),
+        },
+        {
+          entityId: 'ent_guard_marcus',
+          canonicalName: 'Маркус',
+          aliases: ['Маркус'],
+          entityType: 'npc',
+          faction: 'neutral',
+          combatRole: 'neutral_observer',
+          lifecycle: 'active',
+          stats: { hpCurrent: 22, hpMax: 22, ac: 14, conditions: [], willpower: 100, willpowerMax: 100 },
+          role: 'Городской стражник',
+          status: 'Проверяет повозку',
+          location: { roomId: guardsRoomId },
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.create(guardsRoom);
+
+    const projGuards = sem.buildSceneProjection(guardsRoom);
+    assert.strictEqual(projGuards.sceneNPCs.length, 2, 'Two distinct named guards must NEVER be merged');
+    assert.ok(projGuards.sceneNPCs.some((n) => n.name === 'Вальтер'), 'Walter must be in active scene');
+    assert.ok(projGuards.sceneNPCs.some((n) => n.name === 'Маркус'), 'Marcus must be in active scene');
+
+    console.log('✅ Procedural NPC deduplication, proper name promotion, and distinct NPC preservation verified!\n');
+  }
+
+  console.log('🎉 ALL 31 ARCHITECTURAL VERIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch((err) => {

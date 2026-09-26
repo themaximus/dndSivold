@@ -47,6 +47,65 @@ export function extractSearchTokens(text: string): string[] {
     .filter((s) => s.length >= 3);
 }
 
+export interface EntityArchetypePattern {
+  id: string;
+  regex: RegExp;
+  canonicalName: string;
+  role: string;
+  faction: EntityFaction;
+  combatRole: EntityCombatRole;
+  disposition: any;
+  defaultHp: number;
+  defaultAc: number;
+}
+
+export const SCENE_ARCHETYPE_PATTERNS: EntityArchetypePattern[] = [
+  {
+    id: 'messenger',
+    regex: /(?:ранен(?:ый|ого|ому|ым)?\s+)?(?:гонец|посланник|курьер|вестник|посыльный)/i,
+    canonicalName: 'Раненый гонец',
+    role: 'Посланник графской стражи',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    disposition: 'friendly',
+    defaultHp: 12,
+    defaultAc: 11,
+  },
+  {
+    id: 'merchant',
+    regex: /(?:купец|торговец|караванщик|коробейник)\s*([А-ЯЁ][а-яё]+)?/i,
+    canonicalName: 'Купец',
+    role: 'Караванщик и торговец',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    disposition: 'friendly',
+    defaultHp: 18,
+    defaultAc: 12,
+  },
+  {
+    id: 'guard',
+    regex: /(?:стражник|дозорный|патрульный|егерь|караульный)\s*([А-ЯЁ][а-яё]+)?/i,
+    canonicalName: 'Стражник',
+    role: 'Городской дозорный',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    disposition: 'neutral',
+    defaultHp: 22,
+    defaultAc: 14,
+  },
+  {
+    id: 'innkeeper',
+    regex: /(?:трактирщик|хозяин\s+таверны|бармен)\s*([А-ЯЁ][а-яё]+)?/i,
+    canonicalName: 'Трактирщик',
+    role: 'Владелец таверны',
+    faction: 'neutral',
+    combatRole: 'neutral_observer',
+    disposition: 'neutral',
+    defaultHp: 20,
+    defaultAc: 10,
+  },
+];
+
 export class SceneEntityManager {
   private worldNPCs: IWorldNPCRepository;
 
@@ -151,6 +210,9 @@ export class SceneEntityManager {
       }
     }
 
+    // Procedural deduplication: merge duplicate archetype twins if any exist
+    this.deduplicateActiveEntities(room);
+
     return room.sceneEntities;
   }
 
@@ -177,13 +239,53 @@ export class SceneEntityManager {
   ): SceneEntity {
     this.ensureSceneEntities(room);
 
-    // Check if an entity matching this name or alias already exists
+    // 1. Check if an entity matching this name or alias already exists
     const existing = this.findEntityByMatch(room.sceneEntities!, params.name);
     if (existing) {
       if (params.aliases) {
         params.aliases.forEach((a) => this.addAlias(existing, a));
       }
       return existing;
+    }
+
+    // 2. Archetype promotion & deduplication check
+    const npcArch = this.getNPCArchetype({ name: params.name, role: params.role });
+    if (npcArch) {
+      if (this.isGenericArchetypeName(params.name, npcArch)) {
+        // Trying to register a generic archetype when an entity of that archetype already exists
+        const existingArchetype = room.sceneEntities!.find(
+          (e) => e.lifecycle === 'active' && this.matchesArchetype(e, npcArch)
+        );
+        if (existingArchetype) {
+          this.addAlias(existingArchetype, params.name);
+          if (params.aliases) {
+            params.aliases.forEach((a) => this.addAlias(existingArchetype, a));
+          }
+          return existingArchetype;
+        }
+      } else {
+        // Registering a named NPC when a generic archetype already exists -> promote it!
+        const genericCandidate = room.sceneEntities!.find(
+          (e) =>
+            e.lifecycle === 'active' &&
+            this.matchesArchetype(e, npcArch) &&
+            this.isGenericArchetypeName(e.canonicalName, npcArch)
+        );
+        if (genericCandidate) {
+          this.addAlias(genericCandidate, genericCandidate.canonicalName);
+          genericCandidate.canonicalName = params.name.trim();
+          this.addAlias(genericCandidate, params.name.trim());
+          if (params.aliases) {
+            params.aliases.forEach((a) => this.addAlias(genericCandidate, a));
+          }
+          if (params.role) genericCandidate.role = params.role;
+          if (params.hpCurrent !== undefined) genericCandidate.stats.hpCurrent = params.hpCurrent;
+          if (params.hpMax !== undefined) genericCandidate.stats.hpMax = params.hpMax;
+          if (params.status) genericCandidate.status = params.status;
+          this.syncLegacyArrays(room);
+          return genericCandidate;
+        }
+      }
     }
 
     const entityId = this.generateEntityId(params.faction === 'hostile' ? 'ent_enemy' : 'ent_npc');
@@ -316,6 +418,144 @@ export class SceneEntityManager {
   }
 
   /**
+   * Checks whether an entity matches a known archetypal pattern (by name, aliases, or role).
+   */
+  public matchesArchetype(entity: SceneEntity, arch: EntityArchetypePattern): boolean {
+    if (arch.regex.test(entity.canonicalName)) return true;
+    if (entity.role && arch.regex.test(entity.role)) return true;
+    if (entity.aliases && entity.aliases.some((a) => arch.regex.test(a))) return true;
+    return false;
+  }
+
+  /**
+   * Identifies which archetype pattern an entity belongs to, if any.
+   */
+  public getEntityArchetype(entity: SceneEntity): EntityArchetypePattern | undefined {
+    return SCENE_ARCHETYPE_PATTERNS.find((arch) => this.matchesArchetype(entity, arch));
+  }
+
+  /**
+   * Checks whether an incoming NPC name or role matches an archetype pattern.
+   */
+  public getNPCArchetype(npc: { name?: string; role?: string }): EntityArchetypePattern | undefined {
+    return SCENE_ARCHETYPE_PATTERNS.find((arch) => {
+      if (npc.name && arch.regex.test(npc.name)) return true;
+      if (npc.role && arch.regex.test(npc.role)) return true;
+      return false;
+    });
+  }
+
+  /**
+   * Determines if a name is a generic archetype description (e.g. "Раненый гонец", "Купец")
+   * as opposed to a unique individual proper name (e.g. "Брендан", "Бальтазар").
+   */
+  public isGenericArchetypeName(name: string, arch: EntityArchetypePattern): boolean {
+    if (!name) return false;
+    const clean = name.trim();
+    if (clean.toLowerCase() === arch.canonicalName.toLowerCase()) return true;
+
+    // Remove known generic archetype keywords, adjectives and affixes
+    const withoutKeywords = clean
+      .replace(/(?:ранен(?:ый|ого|ому|ым)?|тяжелоранен(?:ый|ого|ому|ым)?|городск(?:ой|ого|ому|им)?|графск(?:ой|ого|ому|им)?|караванн(?:ый|ого|ому|ым)?)\s*/gi, '')
+      .replace(/(?:гонец|посланник|курьер|вестник|посыльный|купец|торговец|караванщик|коробейник|стражник|дозорный|патрульный|егерь|караульный|трактирщик|бармен|хозяин\s+таверны)/gi, '')
+      .replace(/[\s\-_«»"']+/g, '')
+      .trim();
+
+    return withoutKeywords.length < 2 || /^\d+$/.test(withoutKeywords);
+  }
+
+  /**
+   * Procedural Deduplication:
+   * Scans active entities in the scene for duplicate archetype representations.
+   * If both a generic entity (e.g. "Раненый гонец") and a named entity (e.g. "Брендан")
+   * exist in the same room for the same archetype:
+   * 1. Merges aliases and narrativeNotes into the named entity.
+   * 2. Preserves the best/healthiest stats (e.g. current HP if healed).
+   * 3. Retires the redundant generic entity (lifecycle 'departed').
+   */
+  public deduplicateActiveEntities(room: RoomEntity): void {
+    if (!room.sceneEntities || room.sceneEntities.length <= 1) return;
+
+    for (const arch of SCENE_ARCHETYPE_PATTERNS) {
+      const matchingActive = room.sceneEntities.filter(
+        (e) => e.lifecycle === 'active' && this.matchesArchetype(e, arch)
+      );
+
+      if (matchingActive.length <= 1) continue;
+
+      for (let i = 0; i < matchingActive.length; i++) {
+        for (let j = i + 1; j < matchingActive.length; j++) {
+          const e1 = matchingActive[i];
+          const e2 = matchingActive[j];
+          if (e1.lifecycle !== 'active' || e2.lifecycle !== 'active') continue;
+
+          // Check numbered conflict (e.g. "Стражник 1" vs "Стражник 2")
+          const num1 = e1.canonicalName.match(/\b(\d+)\b/);
+          const num2 = e2.canonicalName.match(/\b(\d+)\b/);
+          if (num1 && num2 && num1[1] !== num2[1]) continue;
+
+          const isGeneric1 = this.isGenericArchetypeName(e1.canonicalName, arch);
+          const isGeneric2 = this.isGenericArchetypeName(e2.canonicalName, arch);
+
+          // If BOTH have distinct personal names (neither is generic and names differ), do NOT merge
+          if (!isGeneric1 && !isGeneric2 && e1.canonicalName.toLowerCase() !== e2.canonicalName.toLowerCase()) {
+            continue;
+          }
+
+          // Decide primary: prefer named entity over generic, or the one with higher HP
+          let primary: SceneEntity;
+          let dup: SceneEntity;
+          if (!isGeneric1 && isGeneric2) {
+            primary = e1;
+            dup = e2;
+          } else if (isGeneric1 && !isGeneric2) {
+            primary = e2;
+            dup = e1;
+          } else {
+            if (e1.stats.hpCurrent >= e2.stats.hpCurrent) {
+              primary = e1;
+              dup = e2;
+            } else {
+              primary = e2;
+              dup = e1;
+            }
+          }
+
+          // Transfer aliases
+          this.addAlias(primary, dup.canonicalName);
+          if (dup.aliases) {
+            dup.aliases.forEach((a) => this.addAlias(primary, a));
+          }
+
+          // Transfer narrative notes
+          if (dup.narrativeNotes) {
+            if (!primary.narrativeNotes) primary.narrativeNotes = [];
+            for (const note of dup.narrativeNotes) {
+              if (!primary.narrativeNotes.includes(note)) {
+                primary.narrativeNotes.push(note);
+              }
+            }
+          }
+
+          // Preserve healed HP (e.g. 13 HP vs 3 HP)
+          if (dup.stats.hpCurrent > primary.stats.hpCurrent) {
+            primary.stats.hpCurrent = Math.min(primary.stats.hpMax, dup.stats.hpCurrent);
+          }
+
+          // Preserve more descriptive status
+          if (dup.status && !dup.status.includes('Встречен') && (!primary.status || primary.status.includes('Присутствует'))) {
+            primary.status = dup.status;
+          }
+
+          // Retire the duplicate
+          dup.lifecycle = 'departed';
+          dup.status = `Объединен с ${primary.canonicalName}`;
+        }
+      }
+    }
+  }
+
+  /**
    * Updates an entity's stats, conditions, or status authoritatively.
    */
   public updateEntity(
@@ -391,60 +631,7 @@ export class SceneEntityManager {
     const fullText = `${narrative}\n${currentSituation}`;
     const newlySpawned: SceneEntity[] = [];
 
-    // Common archetypes to detect if mentioned as interactive actors
-    const archetypePatterns: Array<{
-      regex: RegExp;
-      canonicalName: string;
-      role: string;
-      faction: EntityFaction;
-      combatRole: EntityCombatRole;
-      disposition: any;
-      defaultHp: number;
-      defaultAc: number;
-    }> = [
-      {
-        regex: /(?:ранен(?:ый|ого|ому|ым)?\s+)?(?:гонец|посланник|курьер|вестник)/i,
-        canonicalName: 'Раненый гонец',
-        role: 'Посланник графской стражи',
-        faction: 'neutral',
-        combatRole: 'neutral_observer',
-        disposition: 'friendly',
-        defaultHp: 12,
-        defaultAc: 11,
-      },
-      {
-        regex: /(?:купец|торговец|караванщик|коробейник)\s*([А-ЯЁ][а-яё]+)?/i,
-        canonicalName: 'Купец',
-        role: 'Караванщик и торговец',
-        faction: 'neutral',
-        combatRole: 'neutral_observer',
-        disposition: 'friendly',
-        defaultHp: 18,
-        defaultAc: 12,
-      },
-      {
-        regex: /(?:стражник|дозорный|патрульный|егерь|караульный)\s*([А-ЯЁ][а-яё]+)?/i,
-        canonicalName: 'Стражник',
-        role: 'Городской дозорный',
-        faction: 'neutral',
-        combatRole: 'neutral_observer',
-        disposition: 'neutral',
-        defaultHp: 22,
-        defaultAc: 14,
-      },
-      {
-        regex: /(?:трактирщик|хозяин\s+таверны|бармен)\s*([А-ЯЁ][а-яё]+)?/i,
-        canonicalName: 'Трактирщик',
-        role: 'Владелец таверны',
-        faction: 'neutral',
-        combatRole: 'neutral_observer',
-        disposition: 'neutral',
-        defaultHp: 20,
-        defaultAc: 10,
-      },
-    ];
-
-    for (const arch of archetypePatterns) {
+    for (const arch of SCENE_ARCHETYPE_PATTERNS) {
       const match = fullText.match(arch.regex);
       if (match) {
         // If matched a specific proper name (e.g. "Купец Бальтазар" -> group 1 is "Бальтазар")
@@ -453,8 +640,17 @@ export class SceneEntityManager {
           assignedName = `${arch.canonicalName} ${match[1]}`;
         }
 
-        // Check if an entity already matches this
-        const existing = this.findEntityByMatch(room.sceneEntities!, assignedName);
+        // Check if an entity already matches this by name or alias
+        let existing = this.findEntityByMatch(room.sceneEntities!, assignedName);
+
+        // Procedural Guard: Also check if any active scene entity already belongs to this archetype
+        // (e.g. active NPC "Брендан" with role "Раненый курьер графской стражи")
+        if (!existing) {
+          existing = room.sceneEntities!.find(
+            (e) => e.lifecycle === 'active' && this.matchesArchetype(e, arch)
+          ) || null;
+        }
+
         if (!existing) {
           const newEnt = this.registerEntity(room, {
             name: assignedName,
@@ -471,11 +667,17 @@ export class SceneEntityManager {
           });
           newlySpawned.push(newEnt);
         } else {
-          // Register the matched phrase as alias
+          // Register the matched phrase as alias so future lookups find it
           this.addAlias(existing, match[0].trim());
+          if (assignedName !== existing.canonicalName) {
+            this.addAlias(existing, assignedName);
+          }
         }
       }
     }
+
+    // Procedural deduplication cleanup
+    this.deduplicateActiveEntities(room);
 
     return newlySpawned;
   }
@@ -744,7 +946,28 @@ export class SceneEntityManager {
     if (dmResult.sceneNPCs && Array.isArray(dmResult.sceneNPCs)) {
       for (const npc of dmResult.sceneNPCs) {
         if (!npc || !npc.name) continue;
-        const existing = this.findEntityByMatch(room.sceneEntities!, npc.name, npc.id);
+        let existing = this.findEntityByMatch(room.sceneEntities!, npc.name, npc.id);
+
+        // Proper Name Promotion: If direct match fails, check if an active generic archetype exists
+        if (!existing) {
+          const npcArch = this.getNPCArchetype(npc);
+          if (npcArch && !this.isGenericArchetypeName(npc.name, npcArch)) {
+            const genericCandidate = room.sceneEntities!.find(
+              (e) =>
+                e.lifecycle === 'active' &&
+                this.matchesArchetype(e, npcArch) &&
+                this.isGenericArchetypeName(e.canonicalName, npcArch)
+            );
+            if (genericCandidate) {
+              this.addAlias(genericCandidate, genericCandidate.canonicalName);
+              genericCandidate.canonicalName = npc.name.trim();
+              this.addAlias(genericCandidate, npc.name.trim());
+              if (npc.role) genericCandidate.role = npc.role;
+              existing = genericCandidate;
+            }
+          }
+        }
+
         if (existing) {
           // If NPC turned hostile in sceneNPCs
           if (npc.disposition === 'hostile') {
@@ -898,7 +1121,8 @@ export class SceneEntityManager {
       }
     }
 
-    // 7. Sync legacy arrays and build projection
+    // 7. Deduplicate active entities, sync legacy arrays and build projection
+    this.deduplicateActiveEntities(room);
     this.syncLegacyArrays(room);
     this.buildSceneProjection(room);
   }
